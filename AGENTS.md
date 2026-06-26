@@ -580,3 +580,9 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-06-25] [Process] Code Review Claim Verification** — Code review tools (AI and automated) can produce false positives. Before acting on any review finding, verify the claim against the actual source code by reading the relevant lines. If confirmed, proceed; if false, reject and document why.
 
 - **[2026-06-25] [Positive] Systematic Backlog Processing** — Processing a backlog of 9 items one-at-a-time with clear propose/confirm/implement/commit cycles prevented batch confusion and allowed false positives to be caught early. Maintain this rhythm for backlog-driven sessions.
+
+### Additional Retrospective Findings (2026-06-26)
+
+- **[2026-06-26] [Testing] userEvent over fireEvent for Interaction Tests** — `fireEvent.keyDown` only tests the keyDown handler in isolation and does not simulate the browser's default click dispatch for buttons on Enter/Space. `@testing-library/user-event` simulates the full event chain including default actions, `preventDefault` propagation, and disabled-state blocking. Prefer `userEvent.keyboard()`/`userEvent.click()` over `fireEvent.keyDown`/`fireEvent.click` for any interaction test that should reflect real browser behavior.
+
+- **[2026-06-26] [Process] Multi-File Git Blame for Stale Test Investigation** — When a test fails and the feature it tests appears to be missing from the component, run `git log --follow` on both the component and test files. Crossed commits (one adding a test, another removing the feature on a divergent branch) are invisible when checking either file in isolation. Multi-file history trace prevents misdiagnosis.
