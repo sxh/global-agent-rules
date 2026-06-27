@@ -586,3 +586,11 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-06-26] [Testing] userEvent over fireEvent for Interaction Tests** — `fireEvent.keyDown` only tests the keyDown handler in isolation and does not simulate the browser's default click dispatch for buttons on Enter/Space. `@testing-library/user-event` simulates the full event chain including default actions, `preventDefault` propagation, and disabled-state blocking. Prefer `userEvent.keyboard()`/`userEvent.click()` over `fireEvent.keyDown`/`fireEvent.click` for any interaction test that should reflect real browser behavior.
 
 - **[2026-06-26] [Process] Multi-File Git Blame for Stale Test Investigation** — When a test fails and the feature it tests appears to be missing from the component, run `git log --follow` on both the component and test files. Crossed commits (one adding a test, another removing the feature on a divergent branch) are invisible when checking either file in isolation. Multi-file history trace prevents misdiagnosis.
+
+### Additional Retrospective Findings (2026-06-27)
+
+- **[2026-06-27] [Process] "Pre-existing" Applies to All Errors, Not Just Test Failures** — Dismissing an LSP or build error as "pre-existing" violates process integrity just as much as dismissing a failing test. Every error reported by the LSP, linter, or build tool must be investigated and fixed or deliberately acknowledged — never hand-waved as "not a real issue."
+
+- **[2026-06-27] [Architecture] Parent Key Prop Replaces ID-Change Effects** — When a component resets local state on prop ID changes, check if the parent already passes `key={id}`. If so, the component remounts on ID change and no `useEffect` + `useRef` pattern is needed, eliminating `set-state-in-effect` lint violations entirely. The simplest solution is discoverable by checking usage context first.
+
+- **[2026-06-27] [Positive] Context-Aware Refactoring** — Before simplifying a component's internal state management, check how it's actually used by its callers. The parent's `key` prop pattern eliminated two `useEffect` hooks that had been considered necessary. Understanding the call site context is often the key to simpler internal implementation.
