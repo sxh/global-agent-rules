@@ -594,3 +594,9 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-06-27] [Architecture] Parent Key Prop Replaces ID-Change Effects** — When a component resets local state on prop ID changes, check if the parent already passes `key={id}`. If so, the component remounts on ID change and no `useEffect` + `useRef` pattern is needed, eliminating `set-state-in-effect` lint violations entirely. The simplest solution is discoverable by checking usage context first.
 
 - **[2026-06-27] [Positive] Context-Aware Refactoring** — Before simplifying a component's internal state management, check how it's actually used by its callers. The parent's `key` prop pattern eliminated two `useEffect` hooks that had been considered necessary. Understanding the call site context is often the key to simpler internal implementation.
+
+### Additional Retrospective Findings (2026-06-28)
+
+- **[2026-06-28] [Process] Questions About Plans Are Not Go-Aheads** — When a user asks "what's the plan", "what's the approach", or similar, they want a description of the proposed course of action, not execution. State the plan in text and wait for an explicit go-ahead before taking any implementation action.
+
+- **[2026-06-28] [Positive] Refactoring Special Cases to General Principles** — When a design accumulates many narrow rules for individual scenarios, step back and identify the general principles that subsume them. The DeepSeek SYSTEM_PROMPT was reduced from 15 specific bullets to 2 principles (Indirection, Inconsistency). This pattern applies to any ruleset, configuration, or abstraction that keeps growing with band-aids.
