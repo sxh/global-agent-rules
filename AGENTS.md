@@ -603,3 +603,8 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-06-28] [Process] Questions About Plans Are Not Go-Aheads** — When a user asks "what's the plan", "what's the approach", or similar, they want a description of the proposed course of action, not execution. State the plan in text and wait for an explicit go-ahead before taking any implementation action.
 
 - **[2026-06-28] [Positive] Refactoring Special Cases to General Principles** — When a design accumulates many narrow rules for individual scenarios, step back and identify the general principles that subsume them. The DeepSeek SYSTEM_PROMPT was reduced from 15 specific bullets to 2 principles (Indirection, Inconsistency). This pattern applies to any ruleset, configuration, or abstraction that keeps growing with band-aids.
+
+### Additional Retrospective Findings (2026-06-29)
+
+- **[2026-06-29] [Process] PCP Backlog Lifecycle for Direct Commits** — Commits referencing `B###` IDs do not auto-dismiss backlog items in PCP. Either promote the item first (`pcp_promote B###`) or manually dismiss (`pcp_dismiss B###`) after the commit. Commits alone are insufficient to clear the backlog.
+- **[2026-06-29] [Process] Auto-Dismiss Backlog Items After Commit** — After making a commit that resolves a backlog item, immediately call `pcp_dismiss` as part of the completion sequence. Do not wait for the user to ask or for a follow-up turn. This applies to both promoted items and items worked on directly.
