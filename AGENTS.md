@@ -437,6 +437,7 @@ When addressing code review findings (from automated tools, PR comments, or AI r
 
 - **Verify before acting** — Read the relevant source lines and confirm the claim is accurate before implementing a fix. Code reviews can produce false positives (e.g., flagging imports as unused when they are used, or claiming CSS classes are missing when they exist in other files).
 - **If verified** — proceed with the fix. **If false** — do not make the change and document why it was rejected.
+- **Linter rules take precedence over code review suggestions** — If a code review finding conflicts with an enforced linter rule, follow the linter rule and find an alternative approach (e.g., scoping constants more narrowly rather than removing them entirely). The precommit hook enforces linter rules, so any fix that violates them will be rejected regardless of the code review's intent.
 
 ### API Design
 
