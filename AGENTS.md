@@ -608,3 +608,9 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-06-29] [Process] PCP Backlog Lifecycle for Direct Commits** — Commits referencing `B###` IDs do not auto-dismiss backlog items in PCP. Either promote the item first (`pcp_promote B###`) or manually dismiss (`pcp_dismiss B###`) after the commit. Commits alone are insufficient to clear the backlog.
 - **[2026-06-29] [Process] Auto-Dismiss Backlog Items After Commit** — After making a commit that resolves a backlog item, immediately call `pcp_dismiss` as part of the completion sequence. Do not wait for the user to ask or for a follow-up turn. This applies to both promoted items and items worked on directly.
+
+### Additional Retrospective Findings (2026-06-30)
+
+- **[2026-06-30] [Tooling] replaceAll String Constant Gotcha** — ESLint `no-duplicate-string` fixes using `replaceAll` also replace inside the constant definition itself, creating a self-referencing variable. Always verify the definition line immediately after `replaceAll` and fix `const X = X` to `const X = "X"`.
+
+- **[2026-06-30] [Architecture] Imperative API for Module-Level UI Triggers** — When a module-level utility (e.g., `notifyError`) needs to trigger React UI updates, use an imperative API with a `useEffect` that assigns a module-level function pointer. A Context hook is not usable from module scope. Example: `showToast` in Toast.tsx.
