@@ -536,35 +536,21 @@ Projects drift from AGENTS.md compliance when:
 2. **Coverage isolation** — Measure only project source, not dependencies
 3. **Five Whys** — Trace defects to missing tests and process gaps, not just symptoms
 
-### Additional Retrospective Findings (2026-06-06)
-
 - **[2026-06-06] [Testing] Test Resource Cleanup** — When adopting a test pattern from another file, verify resource management (streams, sockets, clients) is equivalent between source and destination. A copy that omits `.use {}` or `close()` creates a leak that may go undetected until CI runs hit file-descriptor limits.
 
 - **[2026-06-06] [Architecture] Manual Pagination as Last Resort** — Before writing a custom pagination loop, check if the base class already handles it via a `nextPage()` hook. Adding a `nextPage()` override to the listing page is almost always cleaner than duplicating the loop logic.
-
-### Additional Retrospective Findings (2026-06-21)
-
-- **[2026-06-21] [Process] No software installation or system changes without explicit permission** — Diagnosing a problem and immediately executing a fix (e.g., `brew reinstall awscli`) without asking is a process violation. System-level changes — installing packages, modifying PATH, altering configuration files outside the project — must be proposed first, with options presented, and explicitly approved before execution. This applies regardless of how obvious or "safe" the fix appears.
-
-- **[2026-06-21] [Process] Login Item Service Environment Verification** — When a macOS Login Item starts a service with required env vars, verify the running process actually has them by checking `ps eww -p <PID> | grep VAR`. Dependent apps with autoStart must be disabled — they spawn their own server instance sharing the same port but without the Login Item's env var injection.
-
-### Additional Retrospective Findings (2026-06-23)
-
-- **[2026-06-23] [Process] No Self-Granted Exceptions** — The agent may subconsciously categorize a change as "not real code" and skip test-first or other TDD steps. Never decide a rule doesn't apply without asking. Default to applying the rule; shift the burden of proof onto the exception, not the compliance. This principle was added to Process Integrity above.
-
-- **[2026-06-23] [Process] Verify deployment pipeline before modifying deployment files** — Before changing deployment scripts, readme deployment sections, or infrastructure, verify the actual deployment mechanism by checking CI/CD config (GitHub Actions, Amplify, etc.), build logs, automation like `enableAutoBuild` on Amplify branches, or by asking the user. A stale readme describing a deprecated manual process can lead to wasted effort and incorrect infrastructure changes.
-
-- **[2026-06-23] [CloudFront] Check AWS Amplify when a CloudFront distribution is missing from the account** — When a domain is served behind CloudFront but the distribution doesn't appear in `aws cloudfront list-distributions`, check AWS Amplify. Amplify creates managed CloudFront distributions for custom domains that aren't visible as standard distributions. Use `aws amplify list-apps` and `aws amplify list-domain-associations` to find them.
-
-- **[2026-06-23] [CloudFront] Check CNAME locks before creating a new distribution** — Before creating a new CloudFront distribution for an existing domain, verify the domain isn't already associated with another distribution. The `CNAMEAlreadyExists` error blocks the new distribution from claiming the domain, and resolving it requires access to the old distribution or an AWS Support ticket. Check via `aws cloudfront list-distributions` then cross-reference with Amplify domain associations first.
-
-### Additional Retrospective Findings (2026-06-08)
 
 - **[2026-06-08] [Coverage] Erlang Cover Tool Assert Ok Dead Branches** — Erlang `cover` counts unreachable `assert Ok` error branches for hardcoded patterns as uncovered lines. Prefer `case` with a safe fallback (returning the original value unchanged) over `assert Ok` to eliminate false coverage gaps without crashing.
 
 - **[2026-06-08] [Positive] Incremental Module Split** — Splitting a monolithic module one domain at a time with a commit after each extraction keeps tests green throughout large refactorings. Build and test after each extract step before moving to the next domain to prevent cascading failures.
 
-### Additional Retrospective Findings (2026-06-23)
+- **[2026-06-21] [Process] No software installation or system changes without explicit permission** — Diagnosing a problem and immediately executing a fix (e.g., `brew reinstall awscli`) without asking is a process violation. System-level changes — installing packages, modifying PATH, altering configuration files outside the project — must be proposed first, with options presented, and explicitly approved before execution. This applies regardless of how obvious or "safe" the fix appears.
+
+- **[2026-06-21] [Process] Login Item Service Environment Verification** — When a macOS Login Item starts a service with required env vars, verify the running process actually has them by checking `ps eww -p <PID> | grep VAR`. Dependent apps with autoStart must be disabled — they spawn their own server instance sharing the same port but without the Login Item's env var injection.
+
+- **[2026-06-23] [Process] No Self-Granted Exceptions** — The agent may subconsciously categorize a change as "not real code" and skip test-first or other TDD steps. Never decide a rule doesn't apply without asking. Default to applying the rule; shift the burden of proof onto the exception, not the compliance. This principle was added to Process Integrity above.
+
+- **[2026-06-23] [Process] Verify deployment pipeline before modifying deployment files** — Before changing deployment scripts, readme deployment sections, or infrastructure, verify the actual deployment mechanism by checking CI/CD config (GitHub Actions, Amplify, etc.), build logs, automation like `enableAutoBuild` on Amplify branches, or by asking the user. A stale readme describing a deprecated manual process can lead to wasted effort and incorrect infrastructure changes.
 
 - **[2026-06-23] [Process] Pre-commit Hook Must Work in Non-TTY** — Tooling with terminal UI (tcell, etc.) crashes in agent/CI/headless environments. When using CLI tooling in the pre-commit hook, verify compatibility with non-interactive execution (e.g., `--mode=mono` flag for SST).
 
@@ -572,7 +558,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-06-23] [Process] Backlog Items Describe Goals, Not Solutions** — A backlog item should state what needs to be achieved (the outcome), not prescribe how to achieve it (the implementation). The solution is determined during execution. Prescribing a fix in the backlog title assumes an unverified diagnosis.
 
-### Additional Retrospective Findings (2026-06-25)
+- **[2026-06-23] [CloudFront] CloudFront Distribution Discovery and CNAME Locks** — When a domain is served behind CloudFront but the distribution doesn't appear in `aws cloudfront list-distributions`, check AWS Amplify which creates managed CloudFront distributions for custom domains. Before creating a new distribution for an existing domain, verify the domain isn't already associated with another distribution via `CNAMEAlreadyExists` — check `aws cloudfront list-distributions` and cross-reference with Amplify domain associations first.
 
 - **[2026-06-25] [Process] Review Prompt Should Not Suppress Refactoring Findings** — The system prompt told the model to ignore "refactoring opportunities that are out of scope for this change," which suppressed findings when the PR was itself a refactoring. Review prompts must not use broad suppression categories that overlap with the PR's purpose.
 
@@ -584,13 +570,9 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-06-25] [Positive] Systematic Backlog Processing** — Processing a backlog of 9 items one-at-a-time with clear propose/confirm/implement/commit cycles prevented batch confusion and allowed false positives to be caught early. Maintain this rhythm for backlog-driven sessions.
 
-### Additional Retrospective Findings (2026-06-26)
-
 - **[2026-06-26] [Testing] userEvent over fireEvent for Interaction Tests** — `fireEvent.keyDown` only tests the keyDown handler in isolation and does not simulate the browser's default click dispatch for buttons on Enter/Space. `@testing-library/user-event` simulates the full event chain including default actions, `preventDefault` propagation, and disabled-state blocking. Prefer `userEvent.keyboard()`/`userEvent.click()` over `fireEvent.keyDown`/`fireEvent.click` for any interaction test that should reflect real browser behavior.
 
 - **[2026-06-26] [Process] Multi-File Git Blame for Stale Test Investigation** — When a test fails and the feature it tests appears to be missing from the component, run `git log --follow` on both the component and test files. Crossed commits (one adding a test, another removing the feature on a divergent branch) are invisible when checking either file in isolation. Multi-file history trace prevents misdiagnosis.
-
-### Additional Retrospective Findings (2026-06-27)
 
 - **[2026-06-27] [Process] "Pre-existing" Applies to All Errors, Not Just Test Failures** — Dismissing an LSP or build error as "pre-existing" violates process integrity just as much as dismissing a failing test. Every error reported by the LSP, linter, or build tool must be investigated and fixed or deliberately acknowledged — never hand-waved as "not a real issue."
 
@@ -598,19 +580,20 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-06-27] [Positive] Context-Aware Refactoring** — Before simplifying a component's internal state management, check how it's actually used by its callers. The parent's `key` prop pattern eliminated two `useEffect` hooks that had been considered necessary. Understanding the call site context is often the key to simpler internal implementation.
 
-### Additional Retrospective Findings (2026-06-28)
-
 - **[2026-06-28] [Process] Questions About Plans Are Not Go-Aheads** — When a user asks "what's the plan", "what's the approach", or similar, they want a description of the proposed course of action, not execution. State the plan in text and wait for an explicit go-ahead before taking any implementation action.
 
 - **[2026-06-28] [Positive] Refactoring Special Cases to General Principles** — When a design accumulates many narrow rules for individual scenarios, step back and identify the general principles that subsume them. The DeepSeek SYSTEM_PROMPT was reduced from 15 specific bullets to 2 principles (Indirection, Inconsistency). This pattern applies to any ruleset, configuration, or abstraction that keeps growing with band-aids.
 
-### Additional Retrospective Findings (2026-06-29)
-
-- **[2026-06-29] [Process] PCP Backlog Lifecycle for Direct Commits** — Commits referencing `B###` IDs do not auto-dismiss backlog items in PCP. Either promote the item first (`pcp_promote B###`) or manually dismiss (`pcp_dismiss B###`) after the commit. Commits alone are insufficient to clear the backlog.
-- **[2026-06-29] [Process] Auto-Dismiss Backlog Items After Commit** — After making a commit that resolves a backlog item, immediately call `pcp_dismiss` as part of the completion sequence. Do not wait for the user to ask or for a follow-up turn. This applies to both promoted items and items worked on directly.
-
-### Additional Retrospective Findings (2026-06-30)
+- **[2026-06-29] [Process] PCP Backlog Lifecycle After Commits** — Commits referencing `B###` IDs do not auto-dismiss backlog items in PCP. Call `pcp_dismiss B###` immediately after making a resolving commit, regardless of whether the item was promoted or worked on directly. Do not wait for the user to ask or for a follow-up turn.
 
 - **[2026-06-30] [Tooling] replaceAll String Constant Gotcha** — ESLint `no-duplicate-string` fixes using `replaceAll` also replace inside the constant definition itself, creating a self-referencing variable. Always verify the definition line immediately after `replaceAll` and fix `const X = X` to `const X = "X"`.
 
 - **[2026-06-30] [Architecture] Imperative API for Module-Level UI Triggers** — When a module-level utility (e.g., `notifyError`) needs to trigger React UI updates, use an imperative API with a `useEffect` that assigns a module-level function pointer. A Context hook is not usable from module scope. Example: `showToast` in Toast.tsx.
+
+- **[2026-07-04] [Tooling] Vitest autoUpdate Unreliable** — Vitest's `autoUpdate: true` can decrease coverage thresholds despite some documentation claiming otherwise. Do not rely on it. Use a manual ratchet script that parses vitest's text output and only updates thresholds upward, as demonstrated by `scripts/ratchet-coverage.ts` in scheduler4.
+
+- **[2026-07-01] [Positive] Cross-Review Gap Analysis for Prompt Improvement** — When two AI reviewers (e.g. Gemini vs DeepSeek) disagree and one misses an issue the other catches, that gap is a direct candidate for prompt improvement. Use side-by-side comparison of reviews to identify blind spots in the SYSTEM_PROMPT and add targeted rules with regression tests.
+
+- **[2026-07-01] [Testing] Global State Mutation Restoration** — Tests that mock global objects (e.g., `navigator.clipboard`, `window`) must save the original value and restore it in `afterEach` to prevent isolation leaks. Pattern: `const original = target.prop; afterEach(() => { Object.assign(target, { prop: original }) })`.
+
+- **[2026-07-04] [Coverage] Threshold Adjustment After Code Removal** — Removing dead code (optional parameters, if-guards, unused test scenarios) changes the branch/line count, causing coverage percentages to shift slightly. This is different from lowering thresholds to hide untested code. When this happens, adjust thresholds with a commit comment explaining that code was removed, not left untested.
