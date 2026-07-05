@@ -597,3 +597,5 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-07-01] [Testing] Global State Mutation Restoration** — Tests that mock global objects (e.g., `navigator.clipboard`, `window`) must save the original value and restore it in `afterEach` to prevent isolation leaks. Pattern: `const original = target.prop; afterEach(() => { Object.assign(target, { prop: original }) })`.
 
 - **[2026-07-04] [Coverage] Threshold Adjustment After Code Removal** — Removing dead code (optional parameters, if-guards, unused test scenarios) changes the branch/line count, causing coverage percentages to shift slightly. This is different from lowering thresholds to hide untested code. When this happens, adjust thresholds with a commit comment explaining that code was removed, not left untested.
+
+- **[2026-07-05] [Exposed] Domain Operations Require Transaction Context** — Exposed lazy entity properties (e.g., `entity.reducedProductDescription`) can only be accessed within an active transaction. Domain classes that access these properties must be called inside `withTransaction { }` or `transaction { }`. Test this path, not just the happy path within an existing transaction.
