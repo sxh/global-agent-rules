@@ -457,6 +457,8 @@ Projects drift from AGENTS.md compliance when:
 2. **Coverage isolation** — Measure only project source, not dependencies
 3. **Five Whys** — Trace defects to missing tests and process gaps, not just symptoms
 
+- **Retrospectives assess documentation/artifact gaps** — Each retrospective should review whether future interactions with the project could be improved by adding or updating supporting files, artifacts, or documentation (module maps, pattern indexes, dependency-flow diagrams, architecture decision records, etc.). Consider the maintenance burden: documentation that isn't kept in sync actively misleads. Prefer automatically generated or validated documentation over hand-written prose. If a gap is identified and worth addressing, capture it as a backlog item for implementation outside the retrospective.
+
 - **[2026-06-06] [Testing] Test Resource Cleanup** — When adopting a test pattern from another file, verify resource management (streams, sockets, clients) is equivalent between source and destination. A copy that omits `.use {}` or `close()` creates a leak that may go undetected until CI runs hit file-descriptor limits.
 
 - **[2026-06-06] [Architecture] Manual Pagination as Last Resort** — Before writing a custom pagination loop, check if the base class already handles it via a `nextPage()` hook. Adding a `nextPage()` override to the listing page is almost always cleaner than duplicating the loop logic.
