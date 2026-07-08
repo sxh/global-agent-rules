@@ -87,6 +87,8 @@ All development work must follow **Extreme Programming (XP)** principles, specif
 
 The `skill` tool only works with pre-registered skills from the system prompt. For custom skills at user-specified paths, use this workaround: when the trigger phrase is detected, read the current contents of the skill file and follow its instructions for that session. This ensures the latest version is always used.
 
+**Natural language skill resolution** — Do not require the user to remember exact skill names or trigger phrases. When the user asks to run an audit, review, or analysis task in natural language, scan `~/.agents/skills/` for installed skills, read their SKILL.md descriptions, and match the best one to the user's request automatically. The burden of mapping intent to skill is on the agent, not the human.
+
 ### XP Craftsman Skill
 
 When the user invokes XP workflows using phrases like "use xp", "coding", "TDD", or "develop", read the latest version of the XP Craftsman skill from `/Users/steve.hayes/.gemini/skills/xp-craftsman/SKILL.md` and follow its instructions for that session.
@@ -446,6 +448,8 @@ If you delete or rename a file, verify that no config still references it. A mis
 
 ## Retrospective Findings
 
+**Tag convention:** Entries with a tech-stack prefix (`[React]`, `[Gleam]`, `[TypeScript]`) apply only to projects using that stack. Entries with only a category tag (`[Process]`, `[Testing]`, `[Architecture]`, `[Positive]`, `[Tooling]`, `[Coverage]`) are tech-stack-agnostic. Multi-tag entries like `[React/Tooling]` are specific to that tech stack within that category.
+
 ### Compliance Drift Prevention
 
 Projects drift from AGENTS.md compliance when:
@@ -503,7 +507,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-06-29] [Process] PCP Backlog Lifecycle After Commits** — Commits referencing `B###` IDs do not auto-dismiss backlog items in PCP. Call `pcp_dismiss B###` immediately after making a resolving commit, regardless of whether the item was promoted or worked on directly. Do not wait for the user to ask or for a follow-up turn.
 
-- **[2026-06-30] [Tooling] replaceAll String Constant Gotcha** — ESLint `no-duplicate-string` fixes using `replaceAll` also replace inside the constant definition itself, creating a self-referencing variable. Always verify the definition line immediately after `replaceAll` and fix `const X = X` to `const X = "X"`.
+- **[2026-06-30] [React/Tooling] replaceAll String Constant Gotcha** — ESLint `no-duplicate-string` fixes using `replaceAll` also replace inside the constant definition itself, creating a self-referencing variable. Always verify the definition line immediately after `replaceAll` and fix `const X = X` to `const X = "X"`. **JSX extension:** `replaceAll` on JSX prop strings also strips required curly braces: `placeholder="Search..."` becomes `placeholder=SEARCH_PLACEHOLDER` instead of `placeholder={SEARCH_PLACEHOLDER}`. Fix both the definition line and any JSX curly braces after using `replaceAll` on JSX content.
 
 - **[2026-06-30] [Architecture] Imperative API for Module-Level UI Triggers** — When a module-level utility (e.g., `notifyError`) needs to trigger React UI updates, use an imperative API with a `useEffect` that assigns a module-level function pointer. A Context hook is not usable from module scope. Example: `showToast` in Toast.tsx.
 
@@ -524,6 +528,12 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-07-06] [Process] Compaction Threshold Ignores Blank Lines** — The AGENTS.md compaction rule says to propose compaction when the file exceeds 600 lines, but blank lines should not count toward the threshold. Only content lines (non-whitespace, non-empty) matter for determining file size. Cosmetic blank-line removal is not compaction.
 
 - **[2026-07-07] [Coverage] Investigate Before Lowering Thresholds** — When the pre-commit hook rejects a commit due to coverage threshold violations, do not lower thresholds as a first response. Investigate what caused the drop, identify uncovered lines, and add tests. Only when dead code removal is the confirmed cause should thresholds be adjusted, and only with a commit comment explaining why.
+
+- **[2026-07-08] [React/Testing] Controlled Component State Simulation** — For controlled components, invoking a callback (e.g., `fireEvent.click` on a clear button) only fires the `onChange` callback. The UI only updates when the parent re-renders with the new prop value via `rerender`. Tests must simulate the parent state update to verify UI state changes.
+
+- **[2026-07-08] [Process] Search for Regression Tests Before Behavior Changes** — Before modifying event handlers or component behavior, search for all test files referencing the component or behavior. Existing regression tests may depend on the current behavior and must be understood before making changes.
+
+- **[2026-07-08] [Positive] Batch Similar Refactorings with Analysis** — Constants extraction across 14 files was efficient because: a thorough `grep`/`rg` analysis identified all occurrences first, the user explicitly approved batching, and the constants file was pre-tested. Repeat this pattern for other cross-file refactorings.
 
 ## Archived Entries (2026-07-06)
 
