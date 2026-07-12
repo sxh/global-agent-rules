@@ -400,6 +400,106 @@ For API projects:
 
 These rules apply to all agent invocations in any project that does not explicitly override them.
 
+## Obsidian ↔ OpenCode Server Setup
+
+This configuration lives outside any project — it's a macOS launchd agent that keeps the opencode server permanently running for the Obsidian plugin (`opencode-obsidian`).
+
+### The Problem
+
+The Obsidian plugin spawns opencode as a child process, inheriting Obsidian's environment. Obsidian is a macOS GUI app and **does not** inherit shell environment variables from `.zshrc`/`.bashrc`. This means:
+
+- `OPENCODE_DEEPSEEK_API_KEY` set in `.zshrc` is invisible to the server
+- Every reboot or plugin restart requires re-entering or re-setting the API key
+- The vault-level `opencode.json` (at `ForgottenRealmsVault/opencode.json`) can specify a mismatched model that overrides the global config
+
+### The Fix: Launchd Agent
+
+The server is managed by `~/Library/LaunchAgents/com.opencode.server.plist`:
+
+```xml
+<key>Label</key>
+<string>com.opencode.server</string>
+<key>ProgramArguments</key>
+<array>
+    <string>/opt/homebrew/bin/opencode</string>
+    <string>serve</string>
+    <string>--port</string>
+    <string>14096</string>
+    <string>--hostname</string>
+    <string>127.0.0.1</string>
+    <string>--cors</string>
+    <string>app://obsidian.md</string>
+</array>
+<key>EnvironmentVariables</key>
+<dict>
+    <key>OPENCODE_DEEPSEEK_API_KEY</key>
+    <string><API_KEY_HERE></string>
+</dict>
+<key>RunAtLoad</key>
+    <true/>
+<key>KeepAlive</key>
+    <true/>
+```
+
+Key properties:
+- **`RunAtLoad: true`** — starts at user login (launchd loads all `~/Library/LaunchAgents/` plists at login)
+- **`KeepAlive: true`** — auto-restarts if it crashes
+- **`EnvironmentVariables`** — the API key lives **inside the plist**, not in a shell config file, so it survives reboots
+- **Port 14096** — matches the Obsidian plugin's configured port
+
+### Obsidian Plugin Settings
+
+The plugin should NOT manage its own server since launchd handles it:
+
+```json
+{
+  "port": 14096,
+  "hostname": "127.0.0.1",
+  "autoStart": false,
+  "useCustomCommand": false,
+  "opencodePath": "/opt/homebrew/bin/opencode",
+  "projectDirectory": ""
+}
+```
+
+Set in the plugin settings panel:
+- **Auto-start server**: OFF
+- **Use custom command**: OFF
+- **OpenCode executable path**: `/opt/homebrew/bin/opencode`
+
+### Verification Commands
+
+```bash
+# Check server is running
+lsof -i :14096 | grep LISTEN
+
+# Verify the API key is in the server's environment
+ps eww -p $(pgrep -f "opencode.*14096.*obsidian" | head -1) | tr ' ' '\n' | grep DEEPSEEK
+
+# Check launchd registration
+launchctl list | grep opencode
+
+# View server logs
+cat /tmp/opencode.out.log
+cat /tmp/opencode.err.log
+
+# Manually load/unload
+launchctl load ~/Library/LaunchAgents/com.opencode.server.plist
+launchctl unload ~/Library/LaunchAgents/com.opencode.server.plist
+```
+
+### Vault-Level opencode.json
+
+The file at `ForgottenRealmsVault/opencode.json` should only override model if intentional. The global config at `~/.config/opencode/opencode.json` is the source of truth for provider/model setup.
+
+### When It Breaks
+
+If the connection is lost after a reboot:
+1. Verify the launchd agent is loaded: `launchctl list | grep opencode`
+2. Verify the server is listening: `lsof -i :14096`
+3. Verify the API key is present: `ps eww -p <PID> | grep OPENCODE`
+4. If missing, recreate the plist with a fresh API key and `launchctl load`
+
 ## Process Integrity
 
 Nothing should ever be "skipped" - our process must be thorough and repeatable:
@@ -534,6 +634,8 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-07-08] [Process] Search for Regression Tests Before Behavior Changes** — Before modifying event handlers or component behavior, search for all test files referencing the component or behavior. Existing regression tests may depend on the current behavior and must be understood before making changes.
 
 - **[2026-07-08] [Positive] Batch Similar Refactorings with Analysis** — Constants extraction across 14 files was efficient because: a thorough `grep`/`rg` analysis identified all occurrences first, the user explicitly approved batching, and the constants file was pre-tested. Repeat this pattern for other cross-file refactorings.
+
+- **[2026-07-12] [Process] Two-Turn Protocol Is Not Optional After Tests Pass** — Committing immediately after tests pass without proposing first violates the two-turn protocol. Passing tests are a prerequisite for commit, not a substitute for the proposal step. The proposal-and-execution cycle must complete every time, even when the change feels trivial or obviously correct.
 
 ## Archived Entries (2026-07-06)
 
