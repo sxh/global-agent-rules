@@ -647,6 +647,8 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-12] [Testing] Optional Clearable Fields in API Services** — An API service test for `updateQuality` with name only missed a bug where clearing an optional description to empty sent `null`, which the service silently skipped. Every optional clearable field needs tests for both setting and clearing (empty string) the value, not just for omitting it.
 
+- **[2026-07-14] [Testing] Validate Generated Output Against Real Parser** — When generating code or models in an existing format (CML, PlantUML, etc.), test the output against that format's actual parser, not just against expected strings. String-matching tests pass even when the output is structurally invalid; the real parser catches schema violations.
+
 - **[2026-07-12] [Architecture] Eventual Consistency After GSI Write** — When a PATCH writes to DynamoDB's primary table and the subsequent read queries a GSI, the GSI may still be stale. Use the PATCH response directly to update in-memory state via a mutable provider (e.g., `AsyncNotifierProvider`) rather than invalidating and refetching from the eventually-consistent index.
 
 - **[2026-07-12] [Process] Two-Layer Defect Investigation** — The quality description update bug had two independent root causes (null-vs-empty payload handling + stale GSI read), each sufficient to reproduce the symptom. When investigating a defect, continue searching for additional contributing factors even after finding one plausible cause — a single fix may not resolve the issue.
