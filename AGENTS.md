@@ -643,6 +643,12 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-12] [Process] Two-Layer Defect Investigation** — The quality description update bug had two independent root causes (null-vs-empty payload handling + stale GSI read), each sufficient to reproduce the symptom. When investigating a defect, continue searching for additional contributing factors even after finding one plausible cause — a single fix may not resolve the issue.
 
+- **[2026-07-13] [Positive] Coverage-Driven Service Extraction** — Extracting state management from StatefulWidgets into pure-Dart services (like `PassageAssociationService`) simultaneously improves testability and architecture. The service reached 100% coverage with unit tests that run in milliseconds, while the widget wrapper became a thin delegation layer. When a widget's internal logic is hard to test through the widget tree, extract it into a service first.
+
+- **[2026-07-13] [Process] No Untested Code Is "Trivial"** — Every line of code has behavior that should be verified. Dismissing code as "trivial" or "just a loading indicator" creates blind spots where regressions can hide. If a line cannot be tested, it should be removed or refactored — not hand-waved.
+
+- **[2026-07-13] [Coverage] Coverage Tooling Enables Improvement** — Setting up `lcov` and a pre-commit coverage gate was the catalyst that made all subsequent improvement possible. Coverage enforcement is not an end goal — it's the feedback mechanism that reveals where extraction, refactoring, and testing are needed. Every project should have visible, enforced coverage thresholds before any optimization work begins.
+
 ## Archived Entries (2026-07-06)
 
 These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
