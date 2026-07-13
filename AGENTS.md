@@ -36,6 +36,10 @@ These rules apply to **every** OpenCode session across **all** projects.
 
 ### Confirm Problem Understanding Before Coding
 
+**Define the role of any referenced codebase explicitly** — When describing a toolchain that involves an existing project, state its relationship upfront: "test fixture", "source of truth", "example", or "target for migration". Do not conflate "used for validation" with "is the input format" — they lead to fundamentally different architectures.
+
+**Re-examine the full frame when a core assumption is contradicted** — When the user says "that's not how it works" about a fundamental design premise, do not patch the specific assumption. Re-run the full analysis from the corrected premise. A changed frame changes every conclusion below it.
+
 **State your understanding of the problem in one sentence before making any code change.** Ask the user "Is this correct?" if uncertain.
 **Read runtime output (logs, errors) carefully before proposing fixes.** The answer is often visible in the output — don't guess at what the data looks like when the user has already shown it.
 **Do not change scope** — if the user asks about coverage analysis, do not also refactor loaders. Stick to the asked question. Unnecessary scope changes waste time and introduce risk.
@@ -107,6 +111,8 @@ All applications must implement **Hexagonal Architecture** (Ports and Adapters):
 - **Domain** - Core business logic (entities, value objects)
 - **Ports** - Interfaces/traits defining how the domain interacts with the outside world
 - **Adapters** - Implementations of ports (driving or driven)
+
+**DSL host language prioritises authoring experience over output alignment** — When generated code is a compile artifact never hand-edited by humans, choose the DSL host language for authoring experience (type safety, IDE support, builder ergonomics), not for alignment with the output language. Alignment matters when humans edit both model and output; it's irrelevant when the output is invisible.
 
 ### Naming & Organization
 
@@ -361,6 +367,8 @@ All projects must have GitHub Actions configured:
 - **[2026-06-23] [CI/CD] GitHub Actions Checkout Depth for Merge Commits** — `actions/checkout@v4` with `ref: refs/pull/N/merge` defaults to `fetch-depth: 1`, fetching only the merge commit. Parent SHAs (`base.sha`, `head.sha`) referenced in git operations will fail with exit code 128 unless `fetch-depth: 0` (or `2`) is explicitly set.
 
 ### Code Review
+
+**Empty-Config-First for Analysis Tools** — When adding a new analysis tool to the build, start with the strictest sensible configuration (e.g., `maxIssues: 0`) and only add suppressions for actual, proven violations. Do not pre-suppress rules you haven't seen fail — run the tool first, fix what it finds, then decide whether remaining violations are worth suppressing.
 
 Add code quality tools to precommit hooks:
 - **Linting** - Style and format checking
