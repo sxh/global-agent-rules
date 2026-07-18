@@ -29,6 +29,8 @@ These rules apply to **every** OpenCode session across **all** projects.
 
 **`.git/` is radioactive and not versioned** — The `.git/` directory is repo metadata, never tracked content. Mutating it (e.g., via `npx husky` or `git config`) can break git operations without warning. Treat it as immutable during investigations. Never run binaries with lifecycle side effects (`husky`, `npm prepare`, etc.) when the intent is read-only.
 **Investigation commands must be read-only** — Before running a command during investigation, verify it produces no side effects. Prefer reading source code or `package.json` to determine a tool's version instead of executing it. If a binary must be run, isolate it (docker, temp directory, `--dry-run` flag) to prevent state mutation.
+**Align workspace dependency version ranges with root** — When workspace packages pin exact dependency versions (e.g., `"vitest": "4.0.18"`) while root uses a careted range (`"^4.0.18"`), the lockfile creates nested copies that diverge on `npm ci`. CI exposes the mismatch; local `npm install` may mask it by hoisting. All workspace packages should use version ranges matching the root to prevent lockfile divergence.
+**Expect masked CI failures from consecutive red builds** — When CI has been failing for multiple commits, fixing the first blocker often reveals the next one. Do not assume the build will turn green after one fix. Each fix may surface a previously masked issue.
 
 ### Browser Security & Proven Limitations
 
@@ -97,9 +99,11 @@ The `skill` tool only works with pre-registered skills from the system prompt. F
 
 **Natural language skill resolution** — Do not require the user to remember exact skill names or trigger phrases. When the user asks to run an audit, review, or analysis task in natural language, scan `~/.agents/skills/` for installed skills, read their SKILL.md descriptions, and match the best one to the user's request automatically. The burden of mapping intent to skill is on the agent, not the human.
 
-### XP Craftsman Skill
+### XP Craftsman Skill (Always Active)
 
-When the user invokes XP workflows using phrases like "use xp", "coding", "TDD", or "develop", read the latest version of the XP Craftsman skill from `/Users/steve.hayes/.gemini/skills/xp-craftsman/SKILL.md` and follow its instructions for that session.
+The user always wants XP. Load the XP Craftsman skill from `/Users/steve.hayes/.config/opencode/skills/xp-craftsman/SKILL.md` at the start of every session — it is the default mode for any task involving software implementation, code generation, infrastructure configuration, testing, or refactoring. Follow its instructions unless explicitly overridden by the user for a specific deviation.
+
+Do not wait for a trigger phrase. This applies to all development work, including code generators, DSL builders, pipelines, scripts, and configuration-as-code. If the task involves writing output that will be executed, deployed, or compiled, the XP protocol is active.
 
 ### RPG Master Skill
 
@@ -662,6 +666,8 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-07-13] [Process] No Untested Code Is "Trivial"** — Every line of code has behavior that should be verified. Dismissing code as "trivial" or "just a loading indicator" creates blind spots where regressions can hide. If a line cannot be tested, it should be removed or refactored — not hand-waved.
 
 - **[2026-07-13] [Coverage] Coverage Tooling Enables Improvement** — Setting up `lcov` and a pre-commit coverage gate was the catalyst that made all subsequent improvement possible. Coverage enforcement is not an end goal — it's the feedback mechanism that reveals where extraction, refactoring, and testing are needed. Every project should have visible, enforced coverage thresholds before any optimization work begins.
+
+- **[2026-07-16] [Process] Urgency Does Not Waive Two-Turn Protocol** — Your process is what you do under stress. If you don't do it under stress, it's not actually your process. Perceived urgency, user frustration, or "FIX THIS NOW" language does not waive the requirement to propose before executing and ask permission before committing. An unauthorized fix compounds the original problem with a process violation. Propose each step; wait for the go-ahead.
 
 ## Archived Entries (2026-07-06)
 
