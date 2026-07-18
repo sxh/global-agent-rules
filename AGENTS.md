@@ -671,7 +671,11 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-18] [Process] Pre-commit Hook Timeout Alignment** — The `runTests.sh` health probe uses `curl` with a 5s timeout while the integration test's `ensureBackendReachable` uses `fetch` with a 2s AbortController timeout. An API Gateway cold start that takes 3-4s passes the health check but fails the integration test. When the pre-commit hook tests the same endpoint twice, ensure both use the same timeout.
 
+- **[2026-07-19] [React/ESLint] No eslint-disable Directives** — Eslint-disable directives of any form are prohibited. When `jsx-a11y/no-noninteractive-element-interactions` fires on a modal backdrop, use a `<button>` with reset CSS styles instead of `<div>` + eslint-disable. When `onKeyDown` is needed on a `role="dialog"` div, attach the listener via `useEffect` + `addEventListener` on the ref instead of a JSX prop. Permission to add an eslint-disable will not be granted — restructure to comply.
+
 ## Archived Entries (2026-07-06)
+
+These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
 
 These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
 - **[2026-06-08] [Coverage] Erlang Cover Tool Assert Ok Dead Branches** — Erlang `cover` counts unreachable `assert Ok` error branches for hardcoded patterns as uncovered lines. Prefer `case` with a safe fallback over `assert Ok` to eliminate false coverage gaps without crashing.
