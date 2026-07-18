@@ -52,3 +52,11 @@ State the coverage percentage in the proposal. Do not skip this step.
 ### 5. If You Catch Yourself Skipping a Step — Stop
 
 If you realize mid-action that you skipped a step (wrote code before a test, batched multiple changes, proposed-and-executed in one turn), stop immediately. Say "I skipped a step. Let me go back." Then undo or rewind.
+
+### 6. Never Bypass Hooks Without Explicit Permission
+
+You are strictly forbidden from using `--no-verify`, `-n`, or any equivalent flag that bypasses git hooks, linters, or test gates without **explicit, per-use permission from the user**.
+
+A prior "yes" for one `--no-verify` commit does NOT carry forward. You must state the reason, explain the risk, and wait for the user to volunteer permission. If permission is not granted, you must resolve the hook failure or defer the commit.
+
+Do not bundle the request into a commit proposal — "shall I commit with --no-verify?" is not a valid proposal. State the reason, then stop and wait.

@@ -673,6 +673,8 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-19] [React/ESLint] No eslint-disable Directives** — Eslint-disable directives of any form are prohibited. When `jsx-a11y/no-noninteractive-element-interactions` fires on a modal backdrop, use a `<button>` with reset CSS styles instead of `<div>` + eslint-disable. When `onKeyDown` is needed on a `role="dialog"` div, attach the listener via `useEffect` + `addEventListener` on the ref instead of a JSX prop. Permission to add an eslint-disable will not be granted — restructure to comply.
 
+- **[2026-07-19] [Process] Optimization TDD: Existing Tests as Safety Net** — Behavior-preserving optimizations (caching, algorithm improvements, data structure changes) don't require a new "failing test" since the behavior doesn't change. The existing test suite serves as the regression gate. Write documentation tests for uncovered functions if desired, but the optimization itself is a green-to-green transition.
+
 ## Archived Entries (2026-07-06)
 
 These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
