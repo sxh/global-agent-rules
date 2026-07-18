@@ -669,6 +669,8 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-16] [Process] Urgency Does Not Waive Two-Turn Protocol** — Your process is what you do under stress. If you don't do it under stress, it's not actually your process. Perceived urgency, user frustration, or "FIX THIS NOW" language does not waive the requirement to propose before executing and ask permission before committing. An unauthorized fix compounds the original problem with a process violation. Propose each step; wait for the go-ahead.
 
+- **[2026-07-18] [Process] Pre-commit Hook Timeout Alignment** — The `runTests.sh` health probe uses `curl` with a 5s timeout while the integration test's `ensureBackendReachable` uses `fetch` with a 2s AbortController timeout. An API Gateway cold start that takes 3-4s passes the health check but fails the integration test. When the pre-commit hook tests the same endpoint twice, ensure both use the same timeout.
+
 ## Archived Entries (2026-07-06)
 
 These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
