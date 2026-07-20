@@ -589,7 +589,7 @@ Projects drift from AGENTS.md compliance when:
 
 #### 2026-06-23 Process Rules
 
-- **No Self-Granted Exceptions** — The agent may subconsciously categorize a change as "not real code" and skip test-first or other TDD steps. Never decide a rule doesn't apply without asking. Default to applying the rule; shift the burden of proof onto the exception, not the compliance. This principle was added to Process Integrity above.
+- **No Self-Granted Exceptions** — The agent may subconsciously categorize a change as "not real code" and skip test-first or other TDD steps. Never decide a rule doesn't apply without asking. Default to applying the rule; shift the burden of proof onto the exception, not the compliance. A request to "prototype" or "explore" does not waive this rule — a prototype's test can change as the design evolves, but it must exist before implementation.
 
 - **Verify deployment pipeline before modifying deployment files** — Before changing deployment scripts, readme deployment sections, or infrastructure, verify the actual deployment mechanism by checking CI/CD config (GitHub Actions, Amplify, etc.), build logs, automation like `enableAutoBuild` on Amplify branches, or by asking the user. A stale readme describing a deprecated manual process can lead to wasted effort and incorrect infrastructure changes.
 
@@ -680,6 +680,8 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-07-20] [Process] Infrastructure Config Is Discovery, Not Design** — When output doesn't work, the gap is almost always in tool-specific syntax (shell quoting, SST interpolate, CDK annotations). Don't guess at fixes — find and read a working example that uses the same tool. The answer exists in someone else's project or the tool's docs; deriving it from first principles produces serial guesswork.
 
 - **[2026-07-20] [Testing] Test Generator with Varied Input Configurations** — A code generator must be tested with at least two different input configurations to expose hardcoded assumptions and copy-paste paths that only surface with a different model shape. The Dynamo repo emitter's update/delete methods hardcoded `passageId` because every test used the Passage entity where `passageId` is the ID field; the bug only appeared when generating a Quality entity with `qualityId`.
+
+- **[2026-07-21] [Testing] Assert Structural Constraints in Generated Output** — When testing generated code, verify structural properties (count, uniqueness, type) rather than string presence alone. An assertion using `split("subtitle:").size - 1` catches duplicate named arguments generically, while a plain `contains("subtitle:")` assertion would pass even with duplicates, letting a compile error reach the user.
 
 ## Archived Entries (2026-07-06)
 
