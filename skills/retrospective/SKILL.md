@@ -35,28 +35,35 @@ A "session" is the span of conversation since the last retrospective was run, or
   - Formulate actionable backlog items: concrete tasks that can be executed in a future sprint.
   - See "Backlog Generation" guidelines below.
 
-### Step 3: Triage and Filter Lessons
-Before proposing additions to AGENTS.md, evaluate each lesson against these criteria:
+### Step 3: Generalize Findings to Principles
 
-| Keep if... | Discard if... |
+Before filtering or writing entries, generalize each finding:
+
+**For each finding from Step 2, state the underlying principle** that produced it. A principle is a stable rule that, if followed or violated, explains the finding. The same principle should apply to a different scenario with different tooling.
+
+Examples of principles vs findings:
+
+| Finding (narrow) | Principle (general) |
 |---|---|
-| It caused a measurable defect or waste | It's a one-off observation unlikely to recur |
-| It would prevent a future mistake | It's obvious/common knowledge |
-| It's a tool/platform gotcha worth remembering | It's specific to a bug that was already fixed |
-| It's a positive practice to reinforce | It duplicates an existing entry |
-| It clarifies or corrects an existing entry | It's an opinion, not a verifiable fact |
+| "Forgot `--mode=mono` on SST dev" | "Infrastructure config requires tool-specific syntax, not general reasoning" |
+| "Shell quoting bugs in start.sh" | "Infrastructure config requires tool-specific syntax, not general reasoning" |
+| "Wrong `$interpolate` syntax in SST config" | "Infrastructure config requires tool-specific syntax, not general reasoning" |
+| "API test used wrong field name" | "Test assertions must reference the actual data, not assumptions about it" |
+| "Validation didn't catch null URL" | "Every required field needs both a set and an unset test" |
 
-When in doubt, lean toward discarding — AGENTS.md is a reference, not a journal.
+If two or more different findings from this session (or from recent retrospectives) map to the same principle, propose **one entry for the principle**, not one per finding.
 
-**Note:** Lessons that fail the AGENTS.md triage (one-off, obvious, opinion) may still be valid backlog items if they describe a concrete, doable task. Move them to the backlog rather than discarding entirely.
+If a finding does not generalize to a principle that would prevent a different class of defect, it is likely a one-off — discard or move to backlog.
 
-### Step 4: Check for Duplicates and Stale Entries
-- Read `~/.config/opencode/AGENTS.md` (global).
-- Read `./AGENTS.md` in current project (local, if exists).
-- For each lesson to be added:
-  - Check if similar content already exists. If it does, note the overlap and decide whether to **update/replace** the existing entry instead of adding a new one.
-  - If an existing entry is **contradicted** or **superseded** by the new lesson, mark the old one for deletion or amendment.
-- Note any cross-project intersections.
+### Step 4: Check Principle Coverage, Not Entry Duplication
+
+- Read `~/.config/opencode/AGENTS.md` (global) and `./AGENTS.md` (local).
+- For each **principle** identified in Step 3:
+  - Search existing entries for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
+  - If the principle is already covered by an existing entry: **do not add a new entry.** Instead, propose a refinement to the existing entry that clarifies its scope (e.g., add a sentence or an example from this session).
+  - If the principle is **not** covered by any existing entry: propose a new entry.
+  - If the principle is **contradicted** by an existing entry: mark the old one for removal or amendment.
+- **Compression scan:** If 3+ existing entries from different sessions express the same principle, propose merging them into one entry and archiving the surplus.
 
 ### Step 5: Present Summary
 Show the user a summary BEFORE confirming. The summary must include:
@@ -107,11 +114,13 @@ If user confirms:
 - **Capture backlog items into PCP** — for each proposed backlog item, call `pcp_capture` with a clear title and optional context. The item is now tracked in the PCP backlog for future sprint planning.
 - Show confirmation that all updates were made.
 
-### Step 7: Compact (as needed)
-If the global AGENTS.md has grown past 600 lines, or if the retrospective produced more than 3 new entries, propose a compaction pass to the user:
-- Archive removed or superseded entries to a dated section at the bottom.
-- Merge adjacent entries on the same topic.
-- Remove entries that are clearly obsolete (e.g., workarounds for fixed tooling bugs).
+### Step 7: Compact (every session)
+Every retrospective must propose a compaction pass, even if no new entries are added:
+- Scan the last 20 entries in AGENTS.md (or all entries since the last compaction).
+- Identify any 2+ entries that express the same principle (different titles, same idea) and propose merging them.
+- If merging, keep the principle and update the date of the surviving entry to the current date. Archive the surplus entries.
+- Also apply the principle-coverage check from Step 4: if a new principle subsumes older entries, those older entries should be archived.
+- Propose the specific merges and archive actions in the summary for user confirmation.
 
 ## Guidelines
 
@@ -126,6 +135,8 @@ For each defect found, trace through 5 levels:
 
 The goal is not a single "root cause fix" but a set of complementary investments at every layer of the chain.
 
+**After the 5 Whys, extract the underlying principle** — what rule, if followed, would prevent this class of defect regardless of the specific tool or scenario? The principle is the Level 5 answer stated as a positive action ("Verify generated output by running it") rather than a negative observation ("The generated start.sh had escaping bugs").
+
 ### Positive Amplification Analysis (5 Wins)
 
 For each positive outcome, trace through 5 levels to identify what enabled it and how to reproduce it:
@@ -137,6 +148,8 @@ For each positive outcome, trace through 5 levels to identify what enabled it an
 5. **Mindset/principle enabler** — What underlying value or principle drove those investments? (e.g., "Empirical verification over assumption — trust data, not schema analysis alone")
 
 The goal is not a single "root cause" but a chain of enablers at every layer that can be reinforced, documented, and repeated.
+
+**After the 5 Wins, extract the underlying principle** — what practice or mindset, if maintained, would continue producing this kind of positive outcome regardless of the specific tool or scenario? State it as a positive rule to reinforce.
 
 ### What Went Well
 Capture specific, concrete examples of successes identified through the Positive Amplification Analysis (or from direct observation):
@@ -198,32 +211,39 @@ If a lesson reveals a gap or improvement opportunity in another skill file:
 
 ## Format for AGENTS.md Entries
 
-### Global Entry Format
-Every entry must follow this exact structure:
+### Principle-First Structure
+Every entry must express a general principle, not a specific observation. The title should state the principle itself, not which tool or scenario triggered it.
 
 ```
-- **[YYYY-MM-DD] [Category] Title** — Context. What to do instead / What to continue.
+- **[YYYY-MM-DD] [Category] Principle Title** — Principle statement (one sentence). Example of the principle in action (one sentence).
 ```
 
 **Rules:**
 - `[YYYY-MM-DD]` is the date of the retrospective, not the date the bug was introduced.
 - `[Category]` is one of: `Gleam`, `Lustre`, `Electron`, `Testing`, `Coverage`, `Process`, `Tooling`, `Architecture`, `Security`, `Positive`, `Skill`.
-- "Title" starts with a verb-like noun phrase: `Coverage Isolation`, `Precommit Hook Ordering`, `Snapshot State Coverage`.
-- The body after `—` is exactly two sentences: one for context, one for action.
+- "Title" states the principle (e.g., `Generated Output Must Be Run`, `Infrastructure Config Is Discovery`), not the specific tool or scenario (not `SST StaticSite Setup`, `Start.sh Escaping`).
+- The body is exactly two sentences: one stating the principle, one giving an illustrative example.
+- If multiple findings from different sessions map to the same principle, write one entry covering them all.
 - Do not use emoji.
 - Do not wrap in backticks — the entry is plain markdown list item.
 
-**Example:**
+**Before (narrow, tool-specific):**
 ```
 - **[2026-05-28] [Gleam] Coverage Isolation** — c8 measures coverage on compiled JS, not original Gleam. Use `.c8rc.json` to exclude dependency output and enforce 95% on statements/lines/branches only.
+```
+
+**After (principle, generalisable):**
+*(In practice the "Before" would be refined to this rather than archived — the principle was correct, the title was too narrow.)*
+```
+- **[2026-05-28] [Coverage] Target Language Coverage Measurement** — Coverage tools measure the compiled output, not the source language. Configure the coverage tool (c8, kover, etc.) to exclude dependency output and enforce thresholds on the compiled artifact, not the original source.
 ```
 
 ### Local Entry Format
 Same structure, but categories may be project-specific (e.g., `[Domain]`, `[Deployment]`). Keep the `[YYYY-MM-DD]` and two-sentence body rule.
 
 ### Positive Entry Prefix
-Positive entries use the `[Positive]` category:
+Positive entries use the `[Positive]` category and follow the same principle-first format:
 
 ```
-- **[2026-05-28] [Positive] Snapshot Testing Before Refactoring** — Writing a Birdie snapshot test before restructuring view logic caught a missing state transition. Always snapshot the full view before modifying render logic.
+- **[2026-05-28] [Positive] Snapshot Before Structural Change** — Render the full output of a function before modifying its internal structure. A snapshot test caught a missing state transition that unit tests missed, because it tested the entire output surface rather than isolated conditions.
 ```
