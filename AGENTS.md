@@ -675,6 +675,10 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-19] [Process] Optimization TDD: Existing Tests as Safety Net** — Behavior-preserving optimizations (caching, algorithm improvements, data structure changes) don't require a new "failing test" since the behavior doesn't change. The existing test suite serves as the regression gate. Write documentation tests for uncovered functions if desired, but the optimization itself is a green-to-green transition.
 
+- **[2026-07-20] [Process] Run Generated Output Immediately** — A generator that compiles is not verified. Generated output (shell scripts, config files, deployment artifacts) must be run at least once to confirm it produces the intended result. Treat the first execution as the final step of code generation, not the start of debugging.
+
+- **[2026-07-20] [Process] Infrastructure Config Is Discovery, Not Design** — When output doesn't work, the gap is almost always in tool-specific syntax (shell quoting, SST interpolate, CDK annotations). Don't guess at fixes — find and read a working example that uses the same tool. The answer exists in someone else's project or the tool's docs; deriving it from first principles produces serial guesswork.
+
 ## Archived Entries (2026-07-06)
 
 These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
