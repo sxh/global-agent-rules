@@ -679,9 +679,9 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-20] [Process] Infrastructure Config Is Discovery, Not Design** — When output doesn't work, the gap is almost always in tool-specific syntax (shell quoting, SST interpolate, CDK annotations). Don't guess at fixes — find and read a working example that uses the same tool. The answer exists in someone else's project or the tool's docs; deriving it from first principles produces serial guesswork.
 
-## Archived Entries (2026-07-06)
+- **[2026-07-20] [Testing] Test Generator with Varied Input Configurations** — A code generator must be tested with at least two different input configurations to expose hardcoded assumptions and copy-paste paths that only surface with a different model shape. The Dynamo repo emitter's update/delete methods hardcoded `passageId` because every test used the Passage entity where `passageId` is the ID field; the bug only appeared when generating a Quality entity with `qualityId`.
 
-These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
+## Archived Entries (2026-07-06)
 
 These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
 - **[2026-06-08] [Coverage] Erlang Cover Tool Assert Ok Dead Branches** — Erlang `cover` counts unreachable `assert Ok` error branches for hardcoded patterns as uncovered lines. Prefer `case` with a safe fallback over `assert Ok` to eliminate false coverage gaps without crashing.
