@@ -683,6 +683,8 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-21] [Testing] Assert Structural Constraints in Generated Output** — When testing generated code, verify structural properties (count, uniqueness, type) rather than string presence alone. An assertion using `split("subtitle:").size - 1` catches duplicate named arguments generically, while a plain `contains("subtitle:")` assertion would pass even with duplicates, letting a compile error reach the user.
 
+- **[2026-07-21] [Architecture] Unconsumed Data Is Dead Weight** — Any field or property that flows through a pipeline but is never consumed by downstream code should be removed. `repositoryName` on `Crudable`/`CrudPane` was set in 19 places but never read by any emitter; removing it simplified the interface with zero behavior change. Apply this principle to any layer boundary: if a value is passed through but never used, delete it.
+
 ## Archived Entries (2026-07-06)
 
 These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
