@@ -523,7 +523,6 @@ Nothing should ever be "skipped" - our process must be thorough and repeatable:
 - **No skipping linting** - All linting must pass, never disable rules
 - **No skipping coverage** - Coverage must meet the 95% threshold
 - **No skipping precommit hooks** - All checks must pass before commit
-- **No workarounds** - Fix problems properly, don't bypass them
 - **No self-granted exceptions** — Never decide a process rule doesn't apply without asking the user. If you believe an exception is warranted (e.g., "this is just config, no test needed"), propose it explicitly and wait for approval. Default to applying the rule; shift the burden of proof onto the exception, not the compliance.
 Every outcome must be verifiable and every verification must be repeatable.
 
@@ -603,7 +602,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-06-25] [Process] Largest Files Need the Most Review** — The review script excluded files >50K chars, silently skipping the most complex files. Per-file size exclusion is wrong — include large files and suggest splitting them.
 
-- **[2026-06-25 / 06-27] [Process] "Pre-existing" Is Never a Valid Reason to Dismiss an Error** — Dismissing a test failure, LSP error, or build warning as "pre-existing" violates process integrity. Every issue must be fixed or explicitly acknowledged — never hand-waved as "not my changes" or "not a real issue."
+- **[2026-06-25] [Process] All Issues Must Be Addressed, Not Dismissed** — Every error, warning, or process gap must be fixed or explicitly acknowledged. Dismissing issues as "pre-existing", "out of scope", "trivial", or working around them (e.g., using `--no-verify`, using workarounds instead of fixing root causes) violates process integrity. The burden is on the exception, not on compliance — if you believe a dismissal is warranted, propose it explicitly and wait for approval.
 
 - **[2026-06-25] [Process] Code Review Claim Verification** — Code review tools (AI and automated) can produce false positives. Before acting on any review finding, verify the claim against the actual source code by reading the relevant lines. If confirmed, proceed; if false, reject and document why.
 
@@ -617,7 +616,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-06-27] [Positive] Context-Aware Refactoring** — Before simplifying a component's internal state management, check how it's actually used by its callers. The parent's `key` prop pattern eliminated two `useEffect` hooks that had been considered necessary. Understanding the call site context is often the key to simpler internal implementation.
 
-- **[2026-06-28] [Process] Questions About Plans Are Not Go-Aheads** — When a user asks "what's the plan", "what's the approach", or similar, they want a description of the proposed course of action, not execution. State the plan in text and wait for an explicit go-ahead before taking any implementation action.
+- **[2026-06-28] [Process] Commit Permission Protocol** — Committing, executing a plan, or making any code change requires explicit user permission in a separate turn. Passing tests, perceived urgency, or the user asking "what's the plan?" does not constitute permission. The two-turn protocol (propose then execute) applies to every commit without exception. A question about plans is a request for information, not a go-ahead — state the plan in text and wait for explicit confirmation.
 
 - **[2026-06-28] [Positive] Refactoring Special Cases to General Principles** — When a design accumulates many narrow rules for individual scenarios, step back and identify the general principles that subsume them. The DeepSeek SYSTEM_PROMPT was reduced from 15 specific bullets to 2 principles (Indirection, Inconsistency). This pattern applies to any ruleset, configuration, or abstraction that keeps growing with band-aids.
 
@@ -651,9 +650,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-08] [Positive] Batch Similar Refactorings with Analysis** — Constants extraction across 14 files was efficient because: a thorough `grep`/`rg` analysis identified all occurrences first, the user explicitly approved batching, and the constants file was pre-tested. Repeat this pattern for other cross-file refactorings.
 
-- **[2026-07-12] [Process] Two-Turn Protocol Is Not Optional After Tests Pass** — Committing immediately after tests pass without proposing first violates the two-turn protocol. Passing tests are a prerequisite for commit, not a substitute for the proposal step. The proposal-and-execution cycle must complete every time, even when the change feels trivial or obviously correct.
-
-- **[2026-07-12] [Testing] Optional Clearable Fields in API Services** — An API service test for `updateQuality` with name only missed a bug where clearing an optional description to empty sent `null`, which the service silently skipped. Every optional clearable field needs tests for both setting and clearing (empty string) the value, not just for omitting it.
+- **[2026-07-08] [Positive] Batch Similar Refactorings with Analysis** — An API service test for `updateQuality` with name only missed a bug where clearing an optional description to empty sent `null`, which the service silently skipped. Every optional clearable field needs tests for both setting and clearing (empty string) the value, not just for omitting it.
 
 - **[2026-07-14] [Testing] Validate Generated Output Against Real Parser** — When generating code or models in an existing format (CML, PlantUML, etc.), test the output against that format's actual parser, not just against expected strings. String-matching tests pass even when the output is structurally invalid; the real parser catches schema violations.
 
@@ -665,9 +662,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-13] [Process] No Untested Code Is "Trivial"** — Every line of code has behavior that should be verified. Dismissing code as "trivial" or "just a loading indicator" creates blind spots where regressions can hide. If a line cannot be tested, it should be removed or refactored — not hand-waved.
 
-- **[2026-07-13] [Coverage] Coverage Tooling Enables Improvement** — Setting up `lcov` and a pre-commit coverage gate was the catalyst that made all subsequent improvement possible. Coverage enforcement is not an end goal — it's the feedback mechanism that reveals where extraction, refactoring, and testing are needed. Every project should have visible, enforced coverage thresholds before any optimization work begins.
-
-- **[2026-07-16] [Process] Urgency Does Not Waive Two-Turn Protocol** — Your process is what you do under stress. If you don't do it under stress, it's not actually your process. Perceived urgency, user frustration, or "FIX THIS NOW" language does not waive the requirement to propose before executing and ask permission before committing. An unauthorized fix compounds the original problem with a process violation. Propose each step; wait for the go-ahead.
+- **[2026-07-13] [Coverage] Coverage Tooling Enables Improvement**
 
 - **[2026-07-18] [Process] Pre-commit Hook Timeout Alignment** — The `runTests.sh` health probe uses `curl` with a 5s timeout while the integration test's `ensureBackendReachable` uses `fetch` with a 2s AbortController timeout. An API Gateway cold start that takes 3-4s passes the health check but fails the integration test. When the pre-commit hook tests the same endpoint twice, ensure both use the same timeout.
 
@@ -687,10 +682,22 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-21] [Positive] Callback Ref as Lint-Compliant Middle Ground** — When both `useEffect`+`useRef` and `autoFocus` are blocked by lint rules (`no-noninteractive-element-interactions`, `no-autofocus`), use a `useCallback` ref with `node?.focus()` for imperative focus-on-mount paired with a document-level `useEffect` for Escape key handling. The callback ref avoids both the `useRef`+`useEffect` import footprint and the `no-autofocus` rule, while the document-level listener avoids JSX event handlers on non-interactive elements.
 
-## Archived Entries (2026-07-06)
+- **[2026-07-22] [Process] Design Interchange Formats From Both Sides** — When defining an exchange format between two systems, study the data model and constraints of both sides before designing the intermediate schema. A code generation pipeline that emits Figma-compatible layout frames will produce a wrong format if it only inspects its own source model, because layout modes, padding conventions, and nesting rules are defined by the target tool's node types, not the source DSL.
 
-These entries have been archived as of this retrospective. They document specific platform/tool gotchas that are no longer frequently encountered but preserved for reference.
+- **[2026-07-22] [Process] Proposed Steps Must Be On The Critical Path** — Before proposing a step toward a stated goal, explicitly evaluate whether it moves toward that goal or just improves the current system tangentially. A design-tokens step would produce a more visually polished UI but would not validate whether the Figma round-trip works, making it orthogonal to the stated goal of Figma integration.
+
+- **[2026-07-22] [Process] Track Recurrence, Not Just Add Entries** — When a retrospective finds an issue that was already documented, do NOT add a supplementary entry. Instead, revise the existing entry or propose a different enforcement mechanism (automation, hook, lint rule, etc.). An entry that failed to prevent recurrence needs reformulation, not reinforcement.
+
+- **[2026-07-22] [Process] Verify Entry Effectiveness Before Adding** — Before adding any new entry to AGENTS.md, check whether an existing entry should have prevented the current issue. If one exists, the gap is in enforcement, not documentation — investigate what would have made the existing entry actionable rather than writing another one.
+
+- **[2026-07-22] [Process] Consolidate, Don't Accumulate** — Retrospective findings should converge toward a smaller set of verified-effective principles rather than an ever-growing list. Each retrospective should audit whether the last N entries actually changed behaviour. If not, remove or replace them.
+
+These entries have been archived as of their respective retrospectives. They document specific platform/tool gotchas or superseded entries preserved for reference.
 - **[2026-06-08] [Coverage] Erlang Cover Tool Assert Ok Dead Branches** — Erlang `cover` counts unreachable `assert Ok` error branches for hardcoded patterns as uncovered lines. Prefer `case` with a safe fallback over `assert Ok` to eliminate false coverage gaps without crashing.
 - **[2026-06-21] [Process] Login Item Service Environment Verification** — When a macOS Login Item starts a service with required env vars, verify the running process actually has them by checking `ps eww -p <PID> | grep VAR`. Dependent apps with autoStart must be disabled — they spawn their own server instance sharing the same port but without the Login Item's env var injection.
 - **[2026-06-23] [CloudFront] CloudFront Distribution Discovery and CNAME Locks** — When a domain is served behind CloudFront but the distribution doesn't appear in `aws cloudfront list-distributions`, check AWS Amplify which creates managed CloudFront distributions for custom domains. Before creating a new distribution for an existing domain, verify the domain isn't already associated with another distribution via `CNAMEAlreadyExists`.
 - **[2026-07-05] [Exposed] Domain Operations Require Transaction Context** — Exposed lazy entity properties (e.g., `entity.reducedProductDescription`) can only be accessed within an active transaction. Domain classes that access these properties must be called inside `withTransaction { }` or `transaction { }`.
+- **Superseded (2026-07-22):** [2026-06-28] Questions About Plans Are Not Go-Aheads — merged into Commit Permission Protocol.
+- **Superseded (2026-07-22):** [2026-07-12] Two-Turn Protocol Is Not Optional After Tests Pass — merged into Commit Permission Protocol.
+- **Superseded (2026-07-22):** [2026-07-16] Urgency Does Not Waive Two-Turn Protocol — merged into Commit Permission Protocol.
+- **Superseded (2026-07-22):** [2026-06-25/06-27] "Pre-existing" Is Never a Valid Reason to Dismiss an Error — merged into All Issues Must Be Addressed.
