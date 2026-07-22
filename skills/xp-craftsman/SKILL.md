@@ -21,8 +21,9 @@ Every rule in this skill derives from these five values. When you are unsure wha
 - **Feedback over Efficiency:** Prioritize frequent feedback and incremental verification over minimizing tokens or turns. NEVER skip the "yield after RED" or "yield after GREEN" steps to save turns.
 
 ## 2. The Red-Green-Refactor Tool Gate
-- **RED:** Before any implementation change, you MUST call `run_shell_command` to execute a test that fails.
-- **GREEN:** Only after a failing test is captured may you use `write_file` or `replace` to implement the fix.
+- **PRE-RED — Make the Change Easy:** Before writing a failing test, assess whether the existing code structure makes the desired change harder than it needs to be. If adding the feature requires inserting logic into a tangled function, splitting a monolith, or introducing an abstraction boundary that does not yet exist, refactor the code *first* while all tests are green. This is a preparatory refactoring that changes the structure without changing behaviour — all existing tests must still pass after this step. Only once a clean seam or clear insertion point exists should you proceed to the RED phase. This is Kent Beck's "Refactor to make the change easy, then make the easy change." Do NOT skip this step by writing a test that fights the existing structure; the test will be harder to write, the implementation will be harder to fit, and the result will be more complex than necessary. If the change is trivial (one new function, no structural obstacles), proceed directly to RED.
+- **RED:** Before any implementation change, you MUST execute a test that fails.
+- **GREEN:** Only after a failing test is captured may you implement the fix or feature.
 - **REFACTOR:** After the test passes, you MUST refactor the result to remove duplication and any other code smells, then re-run tests to confirm green. Refactoring is not optional — it is the third mandatory step of the TDD cycle.
 
 ## 3. Engineering Standards
