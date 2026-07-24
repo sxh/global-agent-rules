@@ -692,6 +692,8 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-22] [Process] Consolidate, Don't Accumulate** — Retrospective findings should converge toward a smaller set of verified-effective principles rather than an ever-growing list. Each retrospective should audit whether the last N entries actually changed behaviour. If not, remove or replace them.
 
+- **[2026-07-24] [Process] Name User-Facing Things by What the User Does, Not by the Developer's Concept** — Command names, file names, button labels, and parameter names must describe the user's action ("Load"), not the system's internal process ("Generate" / "Import"). A Figma plugin had two different steps both called "import" and two different files both called "manifest" — each collision forced the user to reverse-engineer which meaning was intended. If a user needs to know how the system works internally to understand a label, the label is wrong.
+
 These entries have been archived as of their respective retrospectives. They document specific platform/tool gotchas or superseded entries preserved for reference.
 - **[2026-06-08] [Coverage] Erlang Cover Tool Assert Ok Dead Branches** — Erlang `cover` counts unreachable `assert Ok` error branches for hardcoded patterns as uncovered lines. Prefer `case` with a safe fallback over `assert Ok` to eliminate false coverage gaps without crashing.
 - **[2026-06-21] [Process] Login Item Service Environment Verification** — When a macOS Login Item starts a service with required env vars, verify the running process actually has them by checking `ps eww -p <PID> | grep VAR`. Dependent apps with autoStart must be disabled — they spawn their own server instance sharing the same port but without the Login Item's env var injection.
