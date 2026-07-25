@@ -686,11 +686,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-22] [Process] Proposed Steps Must Be On The Critical Path** — Before proposing a step toward a stated goal, explicitly evaluate whether it moves toward that goal or just improves the current system tangentially. A design-tokens step would produce a more visually polished UI but would not validate whether the Figma round-trip works, making it orthogonal to the stated goal of Figma integration.
 
-- **[2026-07-22] [Process] Track Recurrence, Not Just Add Entries** — When a retrospective finds an issue that was already documented, do NOT add a supplementary entry. Instead, revise the existing entry or propose a different enforcement mechanism (automation, hook, lint rule, etc.). An entry that failed to prevent recurrence needs reformulation, not reinforcement.
-
-- **[2026-07-22] [Process] Verify Entry Effectiveness Before Adding** — Before adding any new entry to AGENTS.md, check whether an existing entry should have prevented the current issue. If one exists, the gap is in enforcement, not documentation — investigate what would have made the existing entry actionable rather than writing another one.
-
-- **[2026-07-22] [Process] Consolidate, Don't Accumulate** — Retrospective findings should converge toward a smaller set of verified-effective principles rather than an ever-growing list. Each retrospective should audit whether the last N entries actually changed behaviour. If not, remove or replace them.
+- **[2026-07-26] [Process] Consolidate Entries, Verify Effectiveness** — Before adding a new entry to AGENTS.md, check whether an existing entry should have prevented the current issue — if one exists, the gap is in enforcement, not documentation. Do not add supplementary entries to ones that failed to prevent recurrence; revise the existing entry or add enforcement (automation, hook, lint rule). Each retrospective should audit whether the last N entries actually changed behaviour — findings should converge toward a smaller set of verified-effective principles rather than an ever-growing list.
 
 - **[2026-07-24] [Process] Name User-Facing Things by What the User Does, Not by the Developer's Concept** — Command names, file names, button labels, and parameter names must describe the user's action ("Load"), not the system's internal process ("Generate" / "Import"). A Figma plugin had two different steps both called "import" and two different files both called "manifest" — each collision forced the user to reverse-engineer which meaning was intended. If a user needs to know how the system works internally to understand a label, the label is wrong.
 
@@ -709,3 +705,6 @@ These entries have been archived as of their respective retrospectives. They doc
 - **Superseded (2026-07-22):** [2026-07-12] Two-Turn Protocol Is Not Optional After Tests Pass — merged into Commit Permission Protocol.
 - **Superseded (2026-07-22):** [2026-07-16] Urgency Does Not Waive Two-Turn Protocol — merged into Commit Permission Protocol.
 - **Superseded (2026-07-22):** [2026-06-25/06-27] "Pre-existing" Is Never a Valid Reason to Dismiss an Error — merged into All Issues Must Be Addressed.
+- **Superseded (2026-07-26):** [2026-07-22] Track Recurrence, Not Just Add Entries — merged into Consolidate Entries, Verify Effectiveness.
+- **Superseded (2026-07-26):** [2026-07-22] Verify Entry Effectiveness Before Adding — merged into Consolidate Entries, Verify Effectiveness.
+- **Superseded (2026-07-26):** [2026-07-22] Consolidate, Don't Accumulate — merged into Consolidate Entries, Verify Effectiveness.
