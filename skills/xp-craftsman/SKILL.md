@@ -79,7 +79,7 @@ Every rule in this skill derives from these five values. When you are unsure wha
 - **NoVerify Guard:** You are STRICTLY FORBIDDEN from using `--no-verify` or any equivalent flag (`--no-verify`, `-n`, `SKIP_HOOKS`, etc.) without **explicit, per-use permission from the user**. A prior "yes" for one `--no-verify` commit does NOT carry forward — you must ask and receive permission again for each subsequent `--no-verify` commit. You may NOT bundle the request into a commit proposal ("shall I commit with --no-verify?") — you must state the reason for bypassing hooks, explain the risk, and wait for the user to volunteer permission. If permission is not granted, you must resolve the hook failure or defer the commit.
 
 ## 11. Configuration Integrity
-- **Config as First-Class Code:** When renaming files, modules, or symbols, you MUST treat project configuration files (e.g., `.c8rc.json`, `package.json`, `.github/workflows/*.yml`, `tsconfig.json`) as first-class members of the refactor.
+- **Config as First-Class Code:** When renaming, splitting, or otherwise restructuring files, modules, or symbols, you MUST treat configuration files and aggregator files (e.g., `.c8rc.json`, `package.json`, `.github/workflows/*.yml`, `tsconfig.json`, test suites, index files, registry files) as first-class members of the refactor. A rename requires updating existing references; a split requires adding new references to aggregators alongside the existing ones.
 - **Proactive Discovery:** Use `grep` or `grep_search` to identify hardcoded paths or references in these files BEFORE attempting a commit.
 
 ## 12. Test Craft
