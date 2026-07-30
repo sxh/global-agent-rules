@@ -212,6 +212,19 @@ For desktop apps (Electron, Tauri, etc.) and web apps, unit tests alone are not 
 - The renderer can load the app (no `ERR_FILE_NOT_FOUND` or equivalent)
 If any of these checks fail, the commit must be rejected.
 
+### Coverage Strategy
+
+**Focus on line coverage only** — Branch, function, and statement coverage are secondary metrics. Line coverage is the primary measurable target.
+
+**Multi-package average, not per-package minimum** — When a project has multiple packages, the 95% target applies to the **average line coverage across all packages**, not to each package individually. This allows strategic allocation of effort.
+
+**Maximize easy wins first** — When improving coverage across multiple packages:
+1. Get packages closest to 100% to 100% (smallest effort, highest return)
+2. Then work on the next closest package
+3. Leave the hardest package for last — the easy wins from other packages reduce how much the hardest package needs to improve
+
+**Do not assume packages above the target are done** — A package at 98% may be easier to bring to 100% than a package at 85% is to bring to 90%. Always evaluate the effort required before deciding where to focus.
+
 ### Technology
 
 #### Gleam + Lustre + Electron Stack
