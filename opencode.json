@@ -13,6 +13,17 @@
       "models": {
         "deepseek-v4-flash": { "id": "deepseek-v4-flash" }
       }
+    },
+    "mimo": {
+      "name": "Xiaomi MiMo",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://token-plan-ams.xiaomimimo.com/v1",
+        "apiKey": "{env:OPENCODE_MIMO_API_KEY}"
+      },
+      "models": {
+        "mimo-v2.5": { "id": "mimo-v2.5" }
+      }
     }
   },
   "disabled_providers": ["deepseek"],
