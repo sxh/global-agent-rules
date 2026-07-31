@@ -374,9 +374,13 @@ fi
 
 - **[2026-06-23] [CI/CD] GitHub Actions Checkout Depth for Merge Commits** — `actions/checkout@v4` with `ref: refs/pull/N/merge` defaults to `fetch-depth: 1`, fetching only the merge commit. Parent SHAs (`base.sha`, `head.sha`) referenced in git operations will fail with exit code 128 unless `fetch-depth: 0` (or `2`) is explicitly set.
 
-- **[2026-07-04] [Tooling] Vitest autoUpdate Unreliable** — Vitest's `autoUpdate: true` can decrease coverage thresholds despite some documentation claiming otherwise. Do not rely on it. Use a manual ratchet script that parses vitest's text output and only updates thresholds upward, as demonstrated by `scripts/ratchet-coverage.ts` in scheduler4.
+- **[2026-07-04] [Tooling] Vitest autoUpdate Unreliable** — Vitest's `autoUpdate: true` can decrease coverage thresholds despite some documentation claiming otherwise. Do not rely on it. Coverage thresholds are hardcoded to the current measured actuals and updated deliberately with a commit comment explaining the change — never auto-ratcheted. A manual ratchet script (`scripts/ratchet-coverage.ts`) was tried and removed: automated threshold editing is a recurring source of confusion and failure, so set thresholds by hand from one canonical run.
 
 - **[2026-07-31] [Architecture] Zod's Default strip Mode Removes Unknown Keys** — `z.object()` strips unknown keys by default during parsing, so extra properties like `guestId` vanish after validation. If a handler relies on extra properties being present after validation, either include them in the schema or use `.passthrough()` on the object. A union alone is not sufficient when some variants need unvalidated properties.
+
+- **[2026-07-31] [Coverage] Single Canonical Measurement Command** — A project-wide metric (coverage, build status, etc.) must be measured by exactly one canonical command and one config; when the number changes depending on the directory the command is run from, the config is defective, not the measurement. In scheduler4, coverage config was split across four vitest configs with differing excludes and thresholds, so the root run reported 90.51% while the package run reported 94.57% — consolidation into a single root config with `npm run coverage` as the canonical command eliminated the discrepancy.
+
+- **[2026-07-31] [Testing] Throw Outside the Catching Try** — When a `catch` block handles parse failures, do not `throw` from inside the same `try` — the throw is caught by its own `catch`, silently replacing the real error with the generic fallback. Parse into a variable inside the `try`, then throw the parsed detail after the `try` block. A SystemSettings test asserting the JSON error detail exposed that the parsed `details`/`error` field was swallowed and replaced with "Failed: status - text".
 
 ### Security
 
