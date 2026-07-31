@@ -109,6 +109,7 @@ Wait for user confirmation before proceeding.
 ### Step 6: Apply Changes (after confirmation)
 If user confirms:
 - **Add, update, or remove** entries in global AGENTS.md (`~/.config/opencode/AGENTS.md`) as proposed. When updating, replace the existing entry with the corrected version. When removing, delete the line(s).
+  - **The global config directory `~/.config/opencode/` is itself a git repository** (remote: `sxh/global-agent-rules`). After applying changes to the global AGENTS.md, commit and push them in that repo — do not leave them uncommitted or assume they are outside version control.
 - **Add, update, or remove** entries in local AGENTS.md (`./AGENTS.md`) if in a project with a local AGENTS.md.
 - **Update skill files** if the lesson reveals a gap in a skill (XP Craftsman, RPG Master, etc.). Propose the specific edits to the user.
 - **Capture backlog items into PCP** — for each proposed backlog item, call `pcp_capture` with a clear title and optional context. The item is now tracked in the PCP backlog for future sprint planning.
