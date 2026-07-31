@@ -19,7 +19,6 @@ These rules apply to **every** OpenCode session across **all** projects.
 **Git commits are for WORKING code** — Commits should never be made during investigations or while experimenting. Only commit when code is verified working and tests pass. This is a prime directive.
 **NEVER adopt a "move fast and fix" approach** — Always stick with the process. Don't skip steps because something "seems simple" or you're "pretty sure it will work". Follow the process even when it's slower - that's how we avoid mistakes.
 **Verify backlog items before starting** — Before starting a task from the backlog or queue, check `git log --oneline -20` for recent related work. A prior commit may have already completed the task; stale backlog items waste effort.
-**SpotBugs Heap for Large Projects** — The SpotBugs Maven plugin may run out of memory on projects with 400+ classes and many dependencies. Configure `<maxHeap>4096</maxHeap>` or higher in the plugin configuration to prevent OOM during analysis.
 **PCP state files are part of the project** — `.opencode/pcp/` files track task state across sessions and omitting them breaks continuity. Default to committing them alongside code changes, but batch into the final commit at session end if the user prefers that cadence. Do not leave them unstaged at session end.
 **Answer questions: state-then-stop before acting** — When the user asks a question, your first response must be to restate the question in your own words, answer it concisely, then stop. This applies to all questions: about code, decisions, workflow, or process — any question. No file edits, no code changes, no proposing a fix, no analysing approaches — just the answer. An explicit "yes", "proceed", or "implement it" from the user is required before any action. This is a positive script (not a prohibition) — the passive prohibition alone was insufficient because the agent's instinct to "fix the problem" fired before the guard could stop it. The positive script replaces that instinct with a concrete action that leaves no room for interpretation. Even if one rule is missed, the other catches the pattern. Neither should be removed without evidence that the agent can reliably distinguish questions from assignments for three consecutive sessions.
 
@@ -56,27 +55,6 @@ These rules apply to **every** OpenCode session across **all** projects.
 **Preferred platforms** (in order):
 1. **BEAM** - Gleam, Lustre
 2. **JVM** - Java, Kotlin, Scala
-**Gleam over JS on BEAM** — When targeting BEAM, all logic must be implemented in Gleam. Using JavaScript is a last resort, permitted only when we have *proved* that the task cannot be done in Gleam (e.g., browser-only APIs, Electron IPC that require native Node.js modules). "It feels simpler to write this in JS" is not a valid reason — that is how JS becomes a dumping ground. Every FFI function must be justified by a comment explaining why Gleam cannot do it.
-**Always use native Gleam idioms, especially for JSON parsing** — Do NOT write manual string manipulation to parse JSON. Use `gleam/json` with proper decoder types:
-- Import `gleam/json` and define decoder functions with `json.decode`
-- Never use `string.split`, `string.slice`, or recursive string parsing to extract JSON values
-- Manual JSON parsing is a code smell indicating you're not using idiomatic Gleam
-**FFI requires proof, not assumption** — Before adding FFI, always verify the functionality isn't already in stdlib. Many "impossible" tasks have pure alternatives:
-- **Check gleam/uri first** — For URL encoding, `uri.percent_encode()` does what `encodeURIComponent()` does in JS
-- **Declarative over imperative** — Lustre handles DOM declaratively. If you're reaching for `document.createElement()`, stop. Compute the value in Gleam, render it in the view.
-- **"Can't do X" vs "doesn't expose X"** — Gleam compiles TO JS, so it CAN do anything JS can. The question is whether the stdlib exposes it.
-- **Data: URIs replace file downloads** — For client-side downloads, encode with `uri.percent_encode()` and render as `data:` URI in href. No Blob, no createObjectURL, no click handler needed.
-**Gleam Tech Stack** — We use Gleam for its strong static typing and functional programming model. Gleam brings:
-- **Type safety** — Compile-time guarantees catch entire classes of bugs
-- **Erlang VM (BEAM)** — Battle-tested runtime for concurrent, fault-tolerant applications
-- **JavaScript target** — Same language runs in browser, server, or desktop via Electron
-**Finding Gleam packages and extensions:**
-- **Hex.pm** — Primary package registry: https://hex.pm/packages
-- **gleam_stdlib** — Standard library (always available): https://hex.pm/packages/gleam_stdlib
-- **Official Lustre packages** — `lustre`, `lustre/element`, `lustre/attribute`, `lustre/event`
-- **gleam_js** packages — For JS interop when needed: https://hex.pm/packages?q=gleam_js
-- **Community packages** — Search Hex for `gleam-*` or browse by category
-- **Check first** — Many tasks are solved by gleam_stdlib or gleam_js; don't assume you need a third-party package
 
 ### Development Methodology
 
@@ -190,7 +168,6 @@ These rules ensure code is testable:
 **Verify the actual pagination mechanism before implementing** — Check HTTP headers AND response body structure with a real request (curl). Do not assume Link headers exist solely because the API is from a known platform (Shopify, etc.). Test with a real endpoint.
 **Prefer response body pagination detection** (product count, next-page token) over HTTP headers when the body is already parsed for data extraction. An extra network dependency on headers is fragile.
 **Pagination tests must use mock HTTP responses** that simulate multiple pages (e.g., MockWebConnection) and verify all pages were processed, not just that `hasNextPage()` returned a boolean.
-**Shopify public API has a 25K pagination cap** — The `/collections/.../products.json` endpoint caps any query at `page * limit <= 25000`. This is not rate limiting — the API simply stops returning data. Use sub-collections (by scale, vendor, etc.) to avoid the cap. The error message `{"errors":"Page * Limit exceeds the 25000 limit."}` indicates this cap has been hit.
 
 ### Required Per-Project Files
 
@@ -227,7 +204,32 @@ If any of these checks fail, the commit must be rejected.
 
 ### Technology
 
+Rules in this section apply only when working in the named stack. **AWS is the exception** — it is common infrastructure and its rules live in the generic sections (Cloud Environments, etc.).
+
 #### Gleam + Lustre + Electron Stack
+
+**Gleam over JS on BEAM** — When targeting BEAM, all logic must be implemented in Gleam. Using JavaScript is a last resort, permitted only when we have *proved* that the task cannot be done in Gleam (e.g., browser-only APIs, Electron IPC that require native Node.js modules). "It feels simpler to write this in JS" is not a valid reason — that is how JS becomes a dumping ground. Every FFI function must be justified by a comment explaining why Gleam cannot do it.
+**Always use native Gleam idioms, especially for JSON parsing** — Do NOT write manual string manipulation to parse JSON. Use `gleam/json` with proper decoder types:
+- Import `gleam/json` and define decoder functions with `json.decode`
+- Never use `string.split`, `string.slice`, or recursive string parsing to extract JSON values
+- Manual JSON parsing is a code smell indicating you're not using idiomatic Gleam
+**FFI requires proof, not assumption** — Before adding FFI, always verify the functionality isn't already in stdlib. Many "impossible" tasks have pure alternatives:
+- **Check gleam/uri first** — For URL encoding, `uri.percent_encode()` does what `encodeURIComponent()` does in JS
+- **Declarative over imperative** — Lustre handles DOM declaratively. If you're reaching for `document.createElement()`, stop. Compute the value in Gleam, render it in the view.
+- **"Can't do X" vs "doesn't expose X"** — Gleam compiles TO JS, so it CAN do anything JS can. The question is whether the stdlib exposes it.
+- **Data: URIs replace file downloads** — For client-side downloads, encode with `uri.percent_encode()` and render as `data:` URI in href. No Blob, no createObjectURL, no click handler needed.
+**Gleam Tech Stack** — We use Gleam for its strong static typing and functional programming model. Gleam brings:
+- **Type safety** — Compile-time guarantees catch entire classes of bugs
+- **Erlang VM (BEAM)** — Battle-tested runtime for concurrent, fault-tolerant applications
+- **JavaScript target** — Same language runs in browser, server, or desktop via Electron
+**Finding Gleam packages and extensions:**
+- **Hex.pm** — Primary package registry: https://hex.pm/packages
+- **gleam_stdlib** — Standard library (always available): https://hex.pm/packages/gleam_stdlib
+- **Official Lustre packages** — `lustre`, `lustre/element`, `lustre/attribute`, `lustre/event`
+- **gleam_js** packages — For JS interop when needed: https://hex.pm/packages?q=gleam_js
+- **Community packages** — Search Hex for `gleam-*` or browse by category
+- **Check first** — Many tasks are solved by gleam_stdlib or gleam_js; don't assume you need a third-party package
+- **[2026-06-08] [Coverage] Erlang Cover Tool Assert Ok Dead Branches** — Erlang `cover` counts unreachable `assert Ok` error branches for hardcoded patterns as uncovered lines. Prefer `case` with a safe fallback over `assert Ok` to eliminate false coverage gaps without crashing.
 
 When building desktop apps with Gleam targeting JavaScript, served via Electron:
 **Build Pipeline**
@@ -264,7 +266,7 @@ When building desktop apps with Gleam targeting JavaScript, served via Electron:
 - Use `npx c8 --check-coverage --lines 95 --branches 95 --statements 95` in the precommit hook
 - **Exclude `main.mjs` from coverage** — the `main()` function requires a browser DOM
 
-### Snapshot Testing with Birdie
+#### Snapshot Testing with Birdie
 
 **What is Birdie?**
 Birdie is a snapshot testing tool for Gleam. Instead of writing manual assertions for complex outputs (like checking every single tag in a Lustre view), Birdie captures the entire output and saves it as a "snapshot" file. On subsequent runs, it compares the current output against the saved version and highlights any differences with a visual diff.
@@ -342,6 +344,40 @@ if [ -n "$FFI_FILES" ]; then
 fi
 ```
 
+#### React / TypeScript Stack
+
+- **[2026-06-27] [React/Architecture] Parent Key Prop Replaces ID-Change Effects** — When a component resets local state on prop ID changes, check if the parent already passes `key={id}`. If so, the component remounts on ID change and no `useEffect` + `useRef` pattern is needed, eliminating `set-state-in-effect` lint violations entirely. The simplest solution is discoverable by checking usage context first.
+
+- **[2026-07-31] [React] Render-Phase State Adjustment for Prop-Driven Resets** — When a prop change must reset local state but the parent does not guarantee `key={id}`, track the previous id in state and adjust state during render instead of using a `useEffect`. PaintRangeNotes compared `prevRangeId !== paintRange.id` during render to sync notes and exit edit mode on range switches while preserving the user's in-progress draft on same-id updates.
+
+- **[2026-06-30] [React/Tooling] replaceAll String Constant Gotcha** — ESLint `no-duplicate-string` fixes using `replaceAll` also replace inside the constant definition itself, creating a self-referencing variable. Always verify the definition line immediately after `replaceAll` and fix `const X = X` to `const X = "X"`. **JSX extension:** `replaceAll` on JSX prop strings also strips required curly braces: `placeholder="Search..."` becomes `placeholder=SEARCH_PLACEHOLDER` instead of `placeholder={SEARCH_PLACEHOLDER}`. Fix both the definition line and any JSX curly braces after using `replaceAll` on JSX content. **Cross-file extension:** `replaceAll` on a test file also replaces matching strings in imported production files (same literal in `aria-label`, test assertions, etc.). Verify the entire diff, not just the target file, when using `replaceAll` in test files.
+
+- **[2026-06-30] [Architecture] Imperative API for Module-Level UI Triggers** — When a module-level utility (e.g., `notifyError`) needs to trigger React UI updates, use an imperative API with a `useEffect` that assigns a module-level function pointer. A Context hook is not usable from module scope. Example: `showToast` in Toast.tsx.
+
+- **[2026-07-08] [React/Testing] Controlled Component State Simulation** — For controlled components, invoking a callback (e.g., `fireEvent.click` on a clear button) only fires the `onChange` callback. The UI only updates when the parent re-renders with the new prop value via `rerender`. Tests must simulate the parent state update to verify UI state changes.
+
+- **[2026-07-19] [React/ESLint] No eslint-disable Directives** — Eslint-disable directives of any form are prohibited. When `jsx-a11y/no-noninteractive-element-interactions` fires on a modal backdrop, use a `<button>` with reset CSS styles instead of `<div>` + eslint-disable. When `onKeyDown` is needed on a `role="dialog"` div, attach the listener via `useEffect` + `addEventListener` on the ref instead of a JSX prop. Permission to add an eslint-disable will not be granted — restructure to comply.
+
+- **[2026-07-21] [Positive] Callback Ref as Lint-Compliant Middle Ground** — When both `useEffect`+`useRef` and `autoFocus` are blocked by lint rules (`no-noninteractive-element-interactions`, `no-autofocus`), use a `useCallback` ref with `node?.focus()` for imperative focus-on-mount paired with a document-level `useEffect` for Escape key handling. The callback ref avoids both the `useRef`+`useEffect` import footprint and the `no-autofocus` rule, while the document-level listener avoids JSX event handlers on non-interactive elements.
+
+#### JVM Stack
+
+- **SpotBugs Heap for Large Projects** — The SpotBugs Maven plugin may run out of memory on projects with 400+ classes and many dependencies. Configure `<maxHeap>4096</maxHeap>` or higher in the plugin configuration to prevent OOM during analysis.
+
+- **[2026-07-05] [Exposed] Domain Operations Require Transaction Context** — Exposed lazy entity properties (e.g., `entity.reducedProductDescription`) can only be accessed within an active transaction. Domain classes that access these properties must be called inside `withTransaction { }` or `transaction { }`.
+
+#### Other
+
+- **Shopify public API has a 25K pagination cap** — The `/collections/.../products.json` endpoint caps any query at `page * limit <= 25000`. This is not rate limiting — the API simply stops returning data. Use sub-collections (by scale, vendor, etc.) to avoid the cap. The error message `{"errors":"Page * Limit exceeds the 25000 limit."}` indicates this cap has been hit.
+
+- **[2026-06-12] [CI/CD] Reusable workflow permissions must be explicit** — Calling workflows that use reusable workflows must explicitly grant any permissions the reusable workflow requests (e.g., `pull-requests: write`). Missing permissions cause validation failures at the `uses:` line. Read GitHub's file/line/column error message to identify the exact permission needed.
+
+- **[2026-06-23] [CI/CD] GitHub Actions Checkout Depth for Merge Commits** — `actions/checkout@v4` with `ref: refs/pull/N/merge` defaults to `fetch-depth: 1`, fetching only the merge commit. Parent SHAs (`base.sha`, `head.sha`) referenced in git operations will fail with exit code 128 unless `fetch-depth: 0` (or `2`) is explicitly set.
+
+- **[2026-07-04] [Tooling] Vitest autoUpdate Unreliable** — Vitest's `autoUpdate: true` can decrease coverage thresholds despite some documentation claiming otherwise. Do not rely on it. Use a manual ratchet script that parses vitest's text output and only updates thresholds upward, as demonstrated by `scripts/ratchet-coverage.ts` in scheduler4.
+
+- **[2026-07-31] [Architecture] Zod's Default strip Mode Removes Unknown Keys** — `z.object()` strips unknown keys by default during parsing, so extra properties like `guestId` vanish after validation. If a handler relies on extra properties being present after validation, either include them in the schema or use `.passthrough()` on the object. A union alone is not sufficient when some variants need unvalidated properties.
+
 ### Security
 
 Security rules for all projects:
@@ -383,8 +419,6 @@ All projects must have GitHub Actions configured:
 - **Coverage check** - Verify 95%+ coverage in CI
 - **Build** - Verify project builds successfully
 - **Production gating** - Only deploy to production on main branch or tagged releases
-- **[2026-06-12] [CI/CD] Reusable workflow permissions must be explicit** — Calling workflows that use reusable workflows must explicitly grant any permissions the reusable workflow requests (e.g., `pull-requests: write`). Missing permissions cause validation failures at the `uses:` line. Read GitHub's file/line/column error message to identify the exact permission needed.
-- **[2026-06-23] [CI/CD] GitHub Actions Checkout Depth for Merge Commits** — `actions/checkout@v4` with `ref: refs/pull/N/merge` defaults to `fetch-depth: 1`, fetching only the merge commit. Parent SHAs (`base.sha`, `head.sha`) referenced in git operations will fail with exit code 128 unless `fetch-depth: 0` (or `2`) is explicitly set.
 
 ### Code Review
 
@@ -620,10 +654,6 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-06-26] [Process] Multi-File Git Blame for Stale Test Investigation** — When a test fails and the feature it tests appears to be missing from the component, run `git log --follow` on both the component and test files. Crossed commits (one adding a test, another removing the feature on a divergent branch) are invisible when checking either file in isolation. Multi-file history trace prevents misdiagnosis.
 
-- **[2026-06-27] [React/Architecture] Parent Key Prop Replaces ID-Change Effects** — When a component resets local state on prop ID changes, check if the parent already passes `key={id}`. If so, the component remounts on ID change and no `useEffect` + `useRef` pattern is needed, eliminating `set-state-in-effect` lint violations entirely. The simplest solution is discoverable by checking usage context first.
-
-- **[2026-07-31] [React] Render-Phase State Adjustment for Prop-Driven Resets** — When a prop change must reset local state but the parent does not guarantee `key={id}`, track the previous id in state and adjust state during render instead of using a `useEffect`. PaintRangeNotes compared `prevRangeId !== paintRange.id` during render to sync notes and exit edit mode on range switches while preserving the user's in-progress draft on same-id updates.
-
 - **[2026-06-27] [Positive] Context-Aware Refactoring** — Before simplifying a component's internal state management, check how it's actually used by its callers. The parent's `key` prop pattern eliminated two `useEffect` hooks that had been considered necessary. Understanding the call site context is often the key to simpler internal implementation.
 
 - **[2026-06-28] [Positive] Refactoring Special Cases to General Principles** — When a design accumulates many narrow rules for individual scenarios, step back and identify the general principles that subsume them. The DeepSeek SYSTEM_PROMPT was reduced from 15 specific bullets to 2 principles (Indirection, Inconsistency). This pattern applies to any ruleset, configuration, or abstraction that keeps growing with band-aids.
@@ -694,22 +724,12 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-31] [Testing] Verify Which Branch, Not Just the Return Value** — When both branches of a conditional return the same HTTP status or result type, a test that only checks the return value is insufficient. Verify the correct branch was reached by inspecting the response body, mock interactions, or side effects. A PATCH handler's guest update branch was dead code (Zod stripped `guestId`) but the test passed because both branches returned 200.
 
-- **[2026-07-31] [Architecture] Zod's Default strip Mode Removes Unknown Keys** — `z.object()` strips unknown keys by default during parsing, so extra properties like `guestId` vanish after validation. If a handler relies on extra properties being present after validation, either include them in the schema or use `.passthrough()` on the object. A union alone is not sufficient when some variants need unvalidated properties.
-
 - **[2026-07-31] [Process] Verify Block Structure After Appending to Nested Files** — String-based edits that append to nested block structures (describe/it blocks, JSX) can duplicate block closers, orphaning subsequent code with broken scope. After any edit near a block boundary, verify structural integrity (LSP diagnostics, block balance) before running tests — syntax validity alone does not guarantee correct structure. In this session, appending tests to a `describe` block twice duplicated the closing `});`, orphaning later tests outside the block until the imbalance was caught and repaired.
 
 These entries have been archived as of their respective retrospectives. They document specific platform/tool gotchas or superseded entries preserved for reference.
 - **[2026-07-13] [Coverage] Coverage Tooling Enables Improvement** — Removed 2026-07-31: entry had incomplete body text (title only, no principle statement or example).
-- **[2026-06-08] [Coverage] Erlang Cover Tool Assert Ok Dead Branches** — Erlang `cover` counts unreachable `assert Ok` error branches for hardcoded patterns as uncovered lines. Prefer `case` with a safe fallback over `assert Ok` to eliminate false coverage gaps without crashing.
 - **[2026-06-21] [Process] Login Item Service Environment Verification** — When a macOS Login Item starts a service with required env vars, verify the running process actually has them by checking `ps eww -p <PID> | grep VAR`. Dependent apps with autoStart must be disabled — they spawn their own server instance sharing the same port but without the Login Item's env var injection.
 - **[2026-06-23] [CloudFront] CloudFront Distribution Discovery and CNAME Locks** — When a domain is served behind CloudFront but the distribution doesn't appear in `aws cloudfront list-distributions`, check AWS Amplify which creates managed CloudFront distributions for custom domains. Before creating a new distribution for an existing domain, verify the domain isn't already associated with another distribution via `CNAMEAlreadyExists`.
-- **[2026-07-05] [Exposed] Domain Operations Require Transaction Context** — Exposed lazy entity properties (e.g., `entity.reducedProductDescription`) can only be accessed within an active transaction. Domain classes that access these properties must be called inside `withTransaction { }` or `transaction { }`.
-- **[2026-06-30] [React/Tooling] replaceAll String Constant Gotcha** — ESLint `no-duplicate-string` fixes using `replaceAll` also replace inside the constant definition itself, creating a self-referencing variable. Always verify the definition line immediately after `replaceAll` and fix `const X = X` to `const X = "X"`. **JSX extension:** `replaceAll` on JSX prop strings also strips required curly braces: `placeholder="Search..."` becomes `placeholder=SEARCH_PLACEHOLDER` instead of `placeholder={SEARCH_PLACEHOLDER}`. Fix both the definition line and any JSX curly braces after using `replaceAll` on JSX content. **Cross-file extension:** `replaceAll` on a test file also replaces matching strings in imported production files (same literal in `aria-label`, test assertions, etc.). Verify the entire diff, not just the target file, when using `replaceAll` in test files.
-- **[2026-06-30] [Architecture] Imperative API for Module-Level UI Triggers** — When a module-level utility (e.g., `notifyError`) needs to trigger React UI updates, use an imperative API with a `useEffect` that assigns a module-level function pointer. A Context hook is not usable from module scope. Example: `showToast` in Toast.tsx.
-- **[2026-07-04] [Tooling] Vitest autoUpdate Unreliable** — Vitest's `autoUpdate: true` can decrease coverage thresholds despite some documentation claiming otherwise. Do not rely on it. Use a manual ratchet script that parses vitest's text output and only updates thresholds upward, as demonstrated by `scripts/ratchet-coverage.ts` in scheduler4.
-- **[2026-07-08] [React/Testing] Controlled Component State Simulation** — For controlled components, invoking a callback (e.g., `fireEvent.click` on a clear button) only fires the `onChange` callback. The UI only updates when the parent re-renders with the new prop value via `rerender`. Tests must simulate the parent state update to verify UI state changes.
-- **[2026-07-19] [React/ESLint] No eslint-disable Directives** — Eslint-disable directives of any form are prohibited. When `jsx-a11y/no-noninteractive-element-interactions` fires on a modal backdrop, use a `<button>` with reset CSS styles instead of `<div>` + eslint-disable. When `onKeyDown` is needed on a `role="dialog"` div, attach the listener via `useEffect` + `addEventListener` on the ref instead of a JSX prop. Permission to add an eslint-disable will not be granted — restructure to comply.
-- **[2026-07-21] [Positive] Callback Ref as Lint-Compliant Middle Ground** — When both `useEffect`+`useRef` and `autoFocus` are blocked by lint rules (`no-noninteractive-element-interactions`, `no-autofocus`), use a `useCallback` ref with `node?.focus()` for imperative focus-on-mount paired with a document-level `useEffect` for Escape key handling. The callback ref avoids both the `useRef`+`useEffect` import footprint and the `no-autofocus` rule, while the document-level listener avoids JSX event handlers on non-interactive elements.
 - **[2026-07-31] [Testing] Generated Code Must Compile, Not Just Match Patterns** — String-matching tests on generated output verify structure but not correctness. Add compilation checks (tsc --noEmit, dart analyze) for generated codebases. A method reference in generated code that doesn't exist in the generated base class passes string tests but fails at runtime.
 - **Superseded (2026-07-22):** [2026-06-28] Questions About Plans Are Not Go-Aheads — merged into Commit Permission Protocol.
 - **Superseded (2026-07-22):** [2026-07-12] Two-Turn Protocol Is Not Optional After Tests Pass — merged into Commit Permission Protocol.
