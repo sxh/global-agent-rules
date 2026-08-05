@@ -716,7 +716,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-25] [Process] DSL-First for Application Behavior** — When adding state or behavior that affects application logic, start at the DSL/model layer, not the emitter. Premature emitter changes bypass the canonical representation and produce code that doesn't compose across output targets. In this session, selection state was first implemented in the Flutter emitter before the MachineContext DSL existed.
 
-- **[2026-07-25] [Process] Pipe Masks Exit Code in Pipeline** — A shell pipeline (`cmd | tail`) returns the exit code of the last command, not the first. In pre-commit hooks and other critical scripts, capture command output to a variable and check `$?` before displaying it. The `run_check` function (capture → conditional echo → exit) is the recommended pattern.
+- **[2026-08-05] [Process] Verification Must Inspect the Actual State, Not Assume It** — After any shell or git operation, verify the real outcome: capture `$?` before a pipeline, re-run `git status` and `git diff --cached` after index-mutating commands, and reproduce the exact canonical gate command reading its full output. A pipe masks the first command's exit code, a stash silently unstages files, and a filtered grep hides a coverage ERROR line — each problem was only visible when the actual state was inspected.
 
 - **[2026-07-25] [Positive] Roll Back Before Redirect** — When the user identifies the wrong approach, revert uncommitted changes before starting the corrected direction. Clean git state eliminates noise from the incorrect path and focuses implementation on what matters. The selection state approach was cleanly rolled back in seconds, preserving a clean starting point for the DSL-first design.
 
@@ -730,9 +730,9 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-08-05] [Process] Check Every Consumer Before Declaring a Bug Impossible** — When a user reports a bug in a codebase where one artifact feeds multiple consumers, verify the behavior across all consumers before asserting it cannot occur. A chips-for-unselected-qualities report was dismissed after reading only the Flutter emitter; the editor's separate resolution path had the bug and the user corrected it.
 
-- **[2026-08-01] [Process] Verify the Staged Set After Index-Mutating Commands** — Git commands that change the index (stash, stash pop, checkout, reset) silently alter what is staged, so re-run `git status` and inspect `git diff --cached` immediately before committing. A stash used to compare coverage baselines unstaged ComponentGrid changes, producing a commit whose message described files it did not contain.
+- **[2026-08-05] [Process] Only Apply Tools That Are Part of the Enforced Gate** — Before mass-formatting or auto-fixing files, read the hook to learn which tools are actually enforced; a non-gated tool's output can break the gated one. Running `prettier --write` on a file that was already not prettier-clean reformatted the whole file and broke the enforced eslint `max-lines-per-function` rule, requiring a revert to a minimal manual edit.
 
-- **[2026-08-01] [Process] Gate Verification Must Reproduce the Exact Canonical Command** — When verifying a pre-commit gate (coverage, lint, tests) locally, run the exact same command the hook runs and read the full output including ERROR lines; a filtered grep that hides the failure line is not verification. A coverage check that grepped only the totals row missed the `does not meet threshold` error line and a failing commit was proposed.
+- **[2026-08-05] [Testing] Mocks Must Match the Real Contract** — A test double must replicate the actual runtime behavior of the dependency it replaces; a mock that rejects where the production wiring cannot reject manufactures latent failure modes. The palette delete test used `mockRejectedValue` on an `onDelete` that never rejects (the parent catches internally and notifies), creating an unhandled-rejection landmine that only surfaces on tooling upgrades — the fix was `mockResolvedValue` to reflect reality.
 
 - **[2026-08-01] [Process] Extract Shared Logic When a Sibling Fixes a Defect Class** — When a new component re-introduces a defect class that a sibling component already fixed, extract the shared logic into common code rather than copying the sibling's pattern again. PaletteNotes duplicated the notes-editing defect class fixed in PaintRangeNotes; the resolution was a shared `useNotesEditor` hook used by both, not a copy of the fix.
 
@@ -757,3 +757,6 @@ These entries have been archived as of their respective retrospectives. They doc
 - **Superseded (2026-07-26):** [2026-07-22] Track Recurrence, Not Just Add Entries — merged into Consolidate Entries, Verify Effectiveness.
 - **Superseded (2026-07-26):** [2026-07-22] Verify Entry Effectiveness Before Adding — merged into Consolidate Entries, Verify Effectiveness.
 - **Superseded (2026-07-26):** [2026-07-22] Consolidate, Don't Accumulate — merged into Consolidate Entries, Verify Effectiveness.
+- **Superseded (2026-08-05):** [2026-07-25] Pipe Masks Exit Code in Pipeline — merged into Verification Must Inspect the Actual State, Not Assume It.
+- **Superseded (2026-08-05):** [2026-08-01] Verify the Staged Set After Index-Mutating Commands — merged into Verification Must Inspect the Actual State, Not Assume It.
+- **Superseded (2026-08-05):** [2026-08-01] Gate Verification Must Reproduce the Exact Canonical Command — merged into Verification Must Inspect the Actual State, Not Assume It.
