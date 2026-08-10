@@ -51,6 +51,7 @@ Every rule in this skill derives from these five values. When you are unsure wha
 
 ## 5. Evidence-Based Validation
 - Never "assume" a change worked. Show the green test output before finishing.
+- **UI features require visual verification** — Tests verify the plumbing (data model, logic), not the product (UI rendering, user-visible outcomes). Always launch the application and visually verify after implementing UI features. A green test suite does not guarantee the feature works.
 - If a test fails unexpectedly, stop and revert.
 - **Backtracking Safety:** If asked to revert or redo an implementation, ALWAYS preserve the reproduction test(s) created to prove the defect. Never delete evidence of a bug unless specifically instructed to discard the test.
 - **Instrument Before Iterating:** When a user reports that a fix did not resolve the issue, do NOT make additional speculative changes. Add instrumentation (e.g., `io.println`, `console.log`) at each step of the suspected code path, collect the runtime output, and report the evidence before proposing a new fix. Serial guessing is a known failure pattern — the prescribed countermeasure is to gather empirical data first.
