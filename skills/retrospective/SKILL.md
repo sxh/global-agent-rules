@@ -19,7 +19,22 @@ A "session" is the span of conversation since the last retrospective was run, or
 - Explicitly look for **both** problems and successes — what went well is as important as what went wrong.
 - Look for explicit mentions of "the problem was...", "I found the issue...", "the bug was...", "I learned...", "we learned...", and any user feedback about the process itself.
 
-### Step 2: Identify Defect Pattern and Positives
+### Step 2: Run Structural Debt Scan (software projects only)
+
+If the session's project is a **software project** (a codebase with source files that can be scanned — not a docs-only or config-only repo), run the **structural-debt-auditor** skill alongside the session analysis:
+
+1. **Run the scan** on the project:
+   ```
+   node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-scan.mjs [project-dir] [--json]
+   ```
+   If the project does not have source code the scanner supports, skip this step and note why.
+2. **Apply the evidence gate** to every candidate (see `structural-debt-auditor/references/evidence-gate.md`): verify at the source that the same-named declaration is truly the same shape with the same ownership; downgrade intentional duplication (different security contexts, divergent evolution paths, deliberate decoupling).
+3. **Treat each verified candidate as a finding** — it feeds the same pipeline as defect and positive findings: it gets generalized to a principle in Step 3, checked for coverage in Step 4, reported in the summary (Step 5), and becomes a backlog item.
+4. **Record the ratio** in the retrospective summary as a baseline for the next retrospective — a rising ratio between retrospectives is itself a finding ("structure is diverging"), even if no single candidate is severe.
+
+The scan catches the *missing abstractions* the session analysis cannot see: duplicated types, helpers, and boilerplate that accumulate silently across files because per-diff review ratifies the existing baseline. A retrospective that only analyzes the session's changes will keep finding the same class of symptom; the scan is what surfaces the underlying structure.
+
+### Step 3: Identify Defect Pattern and Positives
 - **If a defect/bug was found and fixed in this session:**
   - Run the full 5-tier **Five Whys** analysis.
   - Document: root cause, the missing/insufficient test, the process gap, the guidance gap.
@@ -35,11 +50,11 @@ A "session" is the span of conversation since the last retrospective was run, or
   - Formulate actionable backlog items: concrete tasks that can be executed in a future sprint.
   - See "Backlog Generation" guidelines below.
 
-### Step 3: Generalize Findings to Principles
+### Step 4: Generalize Findings to Principles
 
 Before filtering or writing entries, generalize each finding:
 
-**For each finding from Step 2, state the underlying principle** that produced it. A principle is a stable rule that, if followed or violated, explains the finding. The same principle should apply to a different scenario with different tooling.
+**For each finding from Steps 2–3 (structural-debt candidates, defects, positives), state the underlying principle** that produced it. A principle is a stable rule that, if followed or violated, explains the finding. The same principle should apply to a different scenario with different tooling.
 
 Examples of principles vs findings:
 
@@ -55,17 +70,17 @@ If two or more different findings from this session (or from recent retrospectiv
 
 If a finding does not generalize to a principle that would prevent a different class of defect, it is likely a one-off — discard or move to backlog.
 
-### Step 4: Check Principle Coverage, Not Entry Duplication
+### Step 5: Check Principle Coverage, Not Entry Duplication
 
 - Read `~/.config/opencode/AGENTS.md` (global) and `./AGENTS.md` (local).
-- For each **principle** identified in Step 3:
+- For each **principle** identified in Step 4:
   - Search existing entries for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
   - If the principle is already covered by an existing entry: **do not add a new entry.** Instead, propose a refinement to the existing entry that clarifies its scope (e.g., add a sentence or an example from this session).
   - If the principle is **not** covered by any existing entry: propose a new entry.
   - If the principle is **contradicted** by an existing entry: mark the old one for removal or amendment.
 - **Compression scan:** If 3+ existing entries from different sessions express the same principle, propose merging them into one entry and archiving the surplus.
 
-### Step 5: Present Summary
+### Step 6: Present Summary
 Show the user a summary BEFORE confirming. The summary must include:
 
 ```
@@ -73,6 +88,9 @@ Show the user a summary BEFORE confirming. The summary must include:
 
 ### Session Overview
 [Brief description of what was worked on, with time boundary noted]
+
+### Structural Debt Scan (software projects only)
+[Duplication ratio, list of verified candidates with pattern_signature, candidates downgraded as intentional, ratio vs previous baseline]
 
 ### What Went Well
 1. [Positive practice or good outcome]
@@ -106,7 +124,7 @@ Show the user a summary BEFORE confirming. The summary must include:
 
 Wait for user confirmation before proceeding.
 
-### Step 6: Apply Changes (after confirmation)
+### Step 7: Apply Changes (after confirmation)
 If user confirms:
 - **Add, update, or remove** entries in global AGENTS.md (`~/.config/opencode/AGENTS.md`) as proposed. When updating, replace the existing entry with the corrected version. When removing, delete the line(s).
   - **The global config directory `~/.config/opencode/` is itself a git repository** (remote: `sxh/global-agent-rules`). After applying changes to the global AGENTS.md, commit and push them in that repo — do not leave them uncommitted or assume they are outside version control.
@@ -115,12 +133,12 @@ If user confirms:
 - **Capture backlog items into PCP** — for each proposed backlog item, call `pcp_capture` with a clear title and optional context. The item is now tracked in the PCP backlog for future sprint planning.
 - Show confirmation that all updates were made.
 
-### Step 7: Compact (every session)
+### Step 8: Compact (every session)
 Every retrospective must propose a compaction pass, even if no new entries are added:
 - Scan the last 20 entries in AGENTS.md (or all entries since the last compaction).
 - Identify any 2+ entries that express the same principle (different titles, same idea) and propose merging them.
 - If merging, keep the principle and update the date of the surviving entry to the current date. Archive the surplus entries.
-- Also apply the principle-coverage check from Step 4: if a new principle subsumes older entries, those older entries should be archived.
+- Also apply the principle-coverage check from Step 5: if a new principle subsumes older entries, those older entries should be archived.
 - Propose the specific merges and archive actions in the summary for user confirmation.
 
 ## Guidelines
@@ -175,6 +193,7 @@ For each finding from the Five Whys or Positive Amplification Analysis, decide w
 - **Level 2 (Direct cause)** from Five Whys — fix the symptom (e.g., "Add NOT NULL to url column")
 - **Level 4 (Process gap)** from Five Whys — fix the process (e.g., "Add schema review to precommit hooks")
 - **Level 3 (Practice/process enabler)** from 5 Wins — reinforce the practice (e.g., "Document multi-layer investigation pattern")
+- **Verified structural-debt candidates** from Step 2 — unify the missing abstraction (e.g., "Extract shared Fetcher type into repositories/types.ts") — and any rising-ratio finding
 - **Any lesson that failed AGENTS.md triage** but is still a concrete, doable task
 
 **Use `pcp_capture`** to add each item with a descriptive title. For example:
@@ -209,6 +228,7 @@ If a lesson reveals a gap or improvement opportunity in another skill file:
 - The retrospective summary must include a `Cross-Skill Impact` section identifying which skills need updates.
 - Apply the same Red-Green-Refactor protocol to skill file edits: propose the change, wait for confirmation, then write.
 - Do not edit skill files silently — the user must approve changes to their tooling configuration.
+- The **structural-debt-auditor** skill runs as part of this skill (Step 2) on software projects. If the scan produces a pattern that repeats across retrospectives (the same class of missing abstraction reappearing), that is a signal the structural-debt-auditor skill itself needs improvement (new extraction pattern, new exclusion, better signature), not just another backlog item.
 
 ## Format for AGENTS.md Entries
 
