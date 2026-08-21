@@ -35,6 +35,8 @@ node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-s
 
 **Ratchet rule (same as coverage):** once you set a threshold, never lower it. When the gate fails, investigate the rise and unify — do not relax the number. A rising ratio is the early warning that replaces "we keep finding one small problem."
 
+> **Kotlin/Java projects:** the bundled scanner only extracts TypeScript declarations. For Kotlin/Java codebases, use a scanner with a Kotlin/Java extractor (e.g. the ddd-blueprint-pipeline `scripts/structural-debt-scan.mjs` Kotlin extractor from the T463 work) — otherwise the scan reports 0 declarations on `.kt`/`.java` sources and the signal is silently empty.
+
 ### 2. The Discovery Pass (per-layer re-derivation)
 
 For each layer the scan flags, ask the re-derivation question: **"If I wrote this layer fresh, what would the boundaries be?"** Do not ask "what's wrong with this change?" — that frame ratifies the existing baseline.

@@ -24,7 +24,19 @@
       "models": {
         "mimo-v2.5": { "id": "mimo-v2.5" }
       }
-    }
+    },
+    "local-model": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Local Qwen 3.5",
+          "options": {
+            "baseURL": "http://localhost:1234/v1"
+          },
+          "models": {
+            "local-model": {
+              "name": "qwen3.5-9b"
+            }
+          }
+        }
   },
   "disabled_providers": ["deepseek"],
   "plugin": ["~/.config/opencode/plugins/pcp.ts"],
