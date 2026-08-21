@@ -775,6 +775,12 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-08-20] [Positive] RuleTester-First Lint Rules With the Repo as Second Oracle** — Build new lint rules test-first with RuleTester, then run the rule against the whole repository; real code surfaces heuristic gaps (text inside conditionals, expression containers, mixed icon+text branches) that hand-picked unit cases miss. The icon-button a11y rule went through three heuristic iterations, each driven by a repo-wide finding rather than speculation, and converged on a text-presence algorithm with complexity under the ratchet.
 
+- **[2026-08-21] [Testing] Observe Intermediate States With Explicit Gates, Not Implementation Timing** — Tests must not depend on the implementation's internal pacing (poll intervals, thread sleeps) to observe an intermediate state. When the event-driven readiness rework removed the IDE launch's busy-poll, the wiring test that relied on the poll's 20ms cadence to catch the "Launching" message failed — the fix was a gated fake runner whose line emission the test releases explicitly.
+
+- **[2026-08-21] [Positive] Order Backlog Execution by Dependency So Structural Changes Land Once** — Sequence a sprint so each architectural change is made exactly once, foundation first. The launch-path sprint ordered the session cluster (decision → threading → event-driven → timeout) before the contract cluster (command builder → shared default), then the extraction, capped by a cross-validation test — so no piece was written twice and each commit built on the prior.
+
+- **[2026-08-21] [Positive] Preserve the Public API When Extracting a Component** — A behavior-preserving refactor should leave the consumed API unchanged so callers and tests don't churn. Extracting the launch orchestration into a coordinator kept `launchMessage`/`isLaunching` as read-only delegated properties into the coordinator's Compose state, so the view-model's surface, the UI, and every test were untouched.
+
 These entries have been archived as of their respective retrospectives. They document specific platform/tool gotchas or superseded entries preserved for reference.
 - **[2026-07-13] [Coverage] Coverage Tooling Enables Improvement** — Removed 2026-07-31: entry had incomplete body text (title only, no principle statement or example).
 - **[2026-07-04] [Tooling] Vitest autoUpdate Unreliable** — Superseded 2026-08-01: merged into Coverage Thresholds Are Hardcoded, Canonically Measured, and Investigated.
