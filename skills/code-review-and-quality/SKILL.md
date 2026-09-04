@@ -106,6 +106,7 @@ Do the tests actually protect the behavior, or just pass? A green suite is not e
 
 - Do tests assert the observable outcome, not implementation internals (no assertions on CSS class hashes, internal function calls, or DOM structure position)?
 - Would the test fail if the behavior regressed? (A test that passes against code that should fail is a false-green — see the jsdom gap below.)
+- Do assertions carry real values, not bare invocations? Flag **bare `toHaveBeenCalled()` with no arguments** — it passes even if the call carries wrong or missing payload (e.g., a delete that removes the wrong record). Require `toHaveBeenCalledWith(expect.objectContaining({ ...key fields }))` for at least the critical data. Also flag **count-only assertions** (`expect(result.length).toBe(2)`) where the behavior under test is ordering or content — a completely broken sort that returns items in the wrong order still passes; assert the resulting order or values (`result.map(g => g.name)`) instead.
 - Are tests hermetic: do they clean up their own side effects (globals, listeners, mocks restored in `afterEach`, no `unhandledRejection` leaks from `finally` blocks)?
 - Are test doubles faithful to the real contract (`mockResolvedValue` where the production path resolves, `mockRejectedValue` only where it actually rejects)?
 - Do tests cover the test-environment gap? jsdom and other simulators model only a subset of browser behavior — if the assertion targets behavior the environment doesn't simulate (e.g., focus dropping from a disabled element, real clipboard), the test can pass against broken code. Rewrite such assertions to target the observable DOM contract (e.g., the `disabled`/`aria-disabled` attribute) instead.
@@ -381,6 +382,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 ### Test Quality
 - [ ] Tests assert observable outcomes, not implementation internals
 - [ ] Tests would fail if the behavior regressed (no false-greens)
+- [ ] Assertions carry real values — no bare `toHaveBeenCalled()`, no count-only `length` checks where order/content is the behavior
 - [ ] Tests are hermetic (no leaks, globals/mocks restored)
 - [ ] Test doubles match the real contract
 - [ ] Edge and error paths covered
