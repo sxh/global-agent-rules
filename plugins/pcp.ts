@@ -24,15 +24,15 @@ import type { ProjectData, Stack, Task } from "./state.js";
 // Tool name classifiers
 // ──────────────────────────────────────────────
 
-const WRITE_PATTERNS = ["write", "edit", "patch", "create", "apply", "bash", "shell", "exec", "run"];
+const WRITE_PATTERNS = ["write", "edit", "patch", "create", "apply"];
 const BASH_PATTERNS  = ["bash", "shell", "exec", "run", "terminal"];
 
-function isWriteTool(name: string): boolean {
+export function isWriteTool(name: string): boolean {
   const n = name.toLowerCase();
   return WRITE_PATTERNS.some((p) => n.includes(p));
 }
 
-function isBashTool(name: string): boolean {
+export function isBashTool(name: string): boolean {
   const n = name.toLowerCase();
   return BASH_PATTERNS.some((p) => n.includes(p));
 }
