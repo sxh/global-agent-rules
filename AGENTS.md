@@ -1,829 +1,130 @@
 # Global Development Rules
 
-## Technology Choices
+These rules apply to **every** OpenCode session across **all** projects, unless a project's
+own AGENTS.md explicitly overrides them.
 
-These rules apply to **every** OpenCode session across **all** projects.
+## Priority Order
 
-### Priority Order
+1. **Testability** — every line of application code must be testable; if configuration or
+   UI code has an outcome, that outcome is testable. Coverage measurement is mandatory.
+2. **Simplicity**
+3. **Consistency** across the entire stack
 
-1. **Testability is the first priority** - Every line of code written for the application should be testable.
-   - If it is configuration code, the outcome of the configuration code should be testable.
-   - This includes user interface code.
-   - **Test coverage measurement is mandatory** - Every project must be able to run coverage reports.
-2. **Simplicity** - Next priority is simplicity.
-3. **Consistency** - Consistency across the entire stack.
+## Working Protocol
 
-### Process Rules
+**Permission to act** — No code change and no commit without an explicit instruction from
+the user in a separate turn. The two-turn protocol (propose, then execute) applies to every
+commit without exception. Passing tests, perceived urgency, and the question "what's the
+plan?" are not permission. A question about plans is a request for information: state the
+plan in text and wait.
 
-**NEVER make a commit without explicit instruction from the user** — Wait for the user to explicitly ask for a commit before creating one. This applies to all code changes, not just commits — executing a plan or making any code change requires explicit user permission in a separate turn. Passing tests, perceived urgency, or the user asking "what's the plan?" does not constitute permission. The two-turn protocol (propose then execute) applies to every commit without exception. A question about plans is a request for information, not a go-ahead — state the plan in text and wait for explicit confirmation.
-**Git commits are for WORKING code** — Commits should never be made during investigations or while experimenting. Only commit when code is verified working and tests pass. This is a prime directive.
-**Run the code-quality review before proposing every commit** — Before proposing any commit, run the seven-axis `code-review-and-quality` skill (`~/.config/opencode/skills/code-review-and-quality/SKILL.md`) on the staged diff and state the result in the commit proposal: which axes passed, which findings were addressed, and which were deliberately deferred (with reason). The review is part of the two-turn commit protocol — a proposal that omits the review result is incomplete. This applies to every commit in every project, not just large ones; a one-line typo fix still gets a one-line review verdict. (The structural-debt scan runs separately on cadence and layer-touch via the `structural-debt-auditor` skill; this rule is the per-commit manual review.)
-**A commit that would need `--no-verify` is a STOP, not a workaround** — If a commit would require bypassing hooks (`--no-verify`, `-n`, or equivalent), stop immediately and state the reason and the risk in text, then wait for the user to volunteer permission. A prior "yes" for one bypass does not carry forward. The action default fires before passive prohibitions, so treat this as a positive script: the moment the bypass flag enters the plan, freeze and narrate. (2026-08-14: a `--no-verify` was used without permission on a PCP-state-only commit; the prohibition existed but the action fired first — the positive script is the fix.)
-**NEVER adopt a "move fast and fix" approach** — Always stick with the process. Don't skip steps because something "seems simple" or you're "pretty sure it will work". Follow the process even when it's slower - that's how we avoid mistakes.
-**Verify backlog items before starting** — Before starting a task from the backlog or queue, check `git log --oneline -20` for recent related work. A prior commit may have already completed the task; stale backlog items waste effort.
-**PCP state files are part of the project** — `.opencode/pcp/` files track task state across sessions and omitting them breaks continuity. Default to committing them alongside code changes, but batch into the final commit at session end if the user prefers that cadence. Do not leave them unstaged at session end.
-**Answer questions: state-then-stop before acting** — When the user asks a question, your first response must be to restate the question in your own words, answer it concisely, then stop. This applies to all questions: about code, decisions, workflow, or process — any question. No file edits, no code changes, no proposing a fix, no analysing approaches — just the answer. An explicit "yes", "proceed", or "implement it" from the user is required before any action. This is a positive script (not a prohibition) — the passive prohibition alone was insufficient because the agent's instinct to "fix the problem" fired before the guard could stop it. The positive script replaces that instinct with a concrete action that leaves no room for interpretation. Even if one rule is missed, the other catches the pattern. Neither should be removed without evidence that the agent can reliably distinguish questions from assignments for three consecutive sessions. Even well-intentioned corrective actions violate it: answering "Why are these tasks instead of backlog items?" with five `pcp_capture` calls drew "I asked you a question, all I wanted was an answer" — when the user asks why, give the answer, not the fix. The failure mode that recurs is a question arriving mid-implementation: treat it as a hard stop and do NOT resume the edit in the same turn — if the message could be either a question or a request, ask "answer or implement?" before touching code. The most reliable mechanism is the user marking an answer-only message explicitly (e.g. prefixed "Question:" or ending "Answer only."); rely on that input signal rather than on the agent holding the rule against its own action default, which has repeatedly lost.
+**Commits are for working code** — Never commit during an investigation or while
+experimenting. Commit only verified work whose gates pass.
 
-**Human context is not observable** — When the user describes their environment, workflow, or what they ran, do not assume the details. You cannot see their terminal or filesystem. Ask for the exact path, command, or context before acting on it. In this session, guessing which `start.sh` the user ran led to edits in the wrong file and wasted multiple turns.
+**Review before proposing a commit** — Before proposing any commit, run the eight-axis
+`skills/code-review-and-quality/SKILL.md` review on the staged diff and state the result in
+the proposal: which axes passed, which findings were addressed, which were deliberately
+deferred and why. Every commit, including a one-line typo fix. (The structural-debt scan runs
+separately on cadence via the `structural-debt-auditor` skill.)
 
-**`.git/` is radioactive and not versioned** — The `.git/` directory is repo metadata, never tracked content. Mutating it (e.g., via `npx husky` or `git config`) can break git operations without warning. Treat it as immutable during investigations. Never run binaries with lifecycle side effects (`husky`, `npm prepare`, etc.) when the intent is read-only.
-**Investigation commands must be read-only** — Before running a command during investigation, verify it produces no side effects. Prefer reading source code or `package.json` to determine a tool's version instead of executing it. If a binary must be run, isolate it (docker, temp directory, `--dry-run` flag) to prevent state mutation.
-**Align workspace dependency version ranges with root** — When workspace packages pin exact dependency versions (e.g., `"vitest": "4.0.18"`) while root uses a careted range (`"^4.0.18"`), the lockfile creates nested copies that diverge on `npm ci`. CI exposes the mismatch; local `npm install` may mask it by hoisting. All workspace packages should use version ranges matching the root to prevent lockfile divergence.
-**Expect masked CI failures from consecutive red builds** — When CI has been failing for multiple commits, fixing the first blocker often reveals the next one. Do not assume the build will turn green after one fix. Each fix may surface a previously masked issue.
-**Investigate before acting** — Before modifying code, configuration, or infrastructure, gather data first. Verify against real data (page content, logs, CI/CD config, real database tables), read runtime output carefully, test connectivity with curl before debugging code, and confirm review findings against source lines. For runtime errors, reproduce against the live system and read the exact error from CloudWatch or the real table with the AWS CLI rather than hypothesizing; before writing extraction or mapping logic, inspect the actual output — don't guess at selectors or structure. A two-second investigation can disprove an hour-long hypothesis. When output doesn't work, the gap is almost always in tool-specific syntax — find a working example rather than guessing from first principles.
-**A regression with unchanged infrastructure points at the newly-exercised path** — When a defect appears but the deployment/configuration is unchanged, the trigger is usually the code path that was newly exercised, not the unchanged infrastructure. The caching decorator was the first caller of the generated `list()` endpoint, surfacing a latent 500 from a corrupt legacy row the GSI queries had never hit.
-**A regenerated web app failing to fetch is often a stale browser cache** — In Flutter web (and web apps generally), `ClientException: Failed to fetch` against a healthy, CORS-correct API after a rebuild/redeploy is usually the browser serving a stale build. Verify the API is healthy (curl the exact request, confirm no request reaches the server), then hard-refresh or test in incognito before investigating the backend.
+**No "move fast and fix"** — Never skip process steps because something seems simple or
+"pretty sure it will work". The process exists because that instinct has been wrong before.
 
-### Browser Security & Proven Limitations
+**Questions get answers, not fixes** — When the user asks a question, restate it, answer it
+concisely, and stop. No file edits, no fixes, no implementation in the same turn. Standing
+input convention: a message prefixed `Question:` or ending `Answer only` is answer-only. If a
+message could be either a question or an assignment — common when it arrives mid-implementation
+— ask "answer or implement?" before touching code. Do not resume an edit in the same turn a
+question arrives.
 
-**Accept proven limitations** — When browser security or platform restrictions are proven (not assumed), accept the limitation and design around it. Don't spend hours trying to bypass security that cannot be bypassed. If something is impossible, document why and move on.
-**Cross-Origin Iframe Rule** — Content in cross-origin iframes cannot be accessed via JavaScript, regardless of cookies or session state. This is a browser security fundamental with no workaround. If the target content is in a cross-origin iframe, either use a visible window (not hidden) or find an alternative (API, proxy, etc.).
-**Verify proxy behavior with curl before modifying scraper code** — When debugging proxy-related scraper failures, test the proxy connection directly with `curl -x "http://user:pass@host:port" -k -s -o /dev/null -w "HTTP %{http_code}" "https://target.url"` before writing code changes. A two-second curl test can disprove an hour-long hypothesis.
-**Serial guessing is not a process** — Making changes until something works is not engineering. Each attempt should be hypothesis-driven with verification. If an approach fails, analyze why before trying the next variation. **When a configuration parameter does not respond to its documented override mechanism, stop and research the actual implementation (e.g., check plugin source, Mojo `@Parameter` annotations, effective-POM output, or API documentation) before attempting another variation.**
+**Bypass flags are a STOP, not a workaround** — If a commit would require `--no-verify`, `-n`,
+or equivalent, freeze immediately and state the reason and risk in text. Wait for the user to
+volunteer permission. A prior yes does not carry forward.
 
-### Confirm Problem Understanding Before Coding
+**No self-granted exceptions** — Never decide a process rule does not apply without asking.
+If an exception seems warranted ("this is just config", "this is a prototype"), propose it and
+wait for approval. The burden of proof is on the exception, not on compliance. A request to
+"prototype" or "explore" does not waive the requirement: a prototype's test may change as the
+design evolves, but it must exist before implementation.
 
-**Define the role of any referenced codebase explicitly** — When describing a toolchain that involves an existing project, state its relationship upfront: "test fixture", "source of truth", "example", or "target for migration". Do not conflate "used for validation" with "is the input format" — they lead to fundamentally different architectures.
+**No skipping** — Tests, linting, coverage, and pre-commit hooks all pass, or nothing proceeds.
+Never use `.skip()`, `eslint-disable`, `@Suppress`, or an equivalent to get past a check.
+Fix the root cause; if a tool genuinely cannot be satisfied, document why explicitly. "Pre-existing"
+is never a valid reason to dismiss an error.
 
-**Re-examine the full frame when a core assumption is contradicted** — When the user says "that's not how it works" about a fundamental design premise, do not patch the specific assumption. Re-run the full analysis from the corrected premise. A changed frame changes every conclusion below it.
+**System changes need permission** — Installing packages, modifying PATH, or changing
+configuration outside the project must be proposed with options and explicitly approved first,
+however obvious or safe the fix appears.
 
-**State your understanding of the problem in one sentence before making any code change.** Ask the user "Is this correct?" if uncertain. **Before implementing any fix, gather diagnostic data from the running system** — ask what they see, request coordinates, dimensions, parent hierarchy. The user has the actual output visible; do not guess at its behaviour when they can describe it. If the user says "stop guessing and investigate," stop and ask diagnostic questions before writing or changing any code.
-**Read runtime output (logs, errors) carefully before proposing fixes.** The answer is often visible in the output — don't guess at what the data looks like when the user has already shown it.
-**Do not change scope** — if the user asks about coverage analysis, do not also refactor loaders. Stick to the asked question. Unnecessary scope changes waste time and introduce risk.
-**Incomplete-source spatial work** — When generating maps, diagrams, or other spatial output from incomplete or ambiguous source material, first articulate the inferred layout in text and have the user confirm it before producing the final artifact. Treat each correction as a potential full mental-model rebuild, not an isolated patch. A wrong assumption corrected still leaves other assumptions unchecked.
+**Investigations are read-only** — Before running any command during investigation, confirm it
+has no side effects. Read source or `package.json` rather than executing a binary to learn a
+version. Isolate anything that must run (docker, temp dir, `--dry-run`). `.git/` is immutable
+during investigations.
 
-### Language Preferences
+**Human context is not observable** — You cannot see the user's terminal, screen, or filesystem.
+When they describe their environment, workflow, or what they ran, ask for the exact path, command,
+or output rather than assuming. Guessing which script the user ran has burned multiple turns.
 
-**Strongly typed languages are preferred** over dynamic languages.
-**Preferred platforms** (in order):
-1. **BEAM** - Gleam, Lustre
-2. **JVM** - Java, Kotlin, Scala
+**Investigate before acting** — Gather data first; verify against real systems (logs, CI config,
+live tables, real requests) rather than hypothesising. For runtime errors, reproduce and read the
+actual error. When output does not work, the gap is almost always tool-specific syntax — find a
+working example instead of deriving from first principles. State your understanding of the problem
+in one sentence before changing any code, and ask "is this correct?" if unsure.
 
-### Development Methodology
+**Verify actual state, never assumed state** — After any shell or git operation, inspect the real
+outcome: capture exit codes before piping, re-check `git status` and `git diff --cached` after
+index-mutating commands, and run the canonical gate command in full rather than a filtered version.
+A pipe masks exit codes; a stash silently unstages; a filtered grep hides errors. An edit made after
+`git add -A` is not in the commit — restage before committing. Before attributing a red gate to your
+change, reproduce it at clean HEAD and at the merge base.
 
-All development work must follow **Extreme Programming (XP)** principles, specifically **Test Driven Development (TDD)**:
-- **Test first** - Write the test that verifies the outcome before writing the code
-- **Red-Green-Refactor**:
-  1. **Red**: Write a failing test that describes the desired outcome
-  2. **Green**: Write minimal code to pass the test
-  3. **Refactor**: Clean up code while keeping tests green
-- **Tests verify outcomes** - Focus on showing that the code produces correct results
-- **All code must be test-driven** - No code written without a failing test first. We write a test for the functionality we need, then implement code to make the test pass. We do not write code and then add tests afterward. Every line of code exists because we wrote it to make a test pass — not because a human wrote it and an automated test happens to cover it.
-- **Test the wire format, not just the helper — and capture it from the live system, not assumed** - Every distinct URL, request body, or serialized payload that crosses a system boundary must have its own test containing the **literal expected string** — and that literal must come from a real capture of the system it crosses, not from a guess at the format. Testing a shared URL-building helper in isolation and assuming all derived URLs are correct is a tautology, not a verification. A fabricated literal validates the code against its own assumption — a tautology in disguise, green forever while the real flow is broken. The `flutter run --machine` tests fed `{"event":"app.start",...}` (a guess) while the real daemon emits `[{"event":"app.start",...}]` (bracket-wrapped); the parser's `startsWith("{")` guard matched the fabricated fixture, so every test was green through the entire B133–B141 rework while no launch could ever succeed. When adding a protocol consumer: (1) run the real system once and copy its actual output verbatim into the fixture; (2) confirm the fixture **fails** against the assumed-format code before fixing (red against reality, not just red against the fixture); (3) note the capture origin in a comment. For example, `server_base_url_from_encoded_test` tests a function; `session_create_url_includes_session_path_test` tests a contract.
-- **Profile before optimizing** - When targeting performance, measure first to identify the actual bottleneck. No optimization code should be written before the bottleneck is confirmed by empirical data (profiler, timing instrumentation, or benchmark). An optimization that doesn't change the measured bottleneck is waste.
-- **Reference, don't reimplement** - When introducing new logic that parallels an existing abstraction (e.g., word boundaries, regex compilation), verify the behavior matches by reading the actual implementation first. An incorrect assumption about how existing code works will produce incorrect new code. This applies equally when a lint rule pushes a fix: before choosing the first compliant-looking option, check the sibling/comparative implementation for the accepted pattern — a `role="presentation"` click wrapper already existed in the sibling modal, but a lint-driven `<button>` wrapper was chosen first, producing invalid nested-button HTML in a test.
+**Generated output must be run** — A generator that compiles is not verified. Generated artifacts
+(scripts, configs, deployment files) must be executed at least once, end to end, before claiming
+they work. A green pre-commit does not cover shell scripts or infrastructure configuration.
+
+**Done means the gate passes** — A change is complete when the pre-commit hook passes: lint,
+tests, coverage at the project threshold, and a smoke test for apps with a build pipeline or
+desktop shell. This applies even if the change is not committed.
+
+**Defects are process failures** — Any reported defect means a test was missing and a process
+step failed. Investigate which test was missing, which step failed, and what change to tooling,
+hooks, or rules prevents recurrence. Use Five Whys (see the `retrospective` skill).
+
+## Language Preference
+
+Strongly typed languages are preferred over dynamic ones. Platform order: **BEAM** (Gleam,
+Lustre), then **JVM** (Java, Kotlin, Scala).
 
 ## Skills
 
-The `skill` tool only works with pre-registered skills from the system prompt. For custom skills at user-specified paths, use this workaround: when the trigger phrase is detected, read the current contents of the skill file and follow its instructions for that session. This ensures the latest version is always used.
-
-**Natural language skill resolution** — Do not require the user to remember exact skill names or trigger phrases. When the user asks to run an audit, review, or analysis task in natural language, scan `~/.agents/skills/` for installed skills, read their SKILL.md descriptions, and match the best one to the user's request automatically. The burden of mapping intent to skill is on the agent, not the human.
-
-### XP Craftsman Skill (Always Active)
-
-The user always wants XP. Load the XP Craftsman skill from `/Users/steve.hayes/.config/opencode/skills/xp-craftsman/SKILL.md` at the start of every session — it is the default mode for any task involving software implementation, code generation, infrastructure configuration, testing, or refactoring. Follow its instructions unless explicitly overridden by the user for a specific deviation.
-
-Do not wait for a trigger phrase. This applies to all development work, including code generators, DSL builders, pipelines, scripts, and configuration-as-code. If the task involves writing output that will be executed, deployed, or compiled, the XP protocol is active.
-
-### RPG Master Skill
-
-When the user says "run rpg", "campaign", "NPC", "dungeon", or "quest", read the latest version of the RPG Master skill from `/Users/steve.hayes/.gemini/skills/rpg-master/SKILL.md` and follow its instructions for that session.
-
-### Retrospective Skill
-
-When the user says "run retrospective" or "reflect on session" or "do a retrospective" or "let's do a retrospective", read the latest version of the Retrospective skill from `/Users/steve.hayes/.config/opencode/skills/retrospective/SKILL.md` and follow its instructions for that session.
-
-### Architecture
-
-All applications must implement **Hexagonal Architecture** (Ports and Adapters):
-- **Domain** - Core business logic (entities, value objects)
-- **Ports** - Interfaces/traits defining how the domain interacts with the outside world
-- **Adapters** - Implementations of ports (driving or driven)
-
-**DSL host language prioritises authoring experience over output alignment** — When generated code is a compile artifact never hand-edited by humans, choose the DSL host language for authoring experience (type safety, IDE support, builder ergonomics), not for alignment with the output language. Alignment matters when humans edit both model and output; it's irrelevant when the output is invisible.
-
-### Naming & Organization
-
-**Names reveal intent** — Module/file names must clearly describe the domain concept they represent. A file named `opencode.gleam` is too vague; prefer names like `opencode_session.gleam`, `obsidian_vault.gleam`, `electron_preload.gleam`. If a name describes what the code *is* rather than what it *does*, it is wrong. Every developer should be able to guess the file's contents from its name alone.
-**Small units, one responsibility** — Every module must have exactly one clear responsibility. If a module contains both URL construction and base64 encoding, it has at least two responsibilities. Split it. Aim for modules under 60 lines. No "utility" or "misc" or "helpers" modules — every file name must correspond to a real domain concept someone familiar with the project would recognize.
-**Organize by domain, not by technical layer** — A file at `src/opencode/gateway.gleam` is better than `src/gateways/opencode.gleam`. Group code by what it is *about*, not by what category of code it is (e.g. "interfaces", "services", "utils"). Each distinct concept gets its own file or directory.
-**Each endpoint gets its own function** — Do not reuse a shared "base URL" function across different endpoints. If `server_base_url_from_encoded` is used for both session creation and iframe viewing, the function conflates two different URL patterns. Every distinct URL that crosses the wire must be constructed by its own named function.
-**Test names reveal the contract, not the function** — A test named `server_base_url_from_encoded_test` describes which function runs. A test named `session_create_url_includes_session_path_test` describes what business outcome is verified. If the name does not tell another developer what guarantee the test provides, rename it.
-
-### Object-Oriented Design
-
-All code must follow **SOLID** principles:
-- **S**ingle Responsibility - Every module/class has one reason to change
-- **O**pen/Closed - Open for extension, closed for modification
-- **L**iskov Substitution - Objects can be replaced with subtypes without breaking
-- **I**nterface Segregation - Specific interfaces over generic ones
-- **D**ependency Inversion - Depend on abstractions, not concrete implementations
-
-### CLI Tools vs Test Frameworks
-
-**CLI tools must not use test frameworks as entry points** — Test frameworks (eunit, gleeunit, etc.) suppress output on success and are designed for CI verification, not user-facing tools. When a tool needs to:
-- Log progress or status
-- Report results without crashing on failure
-- Be observable during execution
-It should be a standalone program with `main()` that uses `io.println` for output, not a test. Test frameworks are for verification; CLI tools are for user experience.
-
-### Testability Rules
-
-These rules ensure code is testable:
-1. **Dependency Injection is mandatory** - Never use `new SomeClass()` inside constructors or business logic
-   - Pass dependencies as constructor parameters or use factory functions
-   - This enables swapping real implementations with test doubles
-2. **No direct framework I/O in business logic** - Separate external concerns:
-   - DOM manipulation, setInterval/setTimeout, window events, localStorage, fetch
-   - Inject adapters/ports that can be mocked in tests
-3. **Every dependency must be injectable** - All external services must be provided via:
-   - Constructor injection with interfaces
-   - Factory functions that return interfaces
-4. **"If it's hard to test, the code is wrong"** - When tests are difficult, refactor the code first
-   - Don't build test utilities to work around bad design
-   - Fix the design to make testing easy
-5. **Side effects must be controllable in tests** - Any I/O (network, storage, timers) must:
-   - Be injectable/mockable
-   - Have sensible defaults for production
-   - Not execute on module import
-
-### Functional Tests Over Technical Tests
-
-**Write tests that describe user outcomes, not implementation details.** A test should verify what the user sees or experiences, not how the code achieves it internally.
-**Bad (technical):** `expect_text_accepts_application_json_response_test` — tests that a library function handles a content-type header. This is testing the plumbing, not the product.
-**Good (functional):** `training_data_from_file_appears_on_ui_test` — tests that content from a data file is rendered in the user interface. This is what the user cares about.
-**Rules for writing tests:**
-1. **Name tests after the user outcome** — `training_data_appears_on_verify_page_test`, not `parse_training_examples_returns_nonempty_list_test`
-2. **Test the wire, not the wrapper** — If data crosses a system boundary (file → server → client → UI), test that the data arrives, not that each layer's helper function works in isolation
-3. **Break end-to-end flows into testable segments** — A full E2E test like "file content appears on UI" can be split:
-   - "Content from the file is sent by the server" — verify the endpoint returns the file data
-   - "Content that is sent is rendered by the UI" — verify the view function renders the data correctly
-   - Each segment tests a real contract, not a mock
-4. **Use real data, not fabricated data** — Read from actual data files (`simplifile.read("data/training_constraints.json")`) rather than constructing minimal test fixtures that hide integration bugs
-5. **A passing technical test does not mean the feature works** — If a user reports "no data on the page" and all tests pass, the tests are testing the wrong thing. Rewrite them.
-6. **Verify the result of the loop, not the loop condition** — A pagination test must assert that N items reached the repository, not that `hasNextPage()` returned a boolean. A test that passes by checking implementation details will not catch regressions when those details change.
-7. **Use mock HTTP responses for boundary-crossing tests** — Use `MockWebConnection` or equivalent to simulate HTTP responses for pagination, error handling, and multi-page flows. Do not construct domain objects directly and pass them to the method under test — this bypasses the parsing layer and hides integration bugs.
-8. **Tests must be hermetic** — Each test must clean up its own side effects. Use `vi.restoreAllMocks()` in `afterEach`, not `vi.clearAllMocks()` in `beforeEach`. A spy on `window.confirm` or other globals that leaks across test boundaries causes spurious failures and erodes trust in the test suite.
-9. **Use resilient selectors** — Target elements with `data-testid` attributes in tests. Never rely on CSS class names (especially CSS module hashes), DOM structure position, or text content that may change. If you need a CSS module class hash to locate an element, the test is too fragile to survive refactoring.
-
-### API Pagination
-
-**Verify the actual pagination mechanism before implementing** — Check HTTP headers AND response body structure with a real request (curl). Do not assume Link headers exist solely because the API is from a known platform (Shopify, etc.). Test with a real endpoint.
-**Prefer response body pagination detection** (product count, next-page token) over HTTP headers when the body is already parsed for data extraction. An extra network dependency on headers is fragile.
-**Pagination tests must use mock HTTP responses** that simulate multiple pages (e.g., MockWebConnection) and verify all pages were processed, not just that `hasNextPage()` returned a boolean.
-
-### Required Per-Project Files
-
-- **`start.sh`** - A shell script in the project root that starts the application.
-  - Must be executable (`chmod +x start.sh`)
-  - Must start the application in a way that users/developers can run it locally
-
-### Required Git Precommit Hooks
-
-Every project must have a precommit hook (at `hooks/pre-commit` or `.git/hooks/pre-commit`) that runs:
-1. **Linting** - Check code style/formatting
-2. **Tests** - Run the full test suite
-3. **Coverage** - Verify code coverage is at least **95%**
-4. **Smoke test** (for desktop/web apps) - Verify the app builds and launches without errors
-For desktop apps (Electron, Tauri, etc.) and web apps, unit tests alone are not sufficient. The smoke test must verify:
-- The build pipeline compiles without errors
-- All referenced files exist (no dangling references in config files)
-- The app process can start without crashing
-- The renderer can load the app (no `ERR_FILE_NOT_FOUND` or equivalent)
-If any of these checks fail, the commit must be rejected.
-
-### Coverage Strategy
-
-**Focus on line coverage only** — Branch, function, and statement coverage are secondary metrics. Line coverage is the primary measurable target.
-
-**Multi-package average, not per-package minimum** — When a project has multiple packages, the 95% target applies to the **average line coverage across all packages**, not to each package individually. This allows strategic allocation of effort.
-
-**Maximize easy wins first** — When improving coverage across multiple packages:
-1. Get packages closest to 100% to 100% (smallest effort, highest return)
-2. Then work on the next closest package
-3. Leave the hardest package for last — the easy wins from other packages reduce how much the hardest package needs to improve
-
-**Do not assume packages above the target are done** — A package at 98% may be easier to bring to 100% than a package at 85% is to bring to 90%. Always evaluate the effort required before deciding where to focus.
-
-### Technology
-
-Rules in this section apply only when working in the named stack. **AWS is the exception** — it is common infrastructure and its rules live in the generic sections (Cloud Environments, etc.).
-
-#### Gleam + Lustre + Electron Stack
-
-**Gleam over JS on BEAM** — When targeting BEAM, all logic must be implemented in Gleam. Using JavaScript is a last resort, permitted only when we have *proved* that the task cannot be done in Gleam (e.g., browser-only APIs, Electron IPC that require native Node.js modules). "It feels simpler to write this in JS" is not a valid reason — that is how JS becomes a dumping ground. Every FFI function must be justified by a comment explaining why Gleam cannot do it.
-**Always use native Gleam idioms, especially for JSON parsing** — Do NOT write manual string manipulation to parse JSON. Use `gleam/json` with proper decoder types:
-- Import `gleam/json` and define decoder functions with `json.decode`
-- Never use `string.split`, `string.slice`, or recursive string parsing to extract JSON values
-- Manual JSON parsing is a code smell indicating you're not using idiomatic Gleam
-**FFI requires proof, not assumption** — Before adding FFI, always verify the functionality isn't already in stdlib. Many "impossible" tasks have pure alternatives:
-- **Check gleam/uri first** — For URL encoding, `uri.percent_encode()` does what `encodeURIComponent()` does in JS
-- **Declarative over imperative** — Lustre handles DOM declaratively. If you're reaching for `document.createElement()`, stop. Compute the value in Gleam, render it in the view.
-- **"Can't do X" vs "doesn't expose X"** — Gleam compiles TO JS, so it CAN do anything JS can. The question is whether the stdlib exposes it.
-- **Data: URIs replace file downloads** — For client-side downloads, encode with `uri.percent_encode()` and render as `data:` URI in href. No Blob, no createObjectURL, no click handler needed.
-**Gleam Tech Stack** — We use Gleam for its strong static typing and functional programming model. Gleam brings:
-- **Type safety** — Compile-time guarantees catch entire classes of bugs
-- **Erlang VM (BEAM)** — Battle-tested runtime for concurrent, fault-tolerant applications
-- **JavaScript target** — Same language runs in browser, server, or desktop via Electron
-**Finding Gleam packages and extensions:**
-- **Hex.pm** — Primary package registry: https://hex.pm/packages
-- **gleam_stdlib** — Standard library (always available): https://hex.pm/packages/gleam_stdlib
-- **Official Lustre packages** — `lustre`, `lustre/element`, `lustre/attribute`, `lustre/event`
-- **gleam_js** packages — For JS interop when needed: https://hex.pm/packages?q=gleam_js
-- **Community packages** — Search Hex for `gleam-*` or browse by category
-- **Check first** — Many tasks are solved by gleam_stdlib or gleam_js; don't assume you need a third-party package
-- **[2026-06-08] [Coverage] Erlang Cover Tool Assert Ok Dead Branches** — Erlang `cover` counts unreachable `assert Ok` error branches for hardcoded patterns as uncovered lines. Prefer `case` with a safe fallback over `assert Ok` to eliminate false coverage gaps without crashing.
-
-When building desktop apps with Gleam targeting JavaScript, served via Electron:
-**Build Pipeline**
-- `gleam build --target javascript` compiles Gleam to JavaScript in `build/dev/javascript/`
-- `index.html` is copied to `build/dev/javascript/index.html` after the Gleam build
-- Any JavaScript FFI modules are copied to the appropriate build output directory
-- Electron loads `build/dev/javascript/index.html` directly in production mode
-**Dependency Warnings**
-- `gleam build` emits warnings from third-party packages (`gleam_erlang`, `gleam_otp`, etc.) in `build/packages/`
-- These warnings do **not** cause a non-zero exit code — `gleam build` returns 0 even with warnings
-- The precommit hook and `start.sh` must filter these out using this pattern:
-  ```bash
-  BUILD_OUTPUT=$(gleam build --target javascript 2>&1) || { echo "$BUILD_OUTPUT"; exit 1; }
-  PROJECT_WARNINGS=$(echo "$BUILD_OUTPUT" | awk '/^warning:/{w=$0; next} /build\/packages\//{w=""; next} w{print w; w=""}') || true
-  if [ -n "$PROJECT_WARNINGS" ]; then
-      echo "ERROR: Warnings in project source code:"
-      echo "$PROJECT_WARNINGS"
-      exit 1
-  fi
-  ```
-- `start.sh` should suppress dependency warnings for a clean dev experience but still show project warnings
-**Coverage with Erlang (`cover` tool)**
-- For Gleam projects using Erlang tests, coverage runs via custom escript
-- The escript must include **all dependencies** in `-pa` paths, not just the main project
-- Missing dependency paths causes `error:undef` at runtime because modules aren't loaded
-- Example: if using `simplifile`, the escript must include `-pa build/dev/erlang/simplifile/ebin -pa build/dev/erlang/filepath/ebin
-**Code Coverage with c8**
-- Gleam tests run via `gleam test --target javascript`
-- c8 measures coverage on the compiled JavaScript output
-- c8 reports on the `.mjs` files in `build/dev/javascript/`, not the original `.gleam` files
-- **Coverage must be enforced at 95%+ on statements, lines, and branches** — c8 does not fail on low coverage by default
-- **Do NOT enforce function coverage** — Gleam compiles wrapper functions that are never called internally
-- Use `.c8rc.json` to configure coverage thresholds
-- Use `npx c8 --check-coverage --lines 95 --branches 95 --statements 95` in the precommit hook
-- **Exclude `main.mjs` from coverage** — the `main()` function requires a browser DOM
-
-#### Snapshot Testing with Birdie
-
-**What is Birdie?**
-Birdie is a snapshot testing tool for Gleam. Instead of writing manual assertions for complex outputs (like checking every single tag in a Lustre view), Birdie captures the entire output and saves it as a "snapshot" file. On subsequent runs, it compares the current output against the saved version and highlights any differences with a visual diff.
-**When to Use It:**
-- UI/Lustre Views: To ensure that changes to view functions don't accidentally break the HTML structure or remove critical CSS classes.
-- Large Data Structures: When a function returns a complex record or list that would be tedious to assert field-by-field.
-- Integration Bridges: To verify the final string output of serialisers or FFI-bound data before it leaves the Gleam boundary.
-**The Workflow:**
-1. **Record**: Run `gleam test`. New snapshots are created and fail the test by default.
-2. **Review**: Run `gleam run -m birdie` to see the visual diff of the new/changed output.
-3. **Accept**: If the change is intentional, run `gleam run -m birdie accept` to set the new version as the baseline.
-**Why Use It in this Project?**
-Birdie provides high-confidence coverage of Lustre view functions. It ensures that critical UI elements are rendered with the correct classes and hierarchy without requiring fragile unit tests.
-**Electron Configuration**
-- `electron/main.js` should load the build output directly: `win.loadFile(path.join(__dirname, '..', 'build', 'dev', 'javascript', 'index.html'))`
-- Use `contextIsolation: true` and `nodeIntegration: false` for security
-- IPC communication uses preload scripts and `contextBridge`
-**Context Boundary Pattern: Env Vars in Electron**
-In Electron, the renderer process does **not** have access to shell environment variables. To pass env vars to the renderer:
-1. **Main process**: Read `process.env.VAR` directly
-2. **Preload script**: Expose via `contextBridge.exposeInMainWorld('__key__', process.env.VAR)`
-3. **FFI function**: Read from `window.__key__` in the Gleam renderer
-```javascript
-// electron/preload.js
-contextBridge.exposeInMainWorld('__deepseekKey__', process.env.DEEPSEEK_API_KEY || '');
-```
-
-```javascript
-// src/app.ffi.mjs
-export function get_deepseek_key_from_window() {
-  if (typeof window === 'undefined') return "";
-  return window.__deepseekKey__ || "";
-}
-```
-
-**Start Script (`start.sh`)**
-- Must clean stale artifacts before rebuilding: `rm -rf build dist dist-electron coverage`
-- Must filter dependency warnings (see pattern above)
-- Must show compilation summary line
-- Must **build both JavaScript and Erlang targets** before running tests
-- Must start dev server: `npm run dev`
-**Precommit Hook (`hooks/pre-commit`)**
-- Must run `gleam format --check`
-- Must build both JavaScript and Erlang targets, filter dependency warnings, fail on project warnings
-- Must run `npx c8 --check-coverage --lines 95 --branches 95 --statements 95 gleam test --target javascript`
-- Must run smoke test: clean build, verify files exist, start Electron, confirm it launches
-- Must use `set -e` for fail-fast behavior
-**Project Structure**
-- Gleam project root contains `gleam.toml`, `manifest.toml`, `src/`, `test/`
-- `electron/main.js` sits at project root level
-- `index.html` is the renderer entry point
-- `start.sh` is the entry point for developers
-- `hooks/pre-commit` enforces quality gates
-**Common Pitfalls**
-- `gleam format --check` only checks project source, not dependencies — this is correct
-- `gleam build` exit code 0 does not mean "no warnings" — must inspect output
-- c8 coverage percentages are informational only — must be explicitly gated
-- **Function coverage on compiled Gleam JS is meaningless** — Gleam compiles wrapper functions that are never called internally
-- Electron smoke test must wait for window to appear (poll, don't assume instant startup)
-- **Lustre drag-and-drop requires preventDefault()** — In HTML5 drag-and-drop, the `dragover` event has a default "no drop" behavior. To allow a drop, use `event.prevent_default(event.on("dragover", decoder))` to wrap the handler. Without `prevent_default()`, the browser won't allow the drop even though the handler fires.
-- **Snapshot tests catch view logic errors** — Birdie tests would have caught incorrect state machine logic earlier if all states were covered. When implementing multi-state UI components, write snapshot tests for each distinct state.
-- **Test environment ≠ production environment** — Unit tests run in Node.js, but Electron renderer and other contexts may not have access to shell environment variables, browser APIs, or Node.js-specific modules. Code that passes tests may fail in production if it depends on context-specific features.
-- **Electron renderer has no shell env vars** — Never use `envoy.get()` or `process.env` in the renderer. Environment variables must be passed through preload via `contextBridge.exposeInMainWorld()`.
-**FFI is STRICTLY PROHIBITED** — No `@external` declarations in project source unless **explicitly permitted by the user**. Before adding ANY `@external`:
-1. Check **Hex.pm for pure Gleam alternatives first**
-2. **Prove** no pure Gleam solution exists
-3. Add a code comment citing WHY pure Gleam won't work
-4. The user must explicitly authorize the FFI
-The precommit hook rejects ALL commits containing `@external`:
-```bash
-FFI_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(gleam|mjs)$' | xargs grep -l '@external' 2>/dev/null || true)
-if [ -n "$FFI_FILES" ]; then
-    echo "ERROR: FFI files detected in commit"
-    exit 1
-fi
-```
-
-#### React / TypeScript Stack
-
-- **[2026-06-27] [React/Architecture] Parent Key Prop Replaces ID-Change Effects** — When a component resets local state on prop ID changes, check if the parent already passes `key={id}`. If so, the component remounts on ID change and no `useEffect` + `useRef` pattern is needed, eliminating `set-state-in-effect` lint violations entirely. The simplest solution is discoverable by checking usage context first.
-
-- **[2026-07-31] [React] Render-Phase State Adjustment for Prop-Driven Resets** — When a prop change must reset local state but the parent does not guarantee `key={id}`, track the previous id in state and adjust state during render instead of using a `useEffect`. PaintRangeNotes compared `prevRangeId !== paintRange.id` during render to sync notes and exit edit mode on range switches while preserving the user's in-progress draft on same-id updates.
-
-- **[2026-06-30] [React/Tooling] replaceAll String Constant Gotcha** — ESLint `no-duplicate-string` fixes using `replaceAll` also replace inside the constant definition itself, creating a self-referencing variable. Always verify the definition line immediately after `replaceAll` and fix `const X = X` to `const X = "X"`. **JSX extension:** `replaceAll` on JSX prop strings also strips required curly braces: `placeholder="Search..."` becomes `placeholder=SEARCH_PLACEHOLDER` instead of `placeholder={SEARCH_PLACEHOLDER}`. Fix both the definition line and any JSX curly braces after using `replaceAll` on JSX content. **Cross-file extension:** `replaceAll` on a test file also replaces matching strings in imported production files (same literal in `aria-label`, test assertions, etc.). Verify the entire diff, not just the target file, when using `replaceAll` in test files. **Script extension (2026-08-20):** the same self-reference and missed-insert failure modes apply to any string-based bulk replacement (python/sed scripts, not just editor `replaceAll`) — a python replace of `'Comp 1'` mangled the `const COMPONENT_NAME = 'Comp 1';` definition into `= COMPONENT_NAME;`, and a follow-up insert silently missed because it anchored on the mangled line; verify the definition line and re-check that follow-up inserts matched after any bulk replace.
-
-- **[2026-06-30] [Architecture] Imperative API for Module-Level UI Triggers** — When a module-level utility (e.g., `notifyError`) needs to trigger React UI updates, use an imperative API with a `useEffect` that assigns a module-level function pointer. A Context hook is not usable from module scope. Example: `showToast` in Toast.tsx.
-
-- **[2026-07-08] [React/Testing] Controlled Component State Simulation** — For controlled components, invoking a callback (e.g., `fireEvent.click` on a clear button) only fires the `onChange` callback. The UI only updates when the parent re-renders with the new prop value via `rerender`. Tests must simulate the parent state update to verify UI state changes.
-
-- **[2026-07-19] [React/ESLint] No eslint-disable Directives** — Eslint-disable directives of any form are prohibited. When `jsx-a11y/no-noninteractive-element-interactions` fires on a modal backdrop, use a `<button>` with reset CSS styles instead of `<div>` + eslint-disable. When `onKeyDown` is needed on a `role="dialog"` div, attach the listener via `useEffect` + `addEventListener` on the ref instead of a JSX prop. Permission to add an eslint-disable will not be granted — restructure to comply.
-
-- **[2026-07-21] [Positive] Callback Ref as Lint-Compliant Middle Ground** — When both `useEffect`+`useRef` and `autoFocus` are blocked by lint rules (`no-noninteractive-element-interactions`, `no-autofocus`), use a `useCallback` ref with `node?.focus()` for imperative focus-on-mount paired with a document-level `useEffect` for Escape key handling. The callback ref avoids both the `useRef`+`useEffect` import footprint and the `no-autofocus` rule, while the document-level listener avoids JSX event handlers on non-interactive elements.
-
-#### JVM Stack
-
-- **SpotBugs Heap for Large Projects** — The SpotBugs Maven plugin may run out of memory on projects with 400+ classes and many dependencies. Configure `<maxHeap>4096</maxHeap>` or higher in the plugin configuration to prevent OOM during analysis.
-
-- **[2026-07-05] [Exposed] Domain Operations Require Transaction Context** — Exposed lazy entity properties (e.g., `entity.reducedProductDescription`) can only be accessed within an active transaction. Domain classes that access these properties must be called inside `withTransaction { }` or `transaction { }`.
-
-#### Other
-
-- **Shopify public API has a 25K pagination cap** — The `/collections/.../products.json` endpoint caps any query at `page * limit <= 25000`. This is not rate limiting — the API simply stops returning data. Use sub-collections (by scale, vendor, etc.) to avoid the cap. The error message `{"errors":"Page * Limit exceeds the 25000 limit."}` indicates this cap has been hit.
-
-- **[2026-06-12] [CI/CD] Reusable workflow permissions must be explicit** — Calling workflows that use reusable workflows must explicitly grant any permissions the reusable workflow requests (e.g., `pull-requests: write`). Missing permissions cause validation failures at the `uses:` line. Read GitHub's file/line/column error message to identify the exact permission needed.
-
-- **[2026-06-23] [CI/CD] GitHub Actions Checkout Depth for Merge Commits** — `actions/checkout@v4` with `ref: refs/pull/N/merge` defaults to `fetch-depth: 1`, fetching only the merge commit. Parent SHAs (`base.sha`, `head.sha`) referenced in git operations will fail with exit code 128 unless `fetch-depth: 0` (or `2`) is explicitly set.
-
-- **[2026-08-01] [Coverage] Coverage Thresholds Are Hardcoded, Canonically Measured, and Investigated** — Coverage thresholds must be hardcoded from one canonical measurement command and never auto-ratcheted; when the gate fails, investigate the drop and add tests rather than lowering the threshold. Vitest's `autoUpdate` silently rewrote thresholds, a split config reported different numbers per directory, and a coverage drop from a test change was traced to an uncovered fallback path instead of excusing a threshold edit. One legitimate carve-out: removing dead code (optional parameters, if-guards, unused scenarios) shifts branch/line counts and may justify a threshold adjustment with a commit comment explaining that code was removed, not left untested; if the cause of a drop cannot be determined, ask the user before adjusting. A ratchet must also be validated against the canonical command on the **merged tree**, not the PR branch: PR #218 raised thresholds from a scoped measurement that exceeded what repo-wide `npm run coverage` produced post-merge, leaving main unable to pass its own gate — before attributing a red gate to your change, run the canonical command at clean HEAD and at the pre-merge base to confirm the failure is or is not pre-existing. Thresholds should carry a deliberate buffer below the canonical measurement rather than sitting exactly at it: an exact-at-threshold baseline trips the gate on 0.01 rounding from any legitimate change (adding or removing fully-covered code) and invites per-incident downward reductions — a "thousand cuts" ratchet that erodes the gate by small, individually-plausible steps. Set each threshold once a few tenths below the measured value (e.g. statements 96.0 vs a measured 96.26, functions 94.0 vs 94.27, branch 88.5 vs 88.89, lines 97.0 vs 97.54) and treat only real coverage loss — which moves whole percentage points — as a reason to revisit.
-
-- **[2026-07-31] [Architecture] Zod's Default strip Mode Removes Unknown Keys** — `z.object()` strips unknown keys by default during parsing, so extra properties like `guestId` vanish after validation. If a handler relies on extra properties being present after validation, either include them in the schema or use `.passthrough()` on the object. A union alone is not sufficient when some variants need unvalidated properties.
-
-- **[2026-07-31] [Testing] Throw Outside the Catching Try** — When a `catch` block handles parse failures, do not `throw` from inside the same `try` — the throw is caught by its own `catch`, silently replacing the real error with the generic fallback. Parse into a variable inside the `try`, then throw the parsed detail after the `try` block. A SystemSettings test asserting the JSON error detail exposed that the parsed `details`/`error` field was swallowed and replaced with "Failed: status - text".
-
-### Security
-
-Security rules for all projects:
-- **No secrets in code** - Never commit API keys, credentials, or secrets; use environment variables
-- **Input validation** - Validate all inputs; never trust user input
-- **Dependency scanning** - Check for vulnerabilities in dependencies (e.g., `npm audit`, `cargo audit`)
-- **Secrets handling** - Use vault/secrets manager for production; environment variables for local dev
-
-### Zero Tolerance for Errors and Warnings
-
-Cosmetics matter. All executions and builds must be free of **both errors and warnings**. If developers come to expect errors and warnings they will start to ignore things that matter. The only solution is to maintain a clean environment:
-- **Builds must be clean** - No warnings during compilation, bundling, or any build step
-- **Tests must be clean** - No warnings in test output, no deprecated API usage
-- **Linting must be clean** - No warnings from any linter or formatter
-- **No noise** - Suppress or fix every warning; a single warning is a failure
-- **Fix by refactoring, not suppressing** — When a linter or static analysis tool flags an issue, refactor the code to address the root cause. Adding `@Suppress` annotations bypasses the check without improving code quality. If a warning genuinely cannot be fixed (e.g., false positive from a tool limitation), document the reason explicitly rather than silently suppressing.
-
-### Documentation
-
-Documentation is generated as needed by the agent based on:
-- Project structure and setup in `AGENTS.md`
-- Architecture decisions in `docs/`
-- API documentation for any exposed APIs
-
-### Error Handling
-
-- **Never ignore errors** - Every error must be handled or explicitly acknowledged
-- **User-facing errors** - Display meaningful errors to users with details for debugging
-- **Logging** - Log errors with sufficient context for debugging; logging is a feature, not default
-- **No silent failures** - Never swallow errors without logging
-- **Validate HTTP responses before parsing** - Never decode `.json()` or similar on a response without first checking the status code. A JSON parse error on an HTML body is a misleading symptom; check `response.ok` first and surface a meaningful error about what the server actually returned.
-- **Include HTTP response body in error messages** — When an API returns a non-200 status, the response body often contains the actual error reason (rate limit, validation error, etc.). Always read the body and include it in the exception message, not just the status code and URL. The body is essential for debugging and is lost if only the status code is logged.
-
-### CI/CD
-
-All projects must have GitHub Actions configured:
-- **Lint check** - Run linter in CI
-- **Test suite** - Run all tests in CI
-- **Coverage check** - Verify 95%+ coverage in CI
-- **Build** - Verify project builds successfully
-- **Production gating** - Only deploy to production on main branch or tagged releases
-
-### Code Review
-
-**Empty-Config-First for Analysis Tools** — When adding a new analysis tool to the build, start with the strictest sensible configuration (e.g., `maxIssues: 0`) and only add suppressions for actual, proven violations. Do not pre-suppress rules you haven't seen fail — run the tool first, fix what it finds, then decide whether remaining violations are worth suppressing.
-
-Add code quality tools to precommit hooks:
-- **Linting** - Style and format checking
-- **Static analysis** - Code quality tools (e.g., ESLint, Clippy, SonarQube)
-- **Security scanning** - Vulnerability detection
-- **Complexity check** - Flag overly complex code
-When addressing code review findings (from automated tools, PR comments, or AI reviewers):
-- **Verify before acting** — Read the relevant source lines and confirm the claim is accurate before implementing a fix. Code reviews can produce false positives (e.g., flagging imports as unused when they are used, or claiming CSS classes are missing when they exist in other files).
-- **If verified** — proceed with the fix. **If false** — do not make the change and document why it was rejected.
-- **Linter rules take precedence over code review suggestions** — If a code review finding conflicts with an enforced linter rule, follow the linter rule and find an alternative approach (e.g., scoping constants more narrowly rather than removing them entirely). The precommit hook enforces linter rules, so any fix that violates them will be rejected regardless of the code review's intent.
-
-### API Design
-
-For API projects:
-- **REST** conventions for HTTP APIs
-- **JSON** responses
-- **Proper HTTP status codes**
-- **Input/Output validation**
-
-### Cloud Environments
-
-- **Dev** - Local development
-- **Production** - Cloud deployment gated by GitHub Actions
-- **Simplicity first** - Use AWS if cloud is needed
-- **Infrastructure as code** - Define infrastructure in code (Terraform, CDK)
-
-### Accessibility
-
-- **Check linting** - Include accessibility linting in code quality tools
-- **WCAG compliance** - Follow WCAG guidelines for UI projects
-- **Icon-only buttons** — Every `<button>` with only an icon (no visible text) MUST have both `title` and `aria-label`. The `aria-label` is the primary accessible name for screen readers; `title` provides a visible tooltip fallback.
-- **Inputs need accessible names** — Every `<input>` and `<textarea>` MUST have an accessible name via `aria-label` or a `<label>` element. Do NOT rely solely on `placeholder` — it disappears on focus and is insufficient for accessibility.
-- **CSS over inline styles** — Layout and typography properties (`flex`, `margin`, `padding`, `gap`, `width`, `height`, `fontSize`, `color`) MUST be defined in CSS, not as inline `style={{...}}` props. Inline styles are permitted only for truly dynamic values (e.g., color derived from data at runtime).
-- **Explicit button types** — Every `<button>` MUST have an explicit `type` attribute (`type="button"` or `type="submit"`). Buttons without `type` default to `type="submit"`, causing unintended form submissions.
-
-### Application
-
-These rules apply to all agent invocations in any project that does not explicitly override them.
-
-## Obsidian ↔ OpenCode Server Setup
-
-This configuration lives outside any project — it's a macOS launchd agent that keeps the opencode server permanently running for the Obsidian plugin (`opencode-obsidian`).
-
-### The Problem
-
-The Obsidian plugin spawns opencode as a child process, inheriting Obsidian's environment. Obsidian is a macOS GUI app and **does not** inherit shell environment variables from `.zshrc`/`.bashrc`. This means:
-
-- `OPENCODE_DEEPSEEK_API_KEY` set in `.zshrc` is invisible to the server
-- Every reboot or plugin restart requires re-entering or re-setting the API key
-- The vault-level `opencode.json` (at `ForgottenRealmsVault/opencode.json`) can specify a mismatched model that overrides the global config
-
-### The Fix: Launchd Agent
-
-The server is managed by `~/Library/LaunchAgents/com.opencode.server.plist`:
-
-```xml
-<key>Label</key>
-<string>com.opencode.server</string>
-<key>ProgramArguments</key>
-<array>
-    <string>/opt/homebrew/bin/opencode</string>
-    <string>serve</string>
-    <string>--port</string>
-    <string>14096</string>
-    <string>--hostname</string>
-    <string>127.0.0.1</string>
-    <string>--cors</string>
-    <string>app://obsidian.md</string>
-</array>
-<key>EnvironmentVariables</key>
-<dict>
-    <key>OPENCODE_DEEPSEEK_API_KEY</key>
-    <string><API_KEY_HERE></string>
-</dict>
-<key>RunAtLoad</key>
-    <true/>
-<key>KeepAlive</key>
-    <true/>
-```
-
-Key properties:
-- **`RunAtLoad: true`** — starts at user login (launchd loads all `~/Library/LaunchAgents/` plists at login)
-- **`KeepAlive: true`** — auto-restarts if it crashes
-- **`EnvironmentVariables`** — the API key lives **inside the plist**, not in a shell config file, so it survives reboots
-- **Port 14096** — matches the Obsidian plugin's configured port
-
-### Obsidian Plugin Settings
-
-The plugin should NOT manage its own server since launchd handles it:
-
-```json
-{
-  "port": 14096,
-  "hostname": "127.0.0.1",
-  "autoStart": false,
-  "useCustomCommand": false,
-  "opencodePath": "/opt/homebrew/bin/opencode",
-  "projectDirectory": ""
-}
-```
-
-Set in the plugin settings panel:
-- **Auto-start server**: OFF
-- **Use custom command**: OFF
-- **OpenCode executable path**: `/opt/homebrew/bin/opencode`
-
-### Verification Commands
-
-```bash
-# Check server is running
-lsof -i :14096 | grep LISTEN
-
-# Verify the API key is in the server's environment
-ps eww -p $(pgrep -f "opencode.*14096.*obsidian" | head -1) | tr ' ' '\n' | grep DEEPSEEK
-
-# Check launchd registration
-launchctl list | grep opencode
-
-# View server logs
-cat /tmp/opencode.out.log
-cat /tmp/opencode.err.log
-
-# Manually load/unload
-launchctl load ~/Library/LaunchAgents/com.opencode.server.plist
-launchctl unload ~/Library/LaunchAgents/com.opencode.server.plist
-```
-
-### Vault-Level opencode.json
-
-The file at `ForgottenRealmsVault/opencode.json` should only override model if intentional. The global config at `~/.config/opencode/opencode.json` is the source of truth for provider/model setup.
-
-### When It Breaks
-
-If the connection is lost after a reboot:
-1. Verify the launchd agent is loaded: `launchctl list | grep opencode`
-2. Verify the server is listening: `lsof -i :14096`
-3. Verify the API key is present: `ps eww -p <PID> | grep OPENCODE`
-4. If missing, recreate the plist with a fresh API key and `launchctl load`
-
-## Process Integrity
-
-Nothing should ever be "skipped" - our process must be thorough and repeatable:
-- **No skipping tests** - All tests must pass, never use `.skip()` or disable tests
-- **No skipping linting** - All linting must pass, never disable rules
-- **No skipping coverage** - Coverage must meet the 95% threshold
-- **No skipping precommit hooks** - All checks must pass before commit
-- **No self-granted exceptions** — Never decide a process rule doesn't apply without asking the user. If you believe an exception is warranted (e.g., "this is just config, no test needed"), propose it explicitly and wait for approval. Default to applying the rule; shift the burden of proof onto the exception, not the compliance. The agent may subconsciously categorize a change as "not real code" — a request to "prototype" or "explore" does not waive this rule; a prototype's test can change as the design evolves, but it must exist before implementation.
-Every outcome must be verifiable and every verification must be repeatable.
-
-### Incident Analysis: Five Whys
-
-When bugs or failures occur, apply the **Five Whys** technique to trace from symptom to systemic root cause. For each level of "why", identify a small, concrete improvement that would reduce the chance of recurrence at that level. These improvements are often independent — invest in all of them, not just the root.
-- **Level 1 (immediate symptom)** — What could detect or guard against this symptom earlier? (e.g., validation, error handling)
-- **Level 2 (direct cause)** — What test or check would catch this specific mistake?
-- **Level 3 (design issue)** — What naming convention, module boundary, or architectural rule would make this mistake harder to make?
-- **Level 4 (process issue)** — What step in the development workflow was skipped or inadequate?
-- **Level 5 (guidance gap)** — What principle or rule was missing from the team's shared understanding?
-The goal is not a single "root cause fix" but a set of complementary investments at every layer of the chain.
-
-### Defects Are Process Failures
-
-Any time a human reports a defect — in functionality, a code artifact, a build step, a process — it means **a test is missing** and **the process has failed**. Humans should report the need for new features or changes, not that existing things do not work. Every defect report must be treated as a process failure investigation, not a "fix the symptom" ticket. The investigation must identify:
-- Which test was missing (or was insufficient) to catch the defect
-- Which process step failed (skipped, inadequate, unenforceable)
-- What change to tooling, hooks, or AGENTS.md prevents recurrence
-
-## Done Criteria
-
-A change is not complete until it passes **all** precommit hook checks:
-1. **Linting** - Code style/formatting checks pass
-2. **Tests** - All tests pass
-3. **Coverage** - Code coverage is at least 95%
-4. **Smoke test** (for desktop/web apps) - The app builds, starts, and renders without errors
-This applies even if the change is not committed. Running the precommit hook is the definition of "Done".
-
-### Smoke Test Principle
-
-**Unit tests verify logic. Smoke tests verify integration.** For any app with a build pipeline (Vite, Webpack, etc.) or a desktop shell (Electron, Tauri), you must verify the app actually launches and renders after changing:
-- Build configuration files (`webpack.config.js`, `gleam.toml`, etc.)
-- Entry points (`electron/main.js`, `preload.js`, etc.)
-- HTML templates or shell files
-- Any file that is referenced by config but not compiled
-If you delete or rename a file, verify that no config still references it. A missing file reference is a build-time error that unit tests cannot catch.
-
-## Retrospective Findings
-
-**Tag convention:** Entries with a tech-stack prefix (`[React]`, `[Gleam]`, `[TypeScript]`) apply only to projects using that stack. Entries with only a category tag (`[Process]`, `[Testing]`, `[Architecture]`, `[Positive]`, `[Tooling]`, `[Coverage]`) are tech-stack-agnostic. Multi-tag entries like `[React/Tooling]` are specific to that tech stack within that category.
-
-### Compliance Drift Prevention
-
-Projects drift from AGENTS.md compliance when:
-- Feature commits bypass process rules without detection
-- Global rules are updated but project configs aren't migrated
-- Hooks are incrementally fixed but never fully aligned
-**Prevention principles:**
-1. **Automated enforcement** — Pre-commit hooks must detect rule violations (FFI, coverage, etc.)
-2. **Coverage isolation** — Measure only project source, not dependencies
-3. **Five Whys** — Trace defects to missing tests and process gaps, not just symptoms
-
-- **Retrospectives assess documentation/artifact gaps** — Each retrospective should review whether future interactions with the project could be improved by adding or updating supporting files, artifacts, or documentation (module maps, pattern indexes, dependency-flow diagrams, architecture decision records, etc.). Consider the maintenance burden: documentation that isn't kept in sync actively misleads. Prefer automatically generated or validated documentation over hand-written prose. If a gap is identified and worth addressing, capture it as a backlog item for implementation outside the retrospective.
-
-- **[2026-06-06] [Testing] Test Resource Cleanup** — When adopting a test pattern from another file, verify resource management (streams, sockets, clients) is equivalent between source and destination. A copy that omits `.use {}` or `close()` creates a leak that may go undetected until CI runs hit file-descriptor limits.
-
-- **[2026-06-06] [Architecture] Manual Pagination as Last Resort** — Before writing a custom pagination loop, check if the base class already handles it via a `nextPage()` hook. Adding a `nextPage()` override to the listing page is almost always cleaner than duplicating the loop logic.
-
-- **[2026-06-08] [Positive] Incremental Module Split** — Splitting a monolithic module one domain at a time with a commit after each extraction keeps tests green throughout large refactorings. Build and test after each extract step before moving to the next domain to prevent cascading failures.
-
-- **[2026-06-21] [Process] No software installation or system changes without explicit permission** — Diagnosing a problem and immediately executing a fix (e.g., `brew reinstall awscli`) without asking is a process violation. System-level changes — installing packages, modifying PATH, altering configuration files outside the project — must be proposed first, with options presented, and explicitly approved before execution. This applies regardless of how obvious or "safe" the fix appears.
-
-#### 2026-06-23 Process Rules
-
-- **Verify deployment pipeline before modifying deployment files** — Before changing deployment scripts, readme deployment sections, or infrastructure, verify the actual deployment mechanism by checking CI/CD config (GitHub Actions, Amplify, etc.), build logs, automation like `enableAutoBuild` on Amplify branches, or by asking the user. A stale readme describing a deprecated manual process can lead to wasted effort and incorrect infrastructure changes.
-
-- **Pre-commit Hook Must Work in Non-TTY** — Tooling with terminal UI (tcell, etc.) crashes in agent/CI/headless environments. When using CLI tooling in the pre-commit hook, verify compatibility with non-interactive execution (e.g., `--mode=mono` flag for SST).
-
-- **Let the Pre-commit Hook Manage Infrastructure Lifecycle** — When the pre-commit hook script already handles starting, waiting for, and probing dependent services, do NOT start those services manually for debugging. Read the hook script to understand the lifecycle before intervening. Starting services separately wastes time and creates conflicts.
-
-- **Backlog Items Describe Goals, Not Solutions** — A backlog item should state what needs to be achieved (the outcome), not prescribe how to achieve it (the implementation). The solution is determined during execution. Prescribing a fix in the backlog title assumes an unverified diagnosis.
-
-- **[2026-06-25] [Process] Review Prompt Should Not Suppress Refactoring Findings** — The system prompt told the model to ignore "refactoring opportunities that are out of scope for this change," which suppressed findings when the PR was itself a refactoring. Review prompts must not use broad suppression categories that overlap with the PR's purpose.
-
-- **[2026-06-25] [Process] Largest Files Need the Most Review** — The review script excluded files >50K chars, silently skipping the most complex files. Per-file size exclusion is wrong — include large files and suggest splitting them.
-
-- **[2026-06-25] [Process] All Issues Must Be Addressed, Not Dismissed** — Every error, warning, or process gap must be fixed or explicitly acknowledged. Dismissing issues as "pre-existing", "out of scope", "trivial", or working around them (e.g., using `--no-verify`, using workarounds instead of fixing root causes) violates process integrity. The burden is on the exception, not on compliance — if you believe a dismissal is warranted, propose it explicitly and wait for approval.
-
-- **[2026-06-25] [Positive] Systematic Backlog Processing** — Processing a backlog of 9 items one-at-a-time with clear propose/confirm/implement/commit cycles prevented batch confusion and allowed false positives to be caught early. Maintain this rhythm for backlog-driven sessions.
-
-- **[2026-06-26] [Testing] userEvent over fireEvent for Interaction Tests** — `fireEvent.keyDown` only tests the keyDown handler in isolation and does not simulate the browser's default click dispatch for buttons on Enter/Space. `@testing-library/user-event` simulates the full event chain including default actions, `preventDefault` propagation, and disabled-state blocking. Prefer `userEvent.keyboard()`/`userEvent.click()` over `fireEvent.keyDown`/`fireEvent.click` for any interaction test that should reflect real browser behavior.
-
-- **[2026-06-26] [Process] Multi-File Git Blame for Stale Test Investigation** — When a test fails and the feature it tests appears to be missing from the component, run `git log --follow` on both the component and test files. Crossed commits (one adding a test, another removing the feature on a divergent branch) are invisible when checking either file in isolation. Multi-file history trace prevents misdiagnosis.
-
-- **[2026-06-27] [Positive] Context-Aware Refactoring** — Before simplifying a component's internal state management, check how it's actually used by its callers. The parent's `key` prop pattern eliminated two `useEffect` hooks that had been considered necessary. Understanding the call site context is often the key to simpler internal implementation.
-
-- **[2026-06-28] [Positive] Refactoring Special Cases to General Principles** — When a design accumulates many narrow rules for individual scenarios, step back and identify the general principles that subsume them. The DeepSeek SYSTEM_PROMPT was reduced from 15 specific bullets to 2 principles (Indirection, Inconsistency). This pattern applies to any ruleset, configuration, or abstraction that keeps growing with band-aids.
-
-- **[2026-06-29] [Process] PCP Backlog Lifecycle After Commits** — Commits referencing `B###` IDs do not auto-dismiss backlog items in PCP. Call `pcp_dismiss B###` immediately after making a resolving commit, regardless of whether the item was promoted or worked on directly. Do not wait for the user to ask or for a follow-up turn.
-
-- **[2026-07-01] [Positive] Cross-Review Gap Analysis for Prompt Improvement** — When two AI reviewers (e.g. Gemini vs DeepSeek) disagree and one misses an issue the other catches, that gap is a direct candidate for prompt improvement. Use side-by-side comparison of reviews to identify blind spots in the SYSTEM_PROMPT and add targeted rules with regression tests.
-
-- **[2026-07-01] [Testing] Global State Mutation Restoration** — Tests that mock global objects (e.g., `navigator.clipboard`, `window`) must save the original value and restore it in `afterEach` to prevent isolation leaks. Pattern: `const original = target.prop; afterEach(() => { Object.assign(target, { prop: original }) })`.
-
-- **[2026-07-04] [Coverage] Threshold Adjustment After Code Removal** — Superseded 2026-08-09: merged into Coverage Thresholds Are Hardcoded, Canonically Measured, and Investigated.
-
-- **[2026-07-05] [Process] Relay PCP Tool Output in Text Responses** — Tool results from `pcp_backlog`, `pcp_status`, `pcp_history`, etc. are returned to the assistant and may not be visible to the user. Always include the key information from PCP tool calls in your own text response, translated into the user's own process language rather than relaying the tool's generic framing verbatim (e.g., do not echo "sprint" terminology to a user who does not use sprints). Do not call a PCP tool silently and assume the user saw the result.
-
-- **[2026-07-05] [Process] Compile Errors Are Not Failing Tests** — A type mismatch or compile failure prevents compilation entirely, meaning no test can run. In TDD, the "red phase" requires a test that compiles and fails at runtime. A compile error is a broken state, not a failing test. Before writing the test, first fix the types so the code compiles; only then can you write a test that runs and fails with the expected behavior.
-
-- **[2026-07-05] [Positive] Multi-Layer Bug Fix Pattern** — When a bug manifests across multiple layers (backend error type → server handler → client UI), fix each layer independently with its own test rather than one monolithic change. The three-commit chain (error propagation → MIME type → UI display) kept each commit focused and testable, with a clean TDD gate for each. Propose the layer breakdown to the user first to confirm the approach.
-
-- **[2026-07-06] [Process] Compaction Threshold Ignores Blank Lines** — The AGENTS.md compaction rule says to propose compaction when the file exceeds 600 lines, but blank lines should not count toward the threshold. Only content lines (non-whitespace, non-empty) matter for determining file size. Cosmetic blank-line removal is not compaction.
-
-- **[2026-07-08] [Process] Search for Regression Tests Before Behavior Changes** — Before modifying event handlers or component behavior, search for all test files referencing the component or behavior. Existing regression tests may depend on the current behavior and must be understood before making changes.
-
-- **[2026-07-08] [Positive] Batch Similar Refactorings with Analysis** — Constants extraction across 14 files was efficient because: a thorough `grep`/`rg` analysis identified all occurrences first, the user explicitly approved batching, and the constants file was pre-tested. Repeat this pattern for other cross-file refactorings.
-
-- **[2026-07-08] [Testing] Every Optional Clearable Field Needs Empty-String Test** — An API service test for `updateQuality` with name only missed a bug where clearing an optional description to empty sent `null`, which the service silently skipped. Every optional clearable field needs tests for both setting and clearing (empty string) the value, not just for omitting it.
-
-- **[2026-07-14] [Testing] Validate Generated Output Against Real Parser** — When generating code or models in an existing format (CML, PlantUML, etc.), test the output against that format's actual parser, not just against expected strings. String-matching tests pass even when the output is structurally invalid; the real parser catches schema violations.
-
-- **[2026-07-12] [Architecture] Eventual Consistency After GSI Write** — When a PATCH writes to DynamoDB's primary table and the subsequent read queries a GSI, the GSI may still be stale. Use the PATCH response directly to update in-memory state via a mutable provider (e.g., `AsyncNotifierProvider`) rather than invalidating and refetching from the eventually-consistent index.
-
-- **[2026-07-12] [Process] Two-Layer Defect Investigation** — The quality description update bug had two independent root causes (null-vs-empty payload handling + stale GSI read), each sufficient to reproduce the symptom. When investigating a defect, continue searching for additional contributing factors even after finding one plausible cause — a single fix may not resolve the issue.
-
-- **[2026-07-13] [Positive] Coverage-Driven Service Extraction** — Extracting state management from StatefulWidgets into pure-Dart services (like `PassageAssociationService`) simultaneously improves testability and architecture. The service reached 100% coverage with unit tests that run in milliseconds, while the widget wrapper became a thin delegation layer. When a widget's internal logic is hard to test through the widget tree, extract it into a service first.
-
-- **[2026-07-13] [Process] No Untested Code Is "Trivial"** — Every line of code has behavior that should be verified. Dismissing code as "trivial" or "just a loading indicator" creates blind spots where regressions can hide. If a line cannot be tested, it should be removed or refactored — not hand-waved.
-
-- **[2026-07-18] [Process] Pre-commit Hook Timeout Alignment** — The `runTests.sh` health probe uses `curl` with a 5s timeout while the integration test's `ensureBackendReachable` uses `fetch` with a 2s AbortController timeout. An API Gateway cold start that takes 3-4s passes the health check but fails the integration test. When the pre-commit hook tests the same endpoint twice, ensure both use the same timeout.
-
-- **[2026-07-19] [Process] Optimization TDD: Existing Tests as Safety Net** — Behavior-preserving optimizations (caching, algorithm improvements, data structure changes) don't require a new "failing test" since the behavior doesn't change. The existing test suite serves as the regression gate. Write documentation tests for uncovered functions if desired, but the optimization itself is a green-to-green transition.
-
-- **[2026-07-20] [Process] Run Generated Output Immediately** — A generator that compiles is not verified. Generated output (shell scripts, config files, deployment artifacts) must be run at least once to confirm it produces the intended result. Treat the first execution as the final step of code generation, not the start of debugging. This includes developer-facing workflows: a generated dev script or infra config claimed to "just work" must be run end-to-end (start, edit, observe the change) before the claim is made — a green pre-commit does not cover shell scripts or infrastructure configuration, and a broken iteration loop costs the user far more than any feature bug.
-
-- **[2026-07-20] [Process] Infrastructure Config Is Discovery, Not Design** — When output doesn't work, the gap is almost always in tool-specific syntax (shell quoting, SST interpolate, CDK annotations). Don't guess at fixes — find and read a working example that uses the same tool. The answer exists in someone else's project or the tool's docs; deriving it from first principles produces serial guesswork.
-
-- **[2026-08-06] [Process] Backgrounded Processes Must Be Killed on Signals** — A dev script that backgrounds a long-running process (e.g. `sst dev &`) must trap INT/TERM and kill it, because a backgrounded job is not in the foreground process group and Control-C orphans it. The generated `start.sh` left `sst dev` running until a cleanup trap was added; in an agent shell with a persistent session an EXIT trap never fires between tool calls, so backgrounded dev servers must instead be killed explicitly within the same command (`kill $PID` after use) and the port confirmed free before any fresh start.
-
-- **[2026-08-22] [Process] Killing a Spawned Process Must Kill Its Descendants** — `Process.destroy()` kills only the direct child; a spawned shell (e.g. `backend.sh` → `npm` → `node` → `sst`) orphans its descendants to launchd when the direct child dies, leaving dev servers holding ports after the parent exits. Destroy the whole tree via `process.toHandle().descendants().forEach { it.destroy() }` before destroying the direct process, and write the test against the real tree shape (a shell with backgrounded children), not a direct single process — the shutdown unit test that passed against a bare `sleep` missed the real multi-level leak until the user reported orphaned processes after closing the IDE.
-
-- **[2026-08-06] [Process] Centering Needs Block Alignment and Text Alignment** — A centered text block must align the container (crossAxisAlignment/horizontalAlignment) *and* the text lines (`textAlign`); threading the alignment data is not the same as rendering it centered. This recurred across both consumers of the same UI: the Flutter emitter and the Kotlin editor each centered the block but left the lines left-aligned until `textAlign` was added, and the second consumer was claimed "centered" on the basis of the threaded data alone.
-
-- **[2026-08-09] [Process] Committed Generated Artifacts Must Match the Generator** — A committed generated artifact drifts silently when the gate validates freshly regenerated output but never checks the committed copy. The Flutter fixture panes kept the old text style after the emitter changed because the pre-commit hook regenerates and tests the fixture but nothing fails when `git diff fixtures/` is non-empty; enforce sync with a diff check rather than relying on staging discipline.
-
-- **[2026-08-09] [Kotlin] Trailing-Lambda Parameters Must Stay Last** — A trailing-lambda call site binds to the LAST constructor parameter, so inserting a new optional parameter before it silently rebinds the lambda and produces a confusing compile error at every call site. Adding `icon` to a fluent DSL builder before its `onComplete` lambda broke `button("Enter") { children.add(it) }` until the lambda parameter was kept last.
-
-- **[2026-07-20] [Testing] Test Generator with Varied Input Configurations** — A code generator must be tested with at least two different input configurations to expose hardcoded assumptions and copy-paste paths that only surface with a different model shape. The Dynamo repo emitter's update/delete methods hardcoded `passageId` because every test used the Passage entity where `passageId` is the ID field; the bug only appeared when generating a Quality entity with `qualityId`.
-
-- **[2026-07-21] [Testing] Assert Structural Constraints in Generated Output** — When testing generated code, verify structural properties (count, uniqueness, type) rather than string presence alone. An assertion using `split("subtitle:").size - 1` catches duplicate named arguments generically, while a plain `contains("subtitle:")` assertion would pass even with duplicates, letting a compile error reach the user.
-
-- **[2026-07-21] [Architecture] Unconsumed Data Is Dead Weight** — Any field or property that flows through a pipeline but is never consumed by downstream code should be removed. `repositoryName` on `Crudable`/`CrudPane` was set in 19 places but never read by any emitter; removing it simplified the interface with zero behavior change. Apply this principle to any layer boundary: if a value is passed through but never used, delete it.
-
-- **[2026-07-22] [Process] Design Interchange Formats From Both Sides** — When defining an exchange format between two systems, study the data model and constraints of both sides before designing the intermediate schema. A code generation pipeline that emits Figma-compatible layout frames will produce a wrong format if it only inspects its own source model, because layout modes, padding conventions, and nesting rules are defined by the target tool's node types, not the source DSL.
-
-- **[2026-07-22] [Process] Proposed Steps Must Be On The Critical Path** — Before proposing a step toward a stated goal, explicitly evaluate whether it moves toward that goal or just improves the current system tangentially. A design-tokens step would produce a more visually polished UI but would not validate whether the Figma round-trip works, making it orthogonal to the stated goal of Figma integration.
-
-- **[2026-07-26] [Process] Consolidate Entries, Verify Effectiveness** — Before adding a new entry to AGENTS.md, check whether an existing entry should have prevented the current issue — if one exists, the gap is in enforcement, not documentation. Do not add supplementary entries to ones that failed to prevent recurrence; revise the existing entry or add enforcement (automation, hook, lint rule). Each retrospective should audit whether the last N entries actually changed behaviour — findings should converge toward a smaller set of verified-effective principles rather than an ever-growing list.
-
-- **[2026-07-24] [Process] Name User-Facing Things by What the User Does, Not by the Developer's Concept** — Command names, file names, button labels, and parameter names must describe the user's action ("Load"), not the system's internal process ("Generate" / "Import"). A Figma plugin had two different steps both called "import" and two different files both called "manifest" — each collision forced the user to reverse-engineer which meaning was intended. If a user needs to know how the system works internally to understand a label, the label is wrong.
-
-- **[2026-07-25] [Process] DSL-First for Application Behavior** — When adding state or behavior that affects application logic, start at the DSL/model layer, not the emitter. Premature emitter changes bypass the canonical representation and produce code that doesn't compose across output targets. In this session, selection state was first implemented in the Flutter emitter before the MachineContext DSL existed.
-
-- **[2026-08-05] [Process] Verification Must Inspect the Actual State, Not Assume It** — After any shell or git operation, verify the real outcome: capture `$?` before a pipeline, re-run `git status` and `git diff --cached` after index-mutating commands, and reproduce the exact canonical gate command reading its full output. A pipe masks the first command's exit code, a stash silently unstages files, and a filtered grep hides a coverage ERROR line — each problem was only visible when the actual state was inspected. An edit made *after* `git add -A` is not part of the commit even though the pre-commit hook passes against the working tree, so restage after the final edit before committing.
-
-- **[2026-07-25] [Positive] Roll Back Before Redirect** — When the user identifies the wrong approach, revert uncommitted changes before starting the corrected direction. Clean git state eliminates noise from the incorrect path and focuses implementation on what matters. The selection state approach was cleanly rolled back in seconds, preserving a clean starting point for the DSL-first design.
-
-- **[2026-07-26] [Process] Check Lint Conventions for the New Type Representation** — When changing a type's representation (e.g., enum to sealed interface, class to data class), the naming and lint rules that apply to the old representation may differ from the new one. Check the lint configuration for the target representation before writing code, rather than relying on the pre-commit hook to catch violations after the fact. In this session, sealed interface members inherited UPPER_SNAKE_CASE from the previous enum — ktlint's `class-naming` rule rejected them because data objects/classes are governed by a different naming convention than enum constants.
-
-- **[2026-07-31] [Testing] Verify Which Branch, Not Just the Return Value** — When both branches of a conditional return the same HTTP status or result type, a test that only checks the return value is insufficient. Verify the correct branch was reached by inspecting the response body, mock interactions, or side effects. A PATCH handler's guest update branch was dead code (Zod stripped `guestId`) but the test passed because both branches returned 200.
-
-- **[2026-08-01] [Process] Verify Block Structure After String-Based Block Edits** — String-based edits near block boundaries can corrupt structure in two ways: appending can duplicate block closers (orphaning later code with broken scope), and replacing a block can silently truncate it when the replacement does not reproduce the full original (dropped bodies, constructor params, fields, or braces). After any edit that touches a block boundary, read the edited region immediately and verify structural integrity before running tests — syntax validity alone does not guarantee correct structure. A brace-structure check (`rg -n '^}|^class'` in Kotlin) run immediately after the edit catches an orphaned class-closing brace before the compiler does. In one session, seven separate compile failures were caused by incomplete edit replacements that deleted function bodies; the truncation was only discovered when compilation failed minutes later, and the same orphaned-brace pattern recurred twice on 2026-08-02 because the edited region was not re-read before compiling. The same truncation recurs when a `@Test fun ...() {` header is replaced without re-emitting the existing body — twice in one session the body was orphaned and only caught at compile time, so always re-emit the full original block when inserting before a header. The class recurs even when the rule is known: on 2026-09-04 the same author twice corrupted a block during component extraction (deleted the `AuditLogItem` component while removing helpers above it; duplicated a function block in the sibling file) and only the compiler surfaced it — so treat every multi-line replacement that spans declaration/component boundaries as high-risk, re-emit the full original block, and grep for the removed identifiers' later usages before compiling.
-
-- **[2026-08-05] [Process] Multi-Consumer Artifacts Require Cross-Consumer Verification** — When one artifact feeds multiple consumers, verify and declare behavior across every consumer before changing or dismissing it. Seven DSL divergence gaps were closed by declaring intent in the DSL with build-time validation shared by the Flutter emitter and editor; conversely, a chips-for-unselected-qualities report was wrongly dismissed after reading only the Flutter emitter because the editor's separate resolution path had the bug.
-
-- **[2026-08-05] [Process] Only Apply Tools That Are Part of the Enforced Gate** — Before mass-formatting or auto-fixing files, read the hook to learn which tools are actually enforced; a non-gated tool's output can break the gated one. Running `prettier --write` on a file that was already not prettier-clean reformatted the whole file and broke the enforced eslint `max-lines-per-function` rule, requiring a revert to a minimal manual edit.
-
-- **[2026-08-05] [Testing] Mocks Must Match the Real Contract** — A test double must replicate the actual runtime behavior of the dependency it replaces; a mock that rejects where the production wiring cannot reject manufactures latent failure modes. The palette delete test used `mockRejectedValue` on an `onDelete` that never rejects (the parent catches internally and notifies), creating an unhandled-rejection landmine that only surfaces on tooling upgrades — the fix was `mockResolvedValue` to reflect reality.
-
-- **[2026-08-01] [Process] Extract Shared Logic When a Sibling Fixes a Defect Class** — When a new component re-introduces a defect class that a sibling component already fixed, extract the shared logic into common code rather than copying the sibling's pattern again. PaletteNotes duplicated the notes-editing defect class fixed in PaintRangeNotes; the resolution was a shared `useNotesEditor` hook used by both, not a copy of the fix. When the shared abstraction is created, sweep it across ALL existing consumers: ComponentNotes was a third hand-rolled notes editor that escaped the original extraction and was only consolidated onto the hook later (B184), so search the codebase for other near-duplicate implementations of the same pattern before considering the extraction complete.
-
-- **[2026-09-04] [Process] External-Reviewer False Positives Are Fixed in the Review-Harness Prompt, Not Project Docs** — When a code review from an external model flags an intentional project convention as a defect (e.g. an unguarded-looking delete click whose confirmation lives at the composition root), the durable fix is to encode the convention in the review harness's SYSTEM_PROMPT with regression tests — not to add more prose to project AGENTS.md or dismiss the finding. The paints-app destructive-action composition-root pattern was documented locally yet still re-flagged by DeepSeek on a child-card diff; adding a "composition-root confirmation guard" sub-rule with substring assertions to `github-actions-share/scripts/deepseek-review.py` stopped the recurrence at its control point. Documentation the reviewer never loads cannot prevent the review cycle — the reviewer's own prompt is the lever.
-
-- **[2026-08-03] [Testing] Verify the Rendered Surface, Not Just Interactions** — Parity verification must assert what renders (including elements that must not appear), not only what responds to input. The editor's run-mode walkthrough tested navigation and clicks but missed that QualityNote rendered a join-table row list the Flutter pane doesn't have, because no assertion checked the rendered widget structure.
-
-- **[2026-08-03] [Positive] Proactive Parity Backlog Over Ad-Hoc Defect Reports** — When one implementation keeps lagging behind a reference one, build a backlog of parity items with acceptance criteria rather than fixing each screen after it is reported. A five-item backlog (chips firing ViewNote, runtime payload carries, join-note rendering, a walkthrough, and an annotation audit) closed every known Kotlin-editor gap in one ordered pass, ending the user's report-fix-report cycle.
-
-- **[2026-08-03] [Process] Match the PCP Container to the User's Intent** — A request to "create a backlog" means pcp_capture (tracked later work), not pcp_plan (an ordered execution queue). Loading the Kotlin parity work as queue tasks when the user asked for a backlog required a pivot to clear and recapture them as backlog items.
-
-- **[2026-08-05] [Process] A Disabled Quality Gate Is the Root Enabler of Silent Defect Accumulation** — A quality gate switched off for a practical reason is the root cause of silent defect accumulation; the fix is re-enabling enforcement with proper scoping, not documenting intent or accepting the disabled state. A `type-check` script stubbed as `echo 'Type-check disabled to prevent OOM errors'` hid 860+ type errors across three packages including real production bugs (a type missing a required field, an ambiguous re-export) — re-enabling per-package `tsc --noEmit` in the pre-commit hook was the fix, and the existing "pre-existing is never a valid reason to dismiss" rule was only enforceable once the gate ran automatically.
-
-- **[2026-08-05] [Positive] Reproduce Dependency Hypotheses in Isolation Before Applying** — Dependency-level fixes (version bumps, type-alignment changes) should be reproduced in an isolated environment with the same package graph before mutating the real dependency tree. A 743-error `@smithy/types` version incompatibility was proven fixable in a `/tmp` npm project running `tsc` there first, so the real `node_modules` was never corrupted by trial-and-error.
-
-- **[2026-08-09] [Testing] Test-Environment Simulation Gaps Produce False-Green Tests** — Test environments (jsdom) model only a subset of browser behavior, so an assertion about an unmodeled behavior can pass against code that is broken in real browsers. When the red phase passes against code that should fail, rewrite the assertion to target the observable DOM contract (e.g., the `disabled` vs `aria-disabled` attribute) rather than the behavior the environment doesn't simulate. A B141 focus-trap test asserting focus stayed inside the dialog passed against the buggy `disabled={isCopied}` button because jsdom does not drop focus from a disabled element; only when the assertion was rewritten to check the `disabled`/`aria-disabled` attributes did the red phase actually fail.
-
-- **[2026-08-10] [Testing] CSS Source Contract Tests for Non-Executable Behavior** — When a change's behavior cannot execute in the test environment (jsdom cannot compute CSS layout), verify it by asserting the literal declarations in the source artifact. Three ConfirmationModal fixes (short-viewport scroll, reduced-motion, forced-colors focus) each followed a red-green cycle driven by tests reading `ConfirmationModal.module.css` and asserting exact declarations such as `overflow-y: auto` and `animation: none`.
-
-- **[2026-08-11] [Positive] Coverage-Forced Tests Are Defect Discovery, Not a Chore** — When the coverage gate begins measuring a previously-unmeasured module, treat the required tests as a discovery opportunity: write genuine behavioral assertions, not minimum-effort ones, because the newly-covered code is often broken in exactly the places the tests probe. The coverage gate forced RuleTester tests into the previously-untested `eslint-local-rules/index.js`, and the `output:` assertions exposed a fixer that silently dropped `+01:00` timezone offsets — a defect no other gate would have caught.
-
-- **[2026-08-11] [Positive] Local Lint Rules Institutionalize Recurring Anti-Patterns** — When a defect class keeps recurring despite reviews, encode it as a project-local ESLint rule gated at commit time rather than continuing to catch instances by hand. Four N+1 backlog items (B064-B067) were filed across the session; the `no-n-plus-one-dynamo` rule added to the existing `eslint-local-rules/` infrastructure now blocks direct in-loop command construction at pre-commit, turning a recurring review finding into a structural guarantee.
-
-- **[2026-08-14] [Skill] Skills Must Be Version-Controlled** — Agent skills are tooling configuration and must live in a git-tracked location (global: `~/.config/opencode/skills/`, pushed to `sxh/global-agent-rules`), not an unversioned directory. The `code-review-and-quality` skill sat in unversioned `~/.agents/skills/` until moved; a dangling reference in a project AGENTS.md pointed at a `.agent/` directory that never existed in git history.
-
-- **[2026-08-14] [Positive] Structural Health Is Measured Like Coverage** — Missing abstractions (duplicated types, helpers, boilerplate across files) should be measured continuously and gated, like coverage, rather than discovered by per-diff review. The `structural-debt-auditor` skill scans for repeated top-level declarations and found three duplicated Hono API-setup blocks (`isTest`/`logger`/`handler`) on its first real run — abstractions the earlier whole-codebase audit and every per-diff review had missed.
-
-- **[2026-08-20] [Tooling] Type-Aware Lint Rules Activate Dormant Sibling Rules** — Enabling `parserOptions.projectService` (or any type-aware linting) activates type-dependent rules (sonarjs/deprecation, prefer-read-only-props, additional void-use cases) that were silently dormant under non-type-aware configs, surfacing violations invisible to the previous gate. Budget for the collateral violations — not just the target rules — when enabling type-aware linting; in one session enabling no-floating-promises/no-misused-promises surfaced 16 extra type-dependent errors that had to be fixed before the gate passed.
-
-- **[2026-08-20] [Testing] Assert the State Contract When the DOM Cannot Distinguish Values** — When two states render identically in the DOM (a textarea with `value={null}` vs `value={''}` both render empty), a DOM assertion is false-green against both; assert the internal contract directly (`renderHook` on the hook's state) instead. The legacy-`notes` test asserted `currentNotes` via `renderHook` because the textarea value was indistinguishable between `null` and `''`, which would have let the fix regress unnoticed.
-
-- **[2026-08-20] [Positive] RuleTester-First Lint Rules With the Repo as Second Oracle** — Build new lint rules test-first with RuleTester, then run the rule against the whole repository; real code surfaces heuristic gaps (text inside conditionals, expression containers, mixed icon+text branches) that hand-picked unit cases miss. The icon-button a11y rule went through three heuristic iterations, each driven by a repo-wide finding rather than speculation, and converged on a text-presence algorithm with complexity under the ratchet.
-
-- **[2026-08-21] [Testing] Observe Intermediate States With Explicit Gates, Not Implementation Timing** — Tests must not depend on the implementation's internal pacing (poll intervals, thread sleeps) to observe an intermediate state. When the event-driven readiness rework removed the IDE launch's busy-poll, the wiring test that relied on the poll's 20ms cadence to catch the "Launching" message failed — the fix was a gated fake runner whose line emission the test releases explicitly.
-
-- **[2026-08-21] [Positive] Order Backlog Execution by Dependency So Structural Changes Land Once** — Sequence a sprint so each architectural change is made exactly once, foundation first. The launch-path sprint ordered the session cluster (decision → threading → event-driven → timeout) before the contract cluster (command builder → shared default), then the extraction, capped by a cross-validation test — so no piece was written twice and each commit built on the prior.
-
-- **[2026-08-21] [Positive] Preserve the Public API When Extracting a Component** — A behavior-preserving refactor should leave the consumed API unchanged so callers and tests don't churn. Extracting the launch orchestration into a coordinator kept `launchMessage`/`isLaunching` as read-only delegated properties into the coordinator's Compose state, so the view-model's surface, the UI, and every test were untouched.
-
-- **[2026-08-23] [Process] Verify N+1 Findings at the Call Site Before Acting** — A backlog finding that flags "N+1 query" on a single repository method is a hypothesis, not a defect. Before implementing any batching/caching/eager-loading change, verify the method actually has production callers that invoke it in a loop; a method whose only caller is a test, or which is not on the interface consumers use, has no N+1 problem. B009 flagged `ExposedAircraftRepository.findByTypeAndName` as an N+1 risk, but the method is not on `SingleAircraftTypeRepository` and its only call site is `ExposedDatabaseTest.kt:91` — dismissed as a false positive. Dismiss with evidence rather than inventing optimization work for dead code.
-
-- **[2026-09-04] [Process] Document False Review Findings With a Comment, Don't Just Dismiss** — When investigation disproves a review finding, do not dismiss it silently: leave a comment in the code explaining why the concern does not apply, so future reviewers (human or AI) don't re-raise the identical issue. The comment is the deliverable that closes the loop — without it, the next review repeats the same finding. Verification method that proved the concern false can go in the comment as supporting context. Example: a review flagged that a `vi.spyOn(module, "fn")` "may not intercept a named import" used directly by the consumer; a mutation test (flipping the mocked return value and confirming the test then fails) proved the spy does intercept, so rather than rewriting to `vi.mock` (hoisted file-wide, may break sibling tests relying on the real function), the test carries a comment documenting that the spy is load-bearing and that a green assertion is itself proof the intended path ran.
-
-- **[2026-09-04] [Process] PCP Auto-Advance Misattributes Prerequisite Commits** — A git commit auto-advances the active PCP task even when the commit is not that task's deliverable (e.g., a prerequisite coverage fix landed mid-task), so after any commit verify the queue state and reconcile before continuing. During the B069–B075 backlog sprint, a non-queue coverage-threshold commit advanced T222 to done, then the real T222 commit advanced the unexecuted T223 to done — the drift was caught and the queue reloaded via pivot with `drop_queue` before work proceeded.
-
-- **[2026-09-04] [Testing] Resolve Surprising Contracts at Test-Writing Time, Not Review Time** — When a test must codify behavior that looks wrong (a mutation proceeding on a missing record, `undefined` values in an audit payload), the test author is at the moment of contract discovery: resolve it in that same change by either fixing the code or documenting the intent in a comment — do not write the test as-is and defer the question to a future reviewer. Tests that codify surprising behavior without explanation read as latent bugs and get re-litigated months later; the B073/B074 contract comments (null-`get` mutations proceed, `undefined` audit fields are safe via enrichment) were only added after a review flagged the tests, when the write-time cost would have been one comment in the original commit.
-
-- **[2026-09-04] [Testing] Name Test Files by the Behavior They Protect, Not the Coverage Branch** — A test file whose name encodes a coverage goal (`*_audit_branches.test.ts`, `*_timezone_fallback.test.ts`, `*_sorting_branches.test.ts`) advertises that it was written to hit a percentage, not to protect a behavior; a suite organized by branch fragments discoverability and hides when coverage-chasing produced weak tests. Name files by the behavior or service under test and use `describe` blocks for variants, so a file named `friendRequestService.test.ts` containing a "constructed without optional dependencies" describe replaces three branch-named files.
-- **[2026-09-04] [Process] Identify the Stale Layer by Its Newest Observable** — When a change "doesn't appear" after a reload, multiple independent layers each cache the previous artifact — the extension content script (reloaded only from `chrome://extensions`), the server process (restarted only to load new code), and the page — so diagnose which layer is stale by quoting the newest observable each would emit (message copy, startup banner, bundle marker) against HEAD. Bookshop wishlist "Rating unavailable" and "No Hardcover rating" strings persisted because the extension had not been refreshed while the server had been restarted (and vice versa), and each false diagnosis blamed the wrong layer until the exact strings were compared.
-- **[2026-09-04] [Positive] Probe Sanctioned Contexts Before Building Around a Block** — When a service refuses one client context (CORS, anti-bot, auth), probe each sanctioned alternative context empirically before committing to an architecture: an MV3 service worker with `host_permissions` is the sanctioned CORS bypass, but server-side anti-bot (Goodreads' 202 interstitial to Node fetches) can still block it, and a three-ISBN probe from the real Chrome context decided the correct design in minutes where speculation had not. Build the cheap probe first; the winner is the context that actually returns real data.
-- **[2026-09-04] [Tooling] Hooks Must Resolve the Repo Root via Git, Not Their Own Location** — A hook that computes the project root from `dirname "$0"/..` works when run from the source `hooks/` path but breaks when installed at `.git/hooks/` (landing in `.git`), so resolve with `git rev-parse --show-toplevel`, which is location-independent. The pre-commit hook's first real invocation failed with vitest "No test files found" because the installed hook had `cd`'d into `.git`; switching the root resolution to git fixed both invocation sites.
-
-- **[2026-09-04] [Testing] Argument-Matching Assertions Require the Exact Argument List** — `toHaveBeenCalledWith` (and similar argument matchers) compare against the entire call, so an expected argument list shorter than the real call fails even when the given argument matches. The B080 web sweep hit this when `expect(mockFetch).toHaveBeenCalledWith(expect.any(String))` failed because the real call carried a second `init` object — asserting `(expect.any(String), expect.anything())` fixed it, with the suite catching the false assumption instead of papering over it.
-
-- **[2026-09-04] [Testing] Extraction Must Preserve Module-Mock Seams** — Shared code that calls module internals which tests override via `vi.mock(module)` must not live inside the mocked module itself, or the extracted helper binds the real internals and the override silently stops applying. Putting `createStandardApp` into a separate module that imports the middleware from the mocked `utils/hono` restored the audit route tests' injected-auth override — a regression the suite raised the moment the helper was added inside the mocked file.
-
-- **[2026-09-04] [Process] Build Gates Must Reproduce in a Pristine Checkout** — A type-check/build gate that resolves committed config against gitignored, locally-generated files passes on dev machines (where the generator has run) and fails only in CI's clean checkout, making it invisible to the commit hook. scheduler4's functions tsconfig included a gitignored SST-generated `sst-env.d.ts` shim that broke CI with `Resource` TS2339 errors until the tsconfig referenced the committed root type file instead — reference committed artifacts or regenerate in CI, never gitignored output.
-
-- **[2026-09-04] [Tooling] vitest jsdom import.meta.url Is Not a file URL** — Under vitest's jsdom environment `import.meta.url` is a dev-server/other-scheme URL, so `new URL("../x.ts", import.meta.url)` or `fileURLToPath` on it throws "The URL must be of scheme file"; reading source files from a test therefore needs the node environment. A B081 dedupe-guard test that reads `EventModal.tsx` failed until the file was annotated `// @vitest-environment node` (it has no DOM dependency, so the switch was safe).
-
-- **[2026-09-04] [Architecture] Single-Line Composition-Root Wiring Is Not Duplication to Extract** — When a structural scan flags identical one-line constructions (e.g. `new CognitoUserRepository()`) whose per-site ownership is a *subset*, downgrade them as intentional explicit wiring; a combined factory would construct dependencies each module never uses and hide its true dependency set. B083 proved six route files each consume a different subset of user/audit/friend repositories, so the wiring stayed explicit at each composition root rather than being unified.
-
-- **[2026-09-09] [Tooling] Renames and Deletions Leave Stale Compiled Classes in Build Output** — Deleting or renaming a source file does not remove its previously compiled `.class`, so the next build/test run silently executes the phantom class and fails against deleted resources. After any source rename or deletion, clean the build output (`mvn clean` or remove the stale class) and verify by listing the class directory, not by trusting the compiler — and note that a bare `find a -o b -delete` binds `-delete` only to the last expression, so group with parentheses. Three separate eduard sessions hit phantom-test failures this way (a renamed extractor test, a deleted dump helper, a retired loader) before the class list was checked.
-
-These entries have been archived as of their respective retrospectives. They document specific platform/tool gotchas or superseded entries preserved for reference.
-- **[2026-08-14] [Process] Bypass Flags Are a Stop, Not a Workaround** — Archived 2026-09-04: superseded by the Process Rule "A commit that would need `--no-verify` is a STOP" (which carries the identical positive-script fix).
-- **[2026-07-13] [Coverage] Coverage Tooling Enables Improvement** — Removed 2026-07-31: entry had incomplete body text (title only, no principle statement or example).
-- **[2026-07-04] [Tooling] Vitest autoUpdate Unreliable** — Superseded 2026-08-01: merged into Coverage Thresholds Are Hardcoded, Canonically Measured, and Investigated.
-- **[2026-07-07] [Coverage] Investigate Before Lowering Thresholds** — Superseded 2026-08-01: merged into Coverage Thresholds Are Hardcoded, Canonically Measured, and Investigated.
-- **[2026-07-31] [Coverage] Single Canonical Measurement Command** — Superseded 2026-08-01: merged into Coverage Thresholds Are Hardcoded, Canonically Measured, and Investigated.
-- **[2026-06-21] [Process] Login Item Service Environment Verification** — When a macOS Login Item starts a service with required env vars, verify the running process actually has them by checking `ps eww -p <PID> | grep VAR`. Dependent apps with autoStart must be disabled — they spawn their own server instance sharing the same port but without the Login Item's env var injection.
-- **[2026-06-23] [CloudFront] CloudFront Distribution Discovery and CNAME Locks** — When a domain is served behind CloudFront but the distribution doesn't appear in `aws cloudfront list-distributions`, check AWS Amplify which creates managed CloudFront distributions for custom domains. Before creating a new distribution for an existing domain, verify the domain isn't already associated with another distribution via `CNAMEAlreadyExists`.
-- **[2026-07-31] [Testing] Generated Code Must Compile, Not Just Match Patterns** — String-matching tests on generated output verify structure but not correctness. Add compilation checks (tsc --noEmit, dart analyze) for generated codebases. A method reference in generated code that doesn't exist in the generated base class passes string tests but fails at runtime.
-- **Superseded (2026-07-22):** [2026-06-28] Questions About Plans Are Not Go-Aheads — merged into Commit Permission Protocol.
-- **Superseded (2026-07-22):** [2026-07-12] Two-Turn Protocol Is Not Optional After Tests Pass — merged into Commit Permission Protocol.
-- **Superseded (2026-07-22):** [2026-07-16] Urgency Does Not Waive Two-Turn Protocol — merged into Commit Permission Protocol.
-- **Superseded (2026-07-22):** [2026-06-25/06-27] "Pre-existing" Is Never a Valid Reason to Dismiss an Error — merged into All Issues Must Be Addressed.
-- **Superseded (2026-07-26):** [2026-07-22] Track Recurrence, Not Just Add Entries — merged into Consolidate Entries, Verify Effectiveness.
-- **Superseded (2026-07-26):** [2026-07-22] Verify Entry Effectiveness Before Adding — merged into Consolidate Entries, Verify Effectiveness.
-- **Superseded (2026-07-26):** [2026-07-22] Consolidate, Don't Accumulate — merged into Consolidate Entries, Verify Effectiveness.
-- **Superseded (2026-08-05):** [2026-07-25] Pipe Masks Exit Code in Pipeline — merged into Verification Must Inspect the Actual State, Not Assume It.
-- **Superseded (2026-08-05):** [2026-08-01] Verify the Staged Set After Index-Mutating Commands — merged into Verification Must Inspect the Actual State, Not Assume It.
-- **Superseded (2026-08-05):** [2026-08-01] Gate Verification Must Reproduce the Exact Canonical Command — merged into Verification Must Inspect the Actual State, Not Assume It.
+**XP is the default mode** — For any task involving software implementation, code generation,
+infrastructure configuration, testing, or refactoring, load `skills/xp-craftsman/SKILL.md` at the
+start of the session and follow it unless the user overrides a specific deviation for that session.
+Do not wait for a trigger phrase.
+
+**Resolve skills yourself** — Do not require the user to remember skill names or trigger phrases.
+When asked for an audit, review, or analysis in natural language, scan `skills/` and match the best
+fit automatically. The `skill` tool only knows pre-registered skills; for skills at explicit paths,
+read the SKILL.md and follow it for that session so the latest version is always used.
+
+Triggers: "run retrospective" / "reflect on session" → `skills/retrospective/SKILL.md`.
+
+## Where things live
+
+| Need | Location |
+|---|---|
+| Coding standards (architecture, naming, SOLID, security, errors, API, a11y) | `skills/engineering-standards/SKILL.md` |
+| Testing practice (DI, functional tests, hermeticity, coverage strategy) | `skills/testing-standards/SKILL.md` |
+| Per-stack playbooks (Gleam+Lustre+Electron, Birdie, React/TS, JVM) | `skills/stack-playbooks/SKILL.md` |
+| Project setup and gates (start.sh, pre-commit, CI, review handling) | `skills/project-scaffold/SKILL.md` |
+| Debugging discipline and proven platform limitations | `skills/debugging-playbook/SKILL.md` |
+| Past incidents and gotchas (institutional memory) | `docs/incidents.md` — grep it; do not load wholesale |
+| Machine setup (server, local models, ports) | `docs/local-setup.md` |
+
+## Adding rules to this file
+
+Before adding anything here, check whether an existing rule should already have prevented the
+issue. If one exists, the gap is enforcement — add a hook, lint rule, or gate, not prose. Every
+addition must state which layer it belongs to (this file, a skill, docs/incidents.md, or a
+mechanism) and must come with a mechanism or an expiry. This file has a hard budget of 200 lines;
+entries that do not earn their place are removed.
