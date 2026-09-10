@@ -1,12 +1,18 @@
 ---
 name: retrospective
-description: Analyze the current session to identify lessons learned and update AGENTS.md files. Use when the user says "run retrospective", "reflect on session", "do a retrospective", or "let's do a retrospective".
+description: Analyze the current session to identify lessons learned and record them at the right layer — docs/incidents.md (default), the AGENTS.md contract (rare), a skill, or a mechanism. Use when the user says "run retrospective", "reflect on session", "do a retrospective", or "let's do a retrospective".
 ---
 
 # Retrospective Skill
 
 ## Purpose
-Analyze the work done in the current conversation context to extract lessons learned — both positive and negative — and update AGENTS.md files (global and/or local) to prevent recurrence of defects, reinforce good practices, and continuously improve the development process.
+Analyze the work done in the current conversation context to extract lessons learned — both positive and negative — and record them at the right layer, to prevent recurrence of defects, reinforce good practices, and keep the always-loaded prompt small.
+
+The four destinations:
+- **`docs/incidents.md`** — the default. Tool gotchas and dated findings. Not loaded into the prompt; retrieved by grep when a class of problem recurs.
+- **Contract (`~/.config/opencode/AGENTS.md`)** — only rules that apply every turn, cannot be enforced mechanically, and are non-obvious. Hard budget: 200 lines.
+- **Skills** — standards and playbooks that apply when a situation arises.
+- **Mechanisms** — hooks, lint rules, CI gates, scripts. The preferred destination for any recurring failure class; prose is the last resort.
 
 ### Session Definition
 A "session" is the span of conversation since the last retrospective was run, or since the start of the current conversation if no retrospective has been run yet. If the context window has rotated and earlier turns are no longer accessible, limit analysis to what is available in the current context. Do not fabricate or assume details from lost context — note "insufficient context" if needed.
@@ -70,17 +76,32 @@ If two or more different findings from this session (or from recent retrospectiv
 
 If a finding does not generalize to a principle that would prevent a different class of defect, it is likely a one-off — discard or move to backlog.
 
-### Step 5: Check Principle Coverage, Not Entry Duplication
+### Step 5: Choose the Destination, Then Check Principle Coverage
 
-- Read `~/.config/opencode/AGENTS.md` (global) and `./AGENTS.md` (local).
-- For each **principle** identified in Step 4:
-  - Search existing entries for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
-  - If the principle is already covered by an existing entry: **do not add a new entry.** Instead, propose a refinement to the existing entry that clarifies its scope (e.g., add a sentence or an example from this session).
-  - If the principle is **not** covered by any existing entry: propose a new entry.
-  - If the principle is **contradicted** by an existing entry: mark the old one for removal or amendment.
-- **Compression scan:** If 3+ existing entries from different sessions express the same principle, propose merging them into one entry and archiving the surplus.
+- Read all three stores: `docs/incidents.md` (entry archive), `~/.config/opencode/AGENTS.md` (contract), and the relevant `skills/*/SKILL.md`.
+- For each **principle** identified in Step 4, choose its destination first:
+  - **MECHANISM** — can be enforced by a hook, lint rule, gate, or CI check. Do not write prose; emit a backlog item instead.
+  - **CONTRACT** — must hold every turn, cannot be enforced mechanically, and is non-obvious. All three must hold; the contract file states this admission test.
+  - **SKILL** — a situational standard or playbook. Patch the relevant skill.
+  - **INCIDENT** — everything else. This is the default destination: `docs/incidents.md`.
+- Then check coverage *within that destination*: search for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
+  - Already covered: **do not add a new entry.** Propose a refinement that clarifies scope (a sentence, or this session's example).
+  - Not covered: propose a new entry (or a contract/skill line, per the destination), carrying a status tag — `[ENFORCED]` (name the covering gate), `[OPEN]` (raise the mechanism backlog item in the same retrospective), or `[EXPIRED]`. An entry that asserts a rule without a tag is a leak and must be resolved before the summary is presented.
+  - Contradicted: mark the old entry for removal or amendment.
+- **Compression scan:** If 3+ incident entries from different sessions express the same principle, propose merging them into one and archiving the surplus.
+- **Recurrence check:** If an incident's failure class recurs despite being documented, the gap is enforcement, not documentation — emit a mechanism backlog item rather than another entry.
 
-### Step 6: Present Summary
+### Step 6: Effectiveness Audit (closes the loop)
+
+Before presenting the summary, audit the previous retrospective's outputs. This is what makes the process a loop rather than a document generator:
+
+- **Report every `[OPEN]` entry** in `docs/incidents.md` with its age in retrospectives. An enforcement item still open after several retrospectives is itself the finding — escalate it or drop it with a stated reason.
+- **Verify every `[ENFORCED]` claim** by reading the covering artefact: the hook exists and is not stubbed, the lint rule is configured, the CI job triggers, the test is present. A gate that has been disabled or removed since the claim is a finding.
+- **Check recurrence** — for each documented failure class, state whether it occurred again since the entry's date. Recurrence means the documentation did not change behaviour: require the mechanism (backlog item), do not write another entry.
+- **Flag leaks** — any entry asserting a rule with no mechanism and no status tag. Resolve each as enforcement, `[EXPIRED]`, or a justified knowledge entry.
+- **Report the audit** in the summary under its own heading, before the proposed changes.
+
+### Step 7: Present Summary
 Show the user a summary BEFORE confirming. The summary must include:
 
 ```
@@ -91,6 +112,9 @@ Show the user a summary BEFORE confirming. The summary must include:
 
 ### Structural Debt Scan (software projects only)
 [Duplication ratio, list of verified candidates with pattern_signature, candidates downgraded as intentional, ratio vs previous baseline]
+
+### Effectiveness Audit
+[Previous retrospective's outputs: which mechanisms landed, which [OPEN] items remain (with age), which failure classes recurred since, and any rule-bearing entry with no mechanism and no tag (a leak)]
 
 ### What Went Well
 1. [Positive practice or good outcome]
@@ -118,27 +142,33 @@ Show the user a summary BEFORE confirming. The summary must include:
 [Note if any other skill files (XP Craftsman, etc.) need updating]
 
 ### Proposed Changes
-- Global AGENTS.md: [what to add, update, or remove, with exact section]
+- docs/incidents.md: [entries to add, merge, or archive]
+- Contract (global AGENTS.md): [only findings that pass the admission test]
+- Skills: [skill files to patch, with the specific rule]
+- Mechanisms: [hook/lint/CI backlog items — the enforcement route for recurring classes]
 - Local AGENTS.md: [what to add, update, or remove, if applicable]
 ```
 
 Wait for user confirmation before proceeding.
 
-### Step 7: Apply Changes (after confirmation)
+### Step 8: Apply Changes (after confirmation)
 If user confirms:
-- **Add, update, or remove** entries in global AGENTS.md (`~/.config/opencode/AGENTS.md`) as proposed. When updating, replace the existing entry with the corrected version. When removing, delete the line(s).
-  - **The global config directory `~/.config/opencode/` is itself a git repository** (remote: `sxh/global-agent-rules`). After applying changes to the global AGENTS.md, commit and push them in that repo — do not leave them uncommitted or assume they are outside version control.
+- **Add, update, merge, or archive** entries in `docs/incidents.md` (`~/.config/opencode/docs/incidents.md`) as proposed. When updating, replace the entry in place. When merging, keep the surviving entry and archive the surplus under the archive heading at the bottom of the file.
+  - **The global config directory `~/.config/opencode/` is itself a git repository** (remote: `sxh/global-agent-rules`). After applying changes, commit and push them in that repo — do not leave them uncommitted or assume they are outside version control.
+- **Contract changes are rare** — touch global AGENTS.md (`~/.config/opencode/AGENTS.md`) only for findings that pass the admission test (applies every turn, cannot be enforced mechanically, non-obvious). The contract has a hard 200-line budget; anything that pushes it over must displace something else.
 - **Add, update, or remove** entries in local AGENTS.md (`./AGENTS.md`) if in a project with a local AGENTS.md.
 - **Update skill files** if the lesson reveals a gap in a skill (XP Craftsman, RPG Master, etc.). Propose the specific edits to the user.
+- **Mechanisms** — a recurring failure class becomes a backlog item for enforcement (hook, lint rule, CI gate, script), not a prose entry.
 - **Capture backlog items into PCP** — for each proposed backlog item, call `pcp_capture` with a clear title and optional context. The item is now tracked in the PCP backlog for future sprint planning.
 - Show confirmation that all updates were made.
 
-### Step 8: Compact (every session)
+### Step 9: Compact (every session)
 Every retrospective must propose a compaction pass, even if no new entries are added:
-- Scan the last 20 entries in AGENTS.md (or all entries since the last compaction).
+- Scan the last 20 entries in `docs/incidents.md` (or all entries since the last compaction).
 - Identify any 2+ entries that express the same principle (different titles, same idea) and propose merging them.
 - If merging, keep the principle and update the date of the surviving entry to the current date. Archive the surplus entries.
 - Also apply the principle-coverage check from Step 5: if a new principle subsumes older entries, those older entries should be archived.
+- Also check the contract (`~/.config/opencode/AGENTS.md`) against its hard 200-line budget: if it is at or over budget, propose what to remove or demote before anything new is added.
 - Propose the specific merges and archive actions in the summary for user confirmation.
 
 ## Guidelines
@@ -177,7 +207,7 @@ Capture specific, concrete examples of successes identified through the Positive
 - **Process** that flowed well (e.g., "User caught the scope creep before I implemented it")
 - **Decisions** that proved correct (e.g., "Injecting the HTTP client made the pagination test trivial")
 
-These entries go into AGENTS.md with a `[Positive]` prefix to distinguish them from defect-driven entries.
+These entries go into `docs/incidents.md` with a `[Positive]` prefix to distinguish them from defect-driven entries.
 
 ### Backlog Generation
 
@@ -194,23 +224,26 @@ For each finding from the Five Whys or Positive Amplification Analysis, decide w
 - **Level 4 (Process gap)** from Five Whys — fix the process (e.g., "Add schema review to precommit hooks")
 - **Level 3 (Practice/process enabler)** from 5 Wins — reinforce the practice (e.g., "Document multi-layer investigation pattern")
 - **Verified structural-debt candidates** from Step 2 — unify the missing abstraction (e.g., "Extract shared Fetcher type into repositories/types.ts") — and any rising-ratio finding
-- **Any lesson that failed AGENTS.md triage** but is still a concrete, doable task
+- **Any lesson that failed destination triage** but is still a concrete, doable task
 
 **Use `pcp_capture`** to add each item with a descriptive title. For example:
 > `pcp_capture("Add NOT NULL constraint to products.url column")`
 > `pcp_capture("Document multi-layer investigation pattern in AGENTS.md")`
 
-### Global vs Local Decision
-- **Global** — Framework-specific lessons, general development principles, tool gotchas, OpenCode platform knowledge. Everything should default to global unless there's a strong reason not to.
-- **Local** — Project-specific conventions, domain terms, project-specific infrastructure, repository layout knowledge.
+### Destination Decision
+- **docs/incidents.md** — the default. Framework-specific lessons, tool gotchas, dated observations. Not loaded into the prompt; retrieved by grep when a class of problem recurs.
+- **Contract (global AGENTS.md)** — only rules that must hold every turn, cannot be enforced mechanically, and are non-obvious. Budget: 200 lines, checked every retrospective.
+- **Skills** — standards and playbooks that apply when a situation arises (testing, stack-specific, debugging, review).
+- **Mechanisms** — anything a hook, lint rule, CI gate, or script can enforce. The preferred destination for any recurring failure class; prose is the last resort.
+- **Local AGENTS.md** — project-specific conventions, domain terms, project infrastructure, repository layout.
 - **Edge cases:**
-  - *Cross-project but not universal:* Prefer global with a qualifying phrase like "In Gleam projects using Lustre..." rather than duplicating across local files.
-  - *Meta-lessons about the retrospective skill itself:* Add to global AGENTS.md under a `## Skills Maintenance` section.
+  - *Cross-project but not universal:* Record it in the relevant skill with a qualifying phrase ("In Gleam projects using Lustre...") rather than duplicating across local files.
+  - *Meta-lessons about the retrospective skill itself:* Patch `skills/retrospective/SKILL.md` directly, after showing the proposed edit.
   - *No local AGENTS.md exists:* If the lesson applies locally but no file exists, mention it in the summary and ask the user if they want one created.
-  - *Lesson applies to both:* Write once to global and reference it from local (do not duplicate content).
+  - *Lesson applies to both:* Write once and reference from the other (do not duplicate content).
 
 ### Lesson Significance Triage
-Not every observation belongs in AGENTS.md. Apply these filters:
+Not every observation earns an entry. Apply these filters (and the destination test in Step 5 — mechanisms beat prose):
 1. **Would this prevent a future defect?** If yes, keep.
 2. **Is this a repeatable pattern or a one-off?** Only keep repeatable ones.
 3. **Does this correct or clarify an existing entry?** If yes, update the existing entry rather than adding.
@@ -218,10 +251,10 @@ Not every observation belongs in AGENTS.md. Apply these filters:
 5. **Would a new developer benefit from reading this?** If no, discard.
 
 ### Revision and Compaction
-- **Updating:** When a lesson supersedes an existing entry, replace the old text in-place rather than appending. This keeps AGENTS.md accurate rather than accumulating corrections.
+- **Updating:** When a lesson supersedes an existing entry, replace the old text in-place rather than appending. This keeps `docs/incidents.md` accurate rather than accumulating corrections.
 - **Removing:** When an entry is no longer relevant (fixed tool bug, outdated practice), delete it. Mention the removal in the retrospective summary.
-- **Archiving:** Moved entries are placed under a `## Archived Entries (YYYY-MM-DD)` heading at the bottom of AGENTS.md so the history is preserved without cluttering active guidance.
-- **Threshold:** Propose compaction whenever AGENTS.md exceeds 600 lines or 5 retrospectives have run since the last compaction.
+- **Archiving:** Moved entries are placed under the archive heading at the bottom of `docs/incidents.md` so the history is preserved without cluttering active guidance.
+- **Threshold:** Propose compaction whenever `docs/incidents.md` has accumulated 5 retrospectives' worth of new entries since the last compaction. The contract (`AGENTS.md`) is instead checked against its 200-line budget every retrospective.
 
 ### Cross-Skill Feedback
 If a lesson reveals a gap or improvement opportunity in another skill file:
@@ -230,10 +263,10 @@ If a lesson reveals a gap or improvement opportunity in another skill file:
 - Do not edit skill files silently — the user must approve changes to their tooling configuration.
 - The **structural-debt-auditor** skill runs as part of this skill (Step 2) on software projects. If the scan produces a pattern that repeats across retrospectives (the same class of missing abstraction reappearing), that is a signal the structural-debt-auditor skill itself needs improvement (new extraction pattern, new exclusion, better signature), not just another backlog item.
 
-## Format for AGENTS.md Entries
+## Format for Incident Entries (docs/incidents.md)
 
 ### Principle-First Structure
-Every entry must express a general principle, not a specific observation. The title should state the principle itself, not which tool or scenario triggered it.
+Every entry must express a general principle, not a specific observation. The title should state the principle itself, not which tool or scenario triggered it. Entries live in `docs/incidents.md`; contract lines in `AGENTS.md` are phrased as standing rules, without dates.
 
 ```
 - **[YYYY-MM-DD] [Category] Principle Title** — Principle statement (one sentence). Example of the principle in action (one sentence).
@@ -247,6 +280,14 @@ Every entry must express a general principle, not a specific observation. The ti
 - If multiple findings from different sessions map to the same principle, write one entry covering them all.
 - Do not use emoji.
 - Do not wrap in backticks — the entry is plain markdown list item.
+
+**Status tags — required for any entry that asserts a rule to follow:**
+- `[ENFORCED]` — a gate covers it. Name the covering artefact (hook, lint rule, CI job, test) so the next audit can verify it still exists and still gates.
+- `[OPEN]` — enforcement identified but not built. A mechanism backlog item must be raised in the same retrospective; the entry is re-reported at every subsequent retrospective until it closes.
+- `[EXPIRED]` — retired: no recurrence observed and no mechanism warranted. Keep it for one more retrospective before archiving.
+- A pure knowledge entry (a gotcha with no rule to enforce) may omit the tag, but the summary must state why no mechanism applies. An entry that asserts a rule and carries neither tag nor mechanism is a leak.
+
+Example: `- **[2026-09-09] [Process] [OPEN] Hooks Must Resolve the Repo Root via Git** — ...`
 
 **Before (narrow, tool-specific):**
 ```
