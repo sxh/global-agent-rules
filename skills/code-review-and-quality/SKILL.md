@@ -7,7 +7,7 @@ description: Conducts multi-axis code review. Use before merging any change. Use
 
 ## Overview
 
-Multi-dimensional code review with quality gates. Every change gets reviewed before merge — no exceptions. Review covers seven axes: correctness, readability, architecture, security, performance, accessibility, and test quality.
+Multi-dimensional code review with quality gates. Every change gets reviewed before merge — no exceptions. Review covers eight axes: correctness, readability, architecture, security, performance, accessibility, test quality, and quality-gate integrity.
 
 **The approval standard:** Approve a change when it definitely improves overall code health, even if it isn't perfect. Perfect code doesn't exist — the goal is continuous improvement. Don't block a change because it isn't exactly how you would have written it. If it improves the codebase and follows the project's conventions, approve it.
 
@@ -19,7 +19,7 @@ Multi-dimensional code review with quality gates. Every change gets reviewed bef
 - When refactoring existing code
 - After any bug fix (review both the fix and the regression test)
 
-## The Seven-Axis Review
+## The Eight-Axis Review
 
 Every review evaluates code across these dimensions:
 
@@ -116,6 +116,25 @@ Do the tests actually protect the behavior, or just pass? A green suite is not e
 
 For UI/desktop apps: unit tests are necessary but not sufficient — a smoke test must verify the app builds, launches, and renders.
 
+### 8. Quality-Gate Integrity
+
+Does the project actually enforce its quality gates, or only describe them? A gate that is missing, stubbed, or silently disabled is worse than no gate — it manufactures false confidence, and it is the root enabler of silent defect accumulation.
+
+The standard gate set (defined by `project-scaffold`):
+
+- **Pre-commit hook** — linting, full test suite, coverage at the project threshold, and a smoke test for apps with a build pipeline or desktop shell.
+- **CI** — lint, tests, coverage, and build on every push; production deploys gated to main or tagged releases.
+- **Coverage threshold** — configured in the tool's own config (c8/vitest/etc.), hardcoded from one canonical measurement with a deliberate buffer, never auto-ratcheted.
+- **start.sh** (or equivalent) — actually starts the project end to end.
+
+For each gate, in this review:
+
+- Verify existence by **reading the artefact** (hook script, workflow YAML, config file) — never the README or a claim in the description.
+- Verify it **actually gates**: a hook that is present but stubbed (`echo 'disabled'`), a workflow that never triggers, or a threshold set below the current measurement is a finding, not a pass.
+- Verify the config **resolves in a pristine checkout** — referenced files are committed, not gitignored generated output.
+- Where a gate is **absent**, the absence must be an explicit, user-approved exclusion recorded in the project. Silent absence is a Required finding.
+- A gate that is **disabled with intent to re-enable** needs a re-enable path and an owner. "Temporarily disabled" left in place is a finding, not a note.
+
 ## Structural Remedies
 
 When you flag a structural problem, propose the move — not just the problem. A review that only says "this is complex" leaves the author guessing. Reach for a named restructuring:
@@ -194,7 +213,7 @@ Tests reveal intent and coverage:
 
 ### Step 3: Review the Implementation
 
-Walk through the code with the seven axes in mind:
+Walk through the code with the eight axes in mind:
 
 ```
 For each file changed:
@@ -205,6 +224,7 @@ For each file changed:
 5. Performance: Any bottlenecks?
 6. Accessibility: Is it usable by keyboard/screen-reader users with managed focus?
 7. Test Quality: Would the tests actually fail if the behavior regressed?
+8. Quality Gates: Do the project's gates exist, run, and actually fail when they should — or is the absence explicitly excluded?
 ```
 
 ### Step 4: Categorize Findings
@@ -388,6 +408,13 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - [ ] Edge and error paths covered
 - [ ] Resilient selectors (data-testid/roles/names)
 
+### Quality Gates
+- [ ] Pre-commit hook exists, runs lint/tests/coverage/smoke, and is not stubbed or bypassed
+- [ ] CI runs lint/tests/coverage/build on every push (and gates production deploys)
+- [ ] Coverage threshold lives in tool config, hardcoded from the canonical measurement (no auto-ratchet)
+- [ ] Gate config resolves in a pristine checkout (no gitignored generated files referenced)
+- [ ] Every absent gate is an explicit, user-approved exclusion — no silent gaps
+
 ### Verification
 - [ ] Tests pass
 - [ ] Build succeeds
@@ -401,7 +428,8 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 
 - For detailed security review guidance, see `references/security-checklist.md`
 - For performance review checks, see `references/performance-checklist.md`
-- **structural-debt-auditor** — this skill reviews the *diff* (seven axes on the change); structural-debt-auditor reviews the *structure between diffs* (missing abstractions across files). Run both: this one per change, structural-debt on cadence/layer-touch. This skill's Architecture axis ratifies the existing baseline; structural-debt-auditor measures the baseline itself.
+- **structural-debt-auditor** — this skill reviews the *diff* (eight axes on the change); structural-debt-auditor reviews the *structure between diffs* (missing abstractions across files). Run both: this one per change, structural-debt on cadence/layer-touch. This skill's Architecture axis ratifies the existing baseline; structural-debt-auditor measures the baseline itself.
+- **project-scaffold** — defines the required gates (start.sh, pre-commit hook, CI) that the Quality-Gate Integrity axis verifies.
 
 ## Common Rationalizations
 
@@ -417,6 +445,8 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 | "It's only a small addition to this file" | Small diffs still push files past a healthy size and bolt branches onto unrelated flows. Judge the resulting structure, not the diff size. |
 | "It's just a version bump" | A bump is a behavior change you didn't write. Read the changelog; semver doesn't guarantee no breakage. |
 | "I'll upgrade everything in one PR to save time" | A bulk bump that breaks the build hides which package did it. One dependency per change keeps the cause and the revert clean. |
+| "The gate is disabled for now to avoid noise" | A disabled gate is the root enabler of silent defect accumulation — the fix is re-enabling with proper scoping, not documenting intent. |
+| "The hook is in the repo, so it's enforced" | Presence is not enforcement. Verify it runs, and that it fails when it should. |
 
 ## Red Flags
 
@@ -434,6 +464,9 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - A bespoke helper that duplicates an existing canonical one, or feature logic placed in a shared module
 - A bulk "bump dependencies" PR with no changelog review and no per-package isolation
 - A lockfile change that's hand-edited, uncommitted, or merged without reviewing its diff
+- A gate that exists in name only (stubbed script, workflow that never triggers, threshold set below the measured value)
+- A missing gate with no recorded exclusion
+- A gate disabled "temporarily" with no re-enable path
 
 ## Verification
 
