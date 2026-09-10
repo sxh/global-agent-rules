@@ -20,6 +20,35 @@ template, CI workflow YAML, or config — not prose the agent has to remember.
 | `templates/start.sh` | `start.sh` (project root, executable) | Dev entry point with process-tree teardown, so Ctrl-C cannot orphan a dev server |
 | `templates/ci.yml` | `.github/workflows/gate.yml` | The canonical gate in a pristine checkout; deploys gated to main/tags |
 
+### Checking conformance
+
+Audit a project's gates mechanically instead of by eye:
+
+```
+bash ~/.config/opencode/skills/project-scaffold/scripts/check-gates.sh [project-dir]
+```
+
+It reports each gate as ACTIVE, COMMENTED, STUB, ABSENT, N/A or EXCLUDED, verifies the coverage
+threshold lives in tool config rather than in prose, checks the CI workflow runs the gate in a
+pristine checkout, and checks start.sh is present and executable. Exit 0 means every applicable
+gate is live or explicitly excluded; exit 1 lists the gaps.
+
+Applicability is inferred from the project's shape: `smoke` applies only where a dev server or
+desktop shell exists, `ffi-guard` only to Gleam projects, and a repository with no build manifest
+is treated as a non-code repository whose only required gate is its own (docs/config check).
+
+A gate that is deliberately absent must be **recorded, not assumed** — `.gates-exclusions` in the
+project root:
+
+```
+# gate    | reason                             | approved-by | date
+smoke     | no build pipeline or desktop shell | steve       | 2026-09-09
+coverage  | docs-only repository               | steve       | 2026-09-09
+```
+
+Never add an exclusion on your own initiative — propose it and wait for approval. The review
+skill's Quality-Gate Integrity axis reads the same file.
+
 Every gate in `templates/pre-commit` is commented out: uncommenting one is a decision, and an
 absent gate must be an explicit, user-approved exclusion. The review skill's Quality-Gate
 Integrity axis checks exactly this. Never leave a gate stubbed as `echo 'disabled'` — a

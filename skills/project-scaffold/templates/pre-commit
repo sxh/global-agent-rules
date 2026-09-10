@@ -9,6 +9,11 @@
 
 set -euo pipefail
 
+# Conformance: audit this hook against the required gate set with
+#   bash ~/.config/opencode/skills/project-scaffold/scripts/check-gates.sh .
+# A gate you deliberately leave out must be recorded in .gates-exclusions (gate | reason |
+# approved-by | date) — propose the exclusion and wait for approval; never assume it.
+
 # --- Resolve the repo root via git, never via $0/.. ---
 # A hook installed at .git/hooks/ would compute the root as .git, breaking every path below.
 ROOT="$(git rev-parse --show-toplevel)"
