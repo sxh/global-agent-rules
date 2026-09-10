@@ -28,6 +28,10 @@ Audit a project's gates mechanically instead of by eye:
 bash ~/.config/opencode/skills/project-scaffold/scripts/check-gates.sh [project-dir]
 ```
 
+In the OpenCode TUI this is available as the custom command `/check-gates` (defined in
+`commands/check-gates.md`, which injects the script's output into the prompt), and it can also be
+requested in natural language — do not make the user name the script.
+
 It reports each gate as ACTIVE, COMMENTED, STUB, ABSENT, N/A or EXCLUDED, verifies the coverage
 threshold lives in tool config rather than in prose, checks the CI workflow runs the gate in a
 pristine checkout, and checks start.sh is present and executable. Exit 0 means every applicable
