@@ -39,7 +39,9 @@ cd "$ROOT" || exit 2
 
 EXCL_FILE=".gates-exclusions"
 CORPUS="$(mktemp)"
-trap 'rm -f "$CORPUS"' EXIT
+SCRIPT_CACHE="$(mktemp)"
+SEEN="$(mktemp)"
+trap 'rm -f "$CORPUS" "$SCRIPT_CACHE" "$SEEN"' EXIT
 FAIL=0
 
 # ---------------------------------------------------------------- hook discovery
@@ -51,13 +53,58 @@ done
 
 strip_comments() { grep -vE '^[[:space:]]*#' "$1" 2>/dev/null; }
 
-pkg_script_body() {
-  [ -f package.json ] || { printf ''; return; }
+# Read package.json scripts ONCE into a cache. Looking them up per reference spawned a node
+# process per call, which made the checker look hung on projects with a deep script graph.
+pkg_cache_build() {
+  : > "$SCRIPT_CACHE"
+  [ -f package.json ] || return 0
   if command -v node >/dev/null 2>&1; then
-    node -e "try{var p=require('./package.json');process.stdout.write(((p.scripts||{})['$1'])||'')}catch(e){process.stdout.write('')}" 2>/dev/null
-  else
-    grep -m1 "\"$1\"[[:space:]]*:" package.json 2>/dev/null
+    node -e "try{var p=require('./package.json');var s=p.scripts||{};Object.keys(s).forEach(function(k){process.stdout.write(k+'\t'+String(s[k]).replace(/\n/g,' ')+'\n')})}catch(e){}" > "$SCRIPT_CACHE" 2>/dev/null || true
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json
+try: d=json.load(open('package.json'))
+except Exception: d={}
+with open('$SCRIPT_CACHE','w') as f:
+    for k,v in (d.get('scripts') or {}).items():
+        f.write(str(k)+chr(9)+str(v).replace(chr(10),' ')+chr(10))
+" 2>/dev/null || true
   fi
+}
+
+pkg_script_body() {
+  [ -s "$SCRIPT_CACHE" ] || { printf ''; return 0; }
+  awk -F'\t' -v n="$1" '$1==n { print substr($0, index($0, "\t") + 1); exit }' "$SCRIPT_CACHE"
+}
+
+# Follow each reference once: a script that calls itself (`type-check` -> `npm run type-check
+# --workspace=...`) or a shared helper referenced from several places would otherwise multiply
+# the chain exponentially.
+seen_check() { [ -s "$SEEN" ] && grep -qxF "$1" "$SEEN"; }
+seen_add()   { printf '%s\n' "$1" >> "$SEEN"; }
+
+# A script body in a workspace package (packages/*/package.json, etc).
+pkg_script_body_in() {
+  local file="$1" name="$2"
+  [ -f "$file" ] || { printf ''; return 0; }
+  if command -v node >/dev/null 2>&1; then
+    node -e "try{var p=require('./$file');process.stdout.write(((p.scripts||{})['$name'])||'')}catch(e){}" 2>/dev/null
+  fi
+}
+
+# `npm test --workspaces` runs each PACKAGE's test script, not the root one — and the root script
+# is frequently a stub. Without this, a project whose coverage lives in the packages reads as
+# having no coverage gate at all.
+append_workspace_scripts() {
+  local sname="$1" f dir body
+  seen_check "ws:$sname" && return 0
+  seen_add "ws:$sname"
+  for f in packages/*/package.json apps/*/package.json libs/*/package.json services/*/package.json; do
+    [ -f "$f" ] || continue
+    dir="$(dirname "$f")"
+    body="$(pkg_script_body_in "$f" "$sname")"
+    [ -n "$body" ] && printf '##SRC:pkg:%s/%s\n%s\n' "$dir" "$sname" "$body" >> "$CORPUS"
+  done
 }
 
 # An echo-only body is a disabled gate, not a gate. "Only" is the operative word: a body that
@@ -79,7 +126,11 @@ REF_RE='(npm run [A-Za-z0-9:_.-]+|npm test|\./[A-Za-z0-9_./-]+\.sh|[A-Za-z0-9_-]
 
 follow_ref() {
   local tok="$1" depth="$2" name body f t
-  [ "$depth" -gt 2 ] && return 0
+  # Depth 4: hook -> script -> npm script -> the scripts that one calls. Truncating at 2 stops
+  # exactly where the gate detail lives (a hook that calls runTests.sh -> test:all -> lint).
+  [ "$depth" -gt 4 ] && return 0
+  seen_check "$tok" && return 0
+  seen_add "$tok"
   case "$tok" in
     "npm test") follow_ref "npm run test" "$depth" ;;
     "npm run "*)
@@ -87,7 +138,15 @@ follow_ref() {
       body="$(pkg_script_body "$name")"
       [ -z "$body" ] && return 0
       printf '##SRC:pkg:%s\n%s\n' "$name" "$body" >> "$CORPUS"
+      local ws=0
+      printf '%s' "$body" | grep -qE -- '--workspaces|--workspace=' && ws=1
       printf '%s\n' "$body" | grep -oE "$REF_RE" | sort -u | while IFS= read -r t; do
+        if [ "$ws" = 1 ]; then
+          case "$t" in
+            "npm test")  append_workspace_scripts test ;;
+            "npm run "*) append_workspace_scripts "${t#npm run }" ;;
+          esac
+        fi
         follow_ref "$t" $((depth + 1))
       done
       ;;
@@ -105,6 +164,7 @@ follow_ref() {
 
 build_corpus() {
   : > "$CORPUS"
+  : > "$SEEN"
   [ -n "$hook_file" ] || return 0
   printf '##SRC:hook:%s\n' "$hook_file" >> "$CORPUS"
   strip_comments "$hook_file" >> "$CORPUS"
@@ -114,7 +174,23 @@ build_corpus() {
     follow_ref "$t" 1
   done
 }
+
+# Drop log lines (`echo "Running smoke test..."`) from hook and helper-script sources: they report
+# a gate, they do not run one. Package.json script bodies keep their echoes — there an echo IS the
+# evidence that the gate is disabled. Done once per corpus: doing it per line during the scan
+# spawned thousands of processes and made the checker appear hung.
+filter_corpus() {
+  awk '
+    /^##SRC:/                    { print; pkg = ($0 ~ /^##SRC:pkg:/); next }
+    /^[[:space:]]*$/             { next }
+    (!pkg && $0 ~ /^[[:space:]]*echo([[:space:]]|$)/) { next }
+                                 { print }
+  ' "$1" > "$1.filtered" && mv "$1.filtered" "$1"
+}
+
+pkg_cache_build
 build_corpus
+filter_corpus "$CORPUS"
 
 # DEBUG_CORPUS=1 prints the resolved gate text (hook + followed scripts), for when a result
 # looks wrong. The SRC markers show which file each line came from.
@@ -126,31 +202,13 @@ if [ "${DEBUG_CORPUS:-0}" = "1" ]; then
 fi
 
 # First corpus line matching a pattern, with its source. Prints "source<TAB>line".
-# Log lines (`echo "Running smoke test..."`) are skipped: they report a gate, they do not run one.
+# One grep for the match, one head/tail pair to find which source it came from.
 scan_corpus() {
-  local pattern="$1" line src="hook"
-  while IFS= read -r line; do
-    case "$line" in
-      "##SRC:"*) src="${line#\#\#SRC:}"; continue ;;
-    esac
-    [ -z "$line" ] && continue
-    # Skip log lines from hooks and helper scripts (`echo "Running smoke test..."` reports a
-    # gate, it does not run one) — but never skip a package.json script body, where an echo IS
-    # the evidence that the gate is disabled.
-    case "$src" in
-      pkg:*) ;;
-      *)
-        case "$(printf '%s' "$line" | sed 's/^[[:space:]]*//')" in
-          echo\ *|echo) continue ;;
-        esac
-        ;;
-    esac
-    if printf '%s\n' "$line" | grep -qE "$pattern"; then
-      printf '%s\t%s\n' "$src" "$line"
-      return 0
-    fi
-  done < "$CORPUS"
-  return 1
+  local pattern="$1" hit n src
+  hit="$(grep -m1 -nE "$pattern" "$CORPUS")" || return 1
+  n="${hit%%:*}"
+  src="$(head -n "$n" "$CORPUS" | grep '^##SRC:' | tail -1)"
+  printf '%s\t%s\n' "${src#\#\#SRC:}" "${hit#*:}"
 }
 
 excluded() {
@@ -323,14 +381,31 @@ fi
 echo
 ci_files=$(ls .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null || true)
 if [ -n "$ci_files" ]; then
+  main_corpus="$CORPUS"
   for f in $ci_files; do
-    steps=""
-    grep -qE 'lint'        "$f" && steps="$steps lint"
-    grep -qE 'type-check'  "$f" && steps="$steps type-check"
-    grep -qE 'test'        "$f" && steps="$steps test"
-    grep -qE 'coverage'    "$f" && steps="$steps coverage"
-    grep -qE 'build'       "$f" && steps="$steps build"
-    printf '  %-12s %-10s %s%s\n' "ci" "PRESENT" "$(basename "$f")" "$steps"
+    # Analyse a workflow the same way as the hook: read it, then follow the scripts its steps
+    # invoke. A step that runs `npm run test:all` covers whatever test:all covers — grepping the
+    # YAML text alone reports "no gates" for a workflow that runs the whole suite.
+    ci_corpus="$(mktemp)"
+    CORPUS="$ci_corpus"
+    : > "$SEEN"
+    printf '##SRC:ci:%s\n' "$f" >> "$CORPUS"
+    grep -vE '^[[:space:]]*#' "$f" >> "$CORPUS"
+    grep -oE "$REF_RE" "$f" | sort -u | while IFS= read -r t; do follow_ref "$t" 1; done
+    filter_corpus "$CORPUS"
+
+    covered=""
+    ci_hit() { scan_corpus "$1" >/dev/null 2>&1 && covered="$covered $2"; }
+    ci_hit 'prettier|format:check|gleam format|dart format' format
+    ci_hit 'eslint|npm run lint|dep-check|ktlint|clippy'    lint
+    ci_hit 'type-check|typecheck|tsc |dart analyze|mypy'    type-check
+    ci_hit 'vitest|jest|npm test|npm run test|gleam test'   test
+    ci_hit 'coverage|--check-coverage|kover|jacoco'         coverage
+    ci_hit 'npm run build|gleam build|vite build|mvn |gradle' build
+    ci_hit 'smoke'                                          smoke
+    printf '  %-12s %-10s %s%s\n' "ci" "PRESENT" "$(basename "$f")" "${covered:- — no gate steps detected}"
+    rm -f "$ci_corpus"
+    CORPUS="$main_corpus"
   done
 elif excluded ci; then
   printf '  %-12s %-10s %s\n' "ci" "EXCLUDED" ""

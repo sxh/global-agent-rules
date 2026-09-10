@@ -61,6 +61,20 @@ cd $D
 node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));p.scripts["verify"]="echo disabled; exit 0";fs.writeFileSync("package.json",JSON.stringify(p,null,2))'
 run "E husky -> stubbed verify" "$D" 1
 
+# --- J: workspace monorepo — coverage lives in the packages, root test is a stub ---
+J=/tmp/gc-j; rm -rf $J; mkdir -p $J/.husky $J/packages/core $J/.github/workflows; cd $J; git init -q
+git config core.hooksPath .husky/_
+printf './runTests.sh\n' > .husky/pre-commit
+printf 'npm run test:all\nnpm run build\n' > runTests.sh
+cat > package.json <<'EOF'
+{"name":"j","private":true,"workspaces":["packages/*"],"scripts":{"test":"echo \"Error: no test specified\" && exit 1","test:all":"npm run lint && npm run type-check && npm test --workspaces --if-present","lint":"prettier --check . && eslint .","type-check":"tsc --noEmit","build":"vite build"}}
+EOF
+printf '{"name":"@j/core","scripts":{"test":"vitest run --coverage --bail 1"}}\n' > packages/core/package.json
+echo 'export default { test: { coverage: { thresholds: { lines: 95 } } } }' > vitest.config.ts
+printf 'name: gate\non: [push]\njobs:\n  g:\n    steps:\n      - run: npm run test:all\n' > .github/workflows/gate.yml
+printf '#!/usr/bin/env bash\necho start\n' > start.sh; chmod +x start.sh
+run "J workspace: coverage in packages" "$J" 0
+
 # --- F: docs repo, no gate ---------------------------------------------------
 F=/tmp/gc-f; rm -rf $F; mkdir -p $F; cd $F; git init -q; echo "# docs" > README.md
 run "F docs repo no gate" "$F" 1
