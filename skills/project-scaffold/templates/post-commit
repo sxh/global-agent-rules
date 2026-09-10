@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Commit audit trail — TEMPLATE. Copy to hooks/post-commit, then install:
+#   cp hooks/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+#
+# WHY THIS EXISTS
+# The two-turn commit protocol ("no commit without explicit instruction from the user") cannot
+# be enforced by a hook: git has no way to know whether the human approved. What a hook CAN do
+# is make every commit auditable. This records each commit, and flags commits where the gate did
+# not appear to run — `--no-verify` skips pre-commit but NOT post-commit, so a bypass is
+# recorded rather than invisible.
+#
+# This is the honest limit of mechanising a permission protocol: friction plus an audit trail,
+# not a hard gate. Review .git/commit-audit.log when you want to check the protocol held.
+
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+LOG="$ROOT/.git/commit-audit.log"
+MARKER="$ROOT/.git/.gate-ran"
+
+gate="no-pre-commit-hook-installed"
+if [ -f "$MARKER" ]; then
+  # macOS stat is -f %m, GNU stat is -c %Y
+  mtime=$(stat -f %m "$MARKER" 2>/dev/null || stat -c %Y "$MARKER" 2>/dev/null || echo 0)
+  age=$(( $(date +%s) - mtime ))
+  if [ "$age" -lt 300 ]; then
+    gate="gate-ran"
+  else
+    gate="GATE-BYPASSED"
+  fi
+fi
+
+{
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    "$(git rev-parse --abbrev-ref HEAD)" \
+    "$(git rev-parse --short HEAD)" \
+    "$gate" \
+    "$(git log -1 --pretty=%s)"
+} >> "$LOG"
+
+exit 0

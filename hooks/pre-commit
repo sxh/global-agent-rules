@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Pre-commit gate for the global agent rules repo.
+#
+# Install (hooks/ is versioned, .git/hooks is not):
+#   cp hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#
+# Repo root is resolved via git, never via $0/.. — an installed hook lives in .git/hooks/
+# and would otherwise compute the repo root as .git/.
+
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Record that the gate ran, so post-commit can detect a bypass (--no-verify skips this hook
+# but not post-commit). Harmless if post-commit is not installed.
+touch "$ROOT/.git/.gate-ran" 2>/dev/null || true
+
+bash "$ROOT/scripts/check-contract.sh"

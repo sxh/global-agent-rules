@@ -11,6 +11,30 @@ creating a project, wiring its pre-commit hook or CI, or handling review finding
 Enforcement note: most of this section is (or should become) a mechanism — a hook
 template, CI workflow YAML, or config — not prose the agent has to remember.
 
+## Templates — copy, don't retype
+
+| Template | Copy to | Purpose |
+|---|---|---|
+| `templates/pre-commit` | `hooks/pre-commit`, then into `.git/hooks/` | The gate: format, lint, type-check, tests, coverage, generated-artefact freshness, FFI guard, smoke test, plus stale-build cleanup on rename/delete |
+| `templates/post-commit` | `hooks/post-commit`, then into `.git/hooks/` | Commit audit trail; records each commit and flags `--no-verify` bypasses |
+| `templates/start.sh` | `start.sh` (project root, executable) | Dev entry point with process-tree teardown, so Ctrl-C cannot orphan a dev server |
+| `templates/ci.yml` | `.github/workflows/gate.yml` | The canonical gate in a pristine checkout; deploys gated to main/tags |
+
+Every gate in `templates/pre-commit` is commented out: uncommenting one is a decision, and an
+absent gate must be an explicit, user-approved exclusion. The review skill's Quality-Gate
+Integrity axis checks exactly this. Never leave a gate stubbed as `echo 'disabled'` — a
+disabled gate is the root enabler of silent defect accumulation.
+
+**Installed hooks are not versioned.** `hooks/` is the source of truth; `.git/hooks/` is the
+install target. Re-install after cloning.
+
+**The honest limit of mechanising the commit protocol:** git cannot know whether the human
+approved a commit, so the two-turn permission protocol cannot be a hard gate. What is
+mechanisable is friction plus an audit trail: `templates/post-commit` records every commit, and
+because `--no-verify` skips the pre-commit hook but *not* post-commit, a bypass is logged as
+`GATE-BYPASSED` instead of being invisible. Review `.git/commit-audit.log` to check the
+protocol held.
+
 ---
 
 ### Required Per-Project Files

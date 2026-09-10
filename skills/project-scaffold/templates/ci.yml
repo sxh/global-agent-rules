@@ -1,0 +1,46 @@
+# Canonical gate workflow — TEMPLATE. Copy to .github/workflows/gate.yml
+#
+# CI runs in a pristine checkout, which is what makes it a separate gate from the local
+# pre-commit hook: a build that resolves committed config against gitignored, locally-generated
+# files passes on a dev machine and fails only here. If CI fails on a file you never edited,
+# suspect that class of problem before suspecting your change.
+#
+# Deploys are gated to main/tags. Nothing deploys from a branch.
+
+name: gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: merge-commit parents (base.sha/head.sha) need it, and
+          # fetch-depth: 1 fails git operations that reference parent SHAs (exit 128).
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Lockfile-exact install. `npm install` can hoist differently from CI and mask drift.
+      - run: npm ci
+
+      - run: npm run lint
+      - run: npm run type-check   # must not be stubbed — see the incidents on disabled gates
+      - run: npm run coverage     # threshold lives in the tool config, not in this file
+      - run: npm run build
+      # - run: npm run smoke      # apps with a build pipeline or desktop shell
+
+  # deploy:
+  #   needs: gate
+  #   if: github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - run: echo "deploy steps here"

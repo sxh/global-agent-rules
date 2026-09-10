@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Project pre-commit gate — TEMPLATE. Copy to hooks/pre-commit, uncomment the gates this
+# project needs, then install: cp hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#
+# Uncommenting a gate is a decision, not a default: an absent gate must be an explicit,
+# user-approved exclusion (the review skill's Quality-Gate Integrity axis enforces this).
+# Do NOT leave a gate stubbed out as `echo 'disabled'` — a disabled gate is the root enabler
+# of silent defect accumulation.
+
+set -euo pipefail
+
+# --- Resolve the repo root via git, never via $0/.. ---
+# A hook installed at .git/hooks/ would compute the root as .git, breaking every path below.
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# --- Record that the gate ran (lets post-commit detect a --no-verify bypass) ---
+touch "$ROOT/.git/.gate-ran" 2>/dev/null || true
+
+# --- 0. Clean stale build output after a source rename or delete ---
+# Renaming or deleting a source file does not remove its compiled artefact; the next build or
+# test run silently executes the phantom class/module and fails against deleted resources.
+if git diff --cached --name-status --diff-filter=DR | grep -qE '\.(java|kt|kts|dart|ts|tsx|js|mjs|gleam|py)$'; then
+  echo "pre-commit: rename/delete in staged source — cleaning build output first"
+  # mvn clean                       # JVM
+  rm -rf build dist dist-electron coverage .dart_tool/build
+fi
+
+# --- 1. Format check (must be clean, not auto-fixing) ---
+# npm run format:check
+# gleam format --check
+
+# --- 2. Lint (zero warnings; fix by refactoring, never by suppressing) ---
+# npm run lint
+
+# --- 3. Type-check ---
+# This gate must never be stubbed. A `type-check` script replaced with an echo hid 860+ type
+# errors in one project; re-enabling it in the hook was the fix.
+# npm run type-check
+
+# --- 4. Tests (full suite; never .skip()) ---
+# npm test
+
+# --- 5. Coverage at the configured threshold ---
+# Thresholds live in the tool config (c8/vitest), hardcoded from one canonical measurement with
+# a deliberate buffer — never auto-ratcheted. Do not re-declare the number here.
+# npm run coverage
+
+# --- 6. Generated-artefact freshness ---
+# A committed generated artefact drifts silently when the gate validates freshly generated
+# output but never diffs the committed copy. Regenerate, then fail on any diff.
+# npm run generate
+# if ! git diff --quiet -- fixtures/ generated/; then
+#   echo "ERROR: committed generated artefacts differ from generator output — restage them"
+#   exit 1
+# fi
+
+# --- 7. FFI guard (Gleam): @external requires explicit user permission ---
+# FFI_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(gleam|mjs)$' \
+#   | xargs grep -l '@external' 2>/dev/null || true)
+# if [ -n "$FFI_FILES" ]; then
+#   echo "ERROR: FFI (@external) detected — requires explicit user authorisation"
+#   echo "$FFI_FILES"
+#   exit 1
+# fi
+
+# --- 8. Smoke test: the app builds, launches and renders (apps with a build pipeline/shell) ---
+# Unit tests verify logic; a smoke test verifies integration. Poll for readiness, don't sleep.
+# npm run smoke
+
+echo "pre-commit gate passed"
