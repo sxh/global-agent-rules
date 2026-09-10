@@ -25,6 +25,12 @@
         "mimo-v2.5": { "id": "mimo-v2.5" }
       }
     },
+    "minicpm5": {
+               "npm": "@ai-sdk/openai-compatible",
+               "name": "MiniCPM5-2B (local)",
+               "options": { "baseURL": "http://localhost:1234/v1" },
+               "models": { "minicpm5-2b": { "id": "minicpm5-2b" } }
+             },
     "local-model": {
           "npm": "@ai-sdk/openai-compatible",
           "name": "Local Qwen 3.5",
