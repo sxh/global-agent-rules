@@ -37,6 +37,14 @@ threshold lives in tool config rather than in prose, checks the CI workflow runs
 pristine checkout, and checks start.sh is present and executable. Exit 0 means every applicable
 gate is live or explicitly excluded; exit 1 lists the gaps.
 
+It resolves the real hook chain: `hooks/pre-commit`, `.husky/pre-commit`, whatever
+`git config core.hooksPath` points at, or `.git/hooks/pre-commit` — then follows the scripts those
+invoke (a hook that only calls `./runTests.sh` is a gate; the gates live in that file, two levels
+deep including package.json scripts). `DEBUG_CORPUS=1` dumps the resolved text when a result looks
+wrong.
+
+Regression suite: `bash scripts/check-gates.test.sh` (9 project shapes, asserting the exit codes).
+
 Applicability is inferred from the project's shape: `smoke` applies only where a dev server or
 desktop shell exists, `ffi-guard` only to Gleam projects, and a repository with no build manifest
 is treated as a non-code repository whose only required gate is its own (docs/config check).

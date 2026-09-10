@@ -7,19 +7,24 @@
 #         1 = gaps found (absent/commented/stubbed without an exclusion)
 #
 # WHY: the review skill's Quality-Gate Integrity axis checks that a project's gates exist and
-# actually gate. That axis is judgement; this script is its mechanical half — it reports what is
-# present, what is commented out, what is stubbed, and what is missing without an exclusion.
+# actually gate. That axis is judgement; this script is its mechanical half.
 #
-# Detection is heuristic: gate commands are found by pattern in the hook, and applicability is
-# inferred from the project's shape (a library needs no smoke test; only a Gleam project needs
-# the FFI guard). Everything it reports is meant to be read by a human, not trusted blindly.
+# HOW IT RESOLVES THE GATE:
+#   1. Finds the hook: hooks/pre-commit, .husky/pre-commit, $(git config core.hooksPath)/pre-commit,
+#      or .git/hooks/pre-commit. Husky v9 sets core.hooksPath and installs nothing in .git/hooks.
+#   2. Follows indirection: a hook that just calls ./runTests.sh IS a gate — the gates live there.
+#      Referenced shell scripts and package.json scripts are followed two levels deep.
+#   3. Classifies each gate from the text that actually runs: ACTIVE, COMMENTED, STUB, ABSENT,
+#      N/A (not applicable to this project) or EXCLUDED (recorded).
+# Detection is heuristic and provenance-aware: a gate whose only evidence is an `echo` script is a
+# STUB, not a gate. Read the output; do not trust it blindly.
 #
 # EXCLUSIONS: a gate that is deliberately absent must be recorded, not assumed. Create
 # .gates-exclusions in the project root, one gate per line:
 #
-#     # gate   | reason                             | approved-by | date
-#     smoke    | no build pipeline or desktop shell | steve       | 2026-09-09
-#     coverage | docs-only repository               | steve       | 2026-09-09
+#     # gate   | reason                          | approved-by | date
+#     smoke    | no desktop shell                | steve       | 2026-09-09
+#     coverage | docs-only repository            | steve       | 2026-09-09
 
 set -uo pipefail
 
@@ -33,20 +38,20 @@ ROOT="$( (cd "$TARGET" && git rev-parse --show-toplevel 2>/dev/null) || (cd "$TA
 cd "$ROOT" || exit 2
 
 EXCL_FILE=".gates-exclusions"
+CORPUS="$(mktemp)"
+trap 'rm -f "$CORPUS"' EXIT
 FAIL=0
 
+# ---------------------------------------------------------------- hook discovery
+hooks_path="$(git config --get core.hooksPath 2>/dev/null || true)"
 hook_file=""
-for cand in hooks/pre-commit .git/hooks/pre-commit; do
+for cand in hooks/pre-commit .husky/pre-commit ${hooks_path:+$hooks_path/pre-commit} .git/hooks/pre-commit; do
   if [ -f "$cand" ]; then hook_file="$cand"; break; fi
 done
 
-# Hook lines that are not comments — a commented gate is an absent gate.
-hook_active() {
-  [ -n "$hook_file" ] || return 0
-  grep -vE '^[[:space:]]*#' "$hook_file"
-}
+strip_comments() { grep -vE '^[[:space:]]*#' "$1" 2>/dev/null; }
 
-pkg_script() {
+pkg_script_body() {
   [ -f package.json ] || { printf ''; return; }
   if command -v node >/dev/null 2>&1; then
     node -e "try{var p=require('./package.json');process.stdout.write(((p.scripts||{})['$1'])||'')}catch(e){process.stdout.write('')}" 2>/dev/null
@@ -55,12 +60,104 @@ pkg_script() {
   fi
 }
 
+# An echo-only body is a disabled gate, not a gate. "Only" is the operative word: a body that
+# echoes and then does real work is a gate; a body that echoes and stops is a stub.
+is_stub_body() {
+  local b="$1" rest
+  case "$b" in
+    ''|': '*|'true'|'exit 0') return 0 ;;
+  esac
+  rest="$(printf '%s' "$b" | sed -E 's/^[[:space:]]*echo[[:space:]]+("[^"]*"|'"'"'[^'"'"']*'"'"'|[^;&|]*)[[:space:]]*(&&|;|\|\|)?[[:space:]]*//')"
+  case "$rest" in
+    ''|'exit 0'|'true'|':') return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# ---------------------------------------------------------------- corpus build
+REF_RE='(npm run [A-Za-z0-9:_.-]+|npm test|\./[A-Za-z0-9_./-]+\.sh|[A-Za-z0-9_-]+\.sh)'
+
+follow_ref() {
+  local tok="$1" depth="$2" name body f t
+  [ "$depth" -gt 2 ] && return 0
+  case "$tok" in
+    "npm test") follow_ref "npm run test" "$depth" ;;
+    "npm run "*)
+      name="${tok#npm run }"
+      body="$(pkg_script_body "$name")"
+      [ -z "$body" ] && return 0
+      printf '##SRC:pkg:%s\n%s\n' "$name" "$body" >> "$CORPUS"
+      printf '%s\n' "$body" | grep -oE "$REF_RE" | sort -u | while IFS= read -r t; do
+        follow_ref "$t" $((depth + 1))
+      done
+      ;;
+    *)
+      f="${tok#./}"
+      [ -f "$f" ] || return 0
+      printf '##SRC:file:%s\n' "$f" >> "$CORPUS"
+      strip_comments "$f" >> "$CORPUS"
+      grep -oE "$REF_RE" "$f" | sort -u | while IFS= read -r t; do
+        follow_ref "$t" $((depth + 1))
+      done
+      ;;
+  esac
+}
+
+build_corpus() {
+  : > "$CORPUS"
+  [ -n "$hook_file" ] || return 0
+  printf '##SRC:hook:%s\n' "$hook_file" >> "$CORPUS"
+  strip_comments "$hook_file" >> "$CORPUS"
+  # while-read, not `for t in $(...)`: references contain spaces ("npm run test:all"), and word
+  # splitting would shred them into unusable tokens and silently truncate the chain.
+  grep -oE "$REF_RE" "$hook_file" | sort -u | while IFS= read -r t; do
+    follow_ref "$t" 1
+  done
+}
+build_corpus
+
+# DEBUG_CORPUS=1 prints the resolved gate text (hook + followed scripts), for when a result
+# looks wrong. The SRC markers show which file each line came from.
+if [ "${DEBUG_CORPUS:-0}" = "1" ]; then
+  echo "--- corpus (the text that actually runs) ---"
+  cat "$CORPUS"
+  echo "--- end corpus ---"
+  echo
+fi
+
+# First corpus line matching a pattern, with its source. Prints "source<TAB>line".
+# Log lines (`echo "Running smoke test..."`) are skipped: they report a gate, they do not run one.
+scan_corpus() {
+  local pattern="$1" line src="hook"
+  while IFS= read -r line; do
+    case "$line" in
+      "##SRC:"*) src="${line#\#\#SRC:}"; continue ;;
+    esac
+    [ -z "$line" ] && continue
+    # Skip log lines from hooks and helper scripts (`echo "Running smoke test..."` reports a
+    # gate, it does not run one) — but never skip a package.json script body, where an echo IS
+    # the evidence that the gate is disabled.
+    case "$src" in
+      pkg:*) ;;
+      *)
+        case "$(printf '%s' "$line" | sed 's/^[[:space:]]*//')" in
+          echo\ *|echo) continue ;;
+        esac
+        ;;
+    esac
+    if printf '%s\n' "$line" | grep -qE "$pattern"; then
+      printf '%s\t%s\n' "$src" "$line"
+      return 0
+    fi
+  done < "$CORPUS"
+  return 1
+}
+
 excluded() {
   [ -f "$EXCL_FILE" ] || return 1
   grep -qE "^[[:space:]]*$1[[:space:]]*\|" "$EXCL_FILE"
 }
 
-# Some gates only apply to some projects.
 applicable() {
   case "$1" in
     ffi-guard)
@@ -68,7 +165,8 @@ applicable() {
     smoke)
       grep -qE '"(dev|start)"' package.json 2>/dev/null \
         || [ -f electron/main.js ] || [ -f tauri.conf.json ] \
-        || [ -f vite.config.ts ] || [ -f webpack.config.js ] ;;
+        || [ -f vite.config.ts ] || [ -f webpack.config.js ] \
+        || scan_corpus 'smoke' >/dev/null 2>&1 ;;
     *)
       return 0 ;;
   esac
@@ -82,9 +180,10 @@ is_code_project() {
   done
   ls ./*.csproj >/dev/null 2>&1 && return 0
 
-  # A package.json that only declares dependencies is scaffolding (an editor/plugin install
-  # directory, say), not a build manifest. Scripts are what make it a project.
+  # A package.json that only declares dependencies is scaffolding (an editor or plugin install
+  # directory), not a build manifest. Scripts are what make it a project.
   if [ -f package.json ]; then
+    local n
     if command -v node >/dev/null 2>&1; then
       n=$(node -e "try{const p=require('./package.json');process.stdout.write(String(Object.keys(p.scripts||{}).length))}catch(e){process.stdout.write('0')}" 2>/dev/null)
     else
@@ -98,77 +197,79 @@ is_code_project() {
   return 1
 }
 
-# ACTIVE | COMMENTED | ABSENT | STUB | N/A
-gate_state() {
-  local pattern="$1" script_name="$2" state="ABSENT"
-
-  if [ -n "$hook_file" ]; then
-    if hook_active | grep -qE "$pattern"; then
-      state="ACTIVE"
-    elif grep -qE "^[[:space:]]*#[[:space:]]*.*($pattern)" "$hook_file"; then
-      state="COMMENTED"
-    fi
+# Resolve a matched line to the text that will actually execute.
+effective_text() {
+  local src="$1" line="$2" inv body
+  inv="$(printf '%s\n' "$line" | sed -nE 's/^[[:space:]]*(npm run |npm )([A-Za-z0-9:_.-]+)[[:space:]]*$/\2/p')"
+  if [ -n "$inv" ]; then
+    body="$(pkg_script_body "$inv")"
+    [ -n "$body" ] && { printf '%s' "$body"; return; }
   fi
-
-  if [ -n "$script_name" ]; then
-    case "$(pkg_script "$script_name")" in
-      echo*|': '*|'true'|'exit 0')
-        [ "$state" = "ACTIVE" ] && state="STUB" ;;
-    esac
-  fi
-
-  echo "$state"
+  case "$src" in
+    pkg:*)
+      body="$(pkg_script_body "${src#pkg:}")"
+      [ -n "$body" ] && { printf '%s' "$body"; return; } ;;
+  esac
+  printf '%s' "$line"
 }
 
 report() {
   local name="$1" state="$2" note="$3"
   case "$state" in
-    ACTIVE)
-      printf '  %-12s %-10s %s\n' "$name" "$state" "$note" ;;
-    N/A|EXCLUDED)
-      printf '  %-12s %-10s %s\n' "$name" "$state" "$note" ;;
-    *)
-      printf '  %-12s %-10s %s\n' "$name" "$state" "$note"
-      FAIL=1 ;;
+    ACTIVE|N/A) printf '  %-12s %-10s %s\n' "$name" "$state" "$note" ;;
+    EXCLUDED)   printf '  %-12s %-10s %s\n' "$name" "$state" "$(grep -E "^[[:space:]]*$name[[:space:]]*\|" "$EXCL_FILE" | head -1 | sed 's/^[[:space:]]*//; s/|/ /g')" ;;
+    *)          printf '  %-12s %-10s %s\n' "$name" "$state" "$note"; FAIL=1 ;;
   esac
 }
 
 check_gate() {
-  local name="$1" pattern="$2" script_name="$3" note="$4" state
-  state="$(gate_state "$pattern" "$script_name")"
+  local name="$1" pattern="$2" note="$3" res src line text inv stubcheck=0
+  res="$(scan_corpus "$pattern")" || res=""
 
-  if [ "$state" = "ABSENT" ] || [ "$state" = "COMMENTED" ]; then
-    if excluded "$name"; then
-      report "$name" "EXCLUDED" "$(grep -E "^[[:space:]]*$name[[:space:]]*\|" "$EXCL_FILE" | head -1 | sed 's/^[[:space:]]*//; s/|/ /g')"
-      return
-    fi
-    if ! applicable "$name"; then
-      report "$name" "N/A" "not applicable to this project"
-      return
-    fi
-    if [ "$state" = "COMMENTED" ]; then
-      report "$name" "COMMENTED" "commented out in $hook_file"
+  if [ -n "$res" ]; then
+    src="${res%%$'\t'*}"
+    line="${res#*$'\t'}"
+    # Only a package.json script body — or a line that is a bare script invocation — can be a
+    # stub. A plain command line in the hook or a helper script is evidence the gate runs.
+    case "$src" in pkg:*) stubcheck=1 ;; esac
+    inv="$(printf '%s\n' "$line" | sed -nE 's/^[[:space:]]*(npm run |npm )([A-Za-z0-9:_.-]+)[[:space:]]*$/\2/p')"
+    [ -n "$inv" ] && stubcheck=1
+    text="$(effective_text "$src" "$line")"
+    if [ "$stubcheck" = 1 ] && is_stub_body "$text"; then
+      report "$name" "STUB" "the invoked script only echoes — a disabled gate, not a gate"
     else
-      report "$name" "ABSENT" "no gate in ${hook_file:-any hook}"
+      report "$name" "ACTIVE" "$note"
     fi
     return
   fi
 
-  if [ "$state" = "ABSENT" ] && excluded "$name"; then
-    report "$name" "EXCLUDED" ""
+  if [ -n "$hook_file" ] && grep -qE "^[[:space:]]*#[[:space:]]*.*($pattern)" "$hook_file" 2>/dev/null; then
+    if excluded "$name"; then report "$name" "EXCLUDED" ""; else report "$name" "COMMENTED" "commented out in $hook_file"; fi
     return
   fi
 
-  report "$name" "$state" "$note"
+  if excluded "$name"; then
+    report "$name" "EXCLUDED" "$(grep -E "^[[:space:]]*$name[[:space:]]*\|" "$EXCL_FILE" | head -1 | sed 's/^[[:space:]]*//; s/|/ /g')"
+    return
+  fi
+  if ! applicable "$name"; then
+    report "$name" "N/A" "not applicable to this project"
+    return
+  fi
+  report "$name" "ABSENT" "no gate in the hook chain${hook_file:+ ($hook_file)}"
 }
 
 echo "gate conformance: $ROOT"
 echo
-echo "hook: ${hook_file:-NONE} (installed: $([ -x .git/hooks/pre-commit ] && echo yes || echo no))"
+echo "hook chain: ${hook_file:-NONE}${hooks_path:+  [core.hooksPath=$hooks_path]}"
+if [ -n "$hook_file" ]; then
+  ind="$(grep -oE "$REF_RE" "$hook_file" | sort -u | tr '\n' ' ')"
+  echo "  invokes:  ${ind:-(direct commands)}"
+fi
 echo
 
 if ! is_code_project; then
-  echo "project shape: non-code repository (no build manifest) — application gates are N/A"
+  echo "  (non-code repository: no build manifest — application gates do not apply)"
   echo
   if [ -n "$hook_file" ]; then
     printf '  %-12s %-10s %s\n' "repo-gate" "PRESENT" "$hook_file (the repository's own check)"
@@ -190,14 +291,14 @@ fi
 
 echo "  GATE         STATE      DETAIL"
 
-check_gate format     'format'                                              "format:check" "formatting check"
-check_gate lint       'lint'                                                "lint"         "linter"
-check_gate type-check 'type-check|typecheck|tsc |dart analyze|mypy'         "type-check"   "type checker (never stubbed)"
-check_gate tests      'npm test|npm run test|vitest|jest|gleam test|mvn test|gradle test|pytest' "test" "full test suite"
-check_gate coverage   'coverage|c8 |kover|jacoco|--check-coverage'          "coverage"     "coverage at the configured threshold"
-check_gate build      'npm run build|gleam build|mvn |gradle|vite build'    "build"        "production build"
-check_gate smoke      'smoke'                                               "smoke"        "app builds, launches, renders"
-check_gate ffi-guard  '@external'                                           ""             "FFI requires explicit authorisation"
+check_gate format     'prettier|format:check|gleam format|dart format|--check-format' "formatting check"
+check_gate lint       'eslint|npm run lint|ktlint|clippy|npm run dep-check'            "linter"
+check_gate type-check 'type-check|typecheck|tsc|dart analyze|mypy'                     "type checker (never stubbed)"
+check_gate tests      'vitest|jest|npm test|npm run test|gleam test|mvn test|pytest'   "full test suite"
+check_gate coverage   'coverage|c8 |kover|jacoco|--check-coverage'                     "coverage at the configured threshold"
+check_gate build      'npm run build|gleam build|mvn |gradle|vite build|tsc --build'   "production build"
+check_gate smoke      'smoke'                                                          "app builds, launches, renders"
+check_gate ffi-guard  '@external'                                                      "FFI requires explicit authorisation"
 
 # --- Coverage threshold must live in the tool config, not in prose or in the hook ---
 echo
@@ -224,10 +325,11 @@ ci_files=$(ls .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null || tr
 if [ -n "$ci_files" ]; then
   for f in $ci_files; do
     steps=""
-    grep -qE 'lint'     "$f" && steps="$steps lint"
-    grep -qE 'test'     "$f" && steps="$steps test"
-    grep -qE 'coverage' "$f" && steps="$steps coverage"
-    grep -qE 'build'    "$f" && steps="$steps build"
+    grep -qE 'lint'        "$f" && steps="$steps lint"
+    grep -qE 'type-check'  "$f" && steps="$steps type-check"
+    grep -qE 'test'        "$f" && steps="$steps test"
+    grep -qE 'coverage'    "$f" && steps="$steps coverage"
+    grep -qE 'build'       "$f" && steps="$steps build"
     printf '  %-12s %-10s %s%s\n' "ci" "PRESENT" "$(basename "$f")" "$steps"
   done
 elif excluded ci; then
