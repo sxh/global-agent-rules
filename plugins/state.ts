@@ -7,6 +7,7 @@ export interface Stack {
   active_stack: string[];
   active_task_id: string | null;
   ready_tasks: { id: string; title: string }[];
+  last_done_ts?: number;
 }
 
 export interface PcpEvent {
