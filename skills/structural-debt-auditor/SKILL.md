@@ -29,7 +29,7 @@ node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-s
 ```
 
 - Scans for repeated **top-level named declarations** (same `type`/`interface`/`const`/`function`/`class`, same name, same body) across files — the primary, language-agnostic signal of a missing abstraction.
-- Excludes `node_modules`, `dist`, `build`, `.git`, coverage, and test files by default.
+- Excludes `node_modules`, `dist`, `build`, `.git`, coverage, and test/benchmark files (`.test.`, `.spec.`, `.bench.`) by default.
 - Reports a **duplication ratio** (duplicated declarations / total) and a per-candidate list with `pattern_signature`, files, and reason.
 - `--fail-on N` exits 1 when ratio ≥ N — the gate.
 

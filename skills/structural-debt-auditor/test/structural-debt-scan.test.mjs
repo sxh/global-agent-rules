@@ -76,12 +76,14 @@ test('computes a duplication ratio from repeated declarations', () => {
     }
 });
 
-test('ignores node_modules and test files by default', () => {
+test('ignores node_modules, test, and benchmark files by default', () => {
     const dir = makeFixture({
         'node_modules/pkg/index.ts': 'export type Dup = string;',
         'node_modules/pkg/index2.ts': 'export type Dup = string;',
         'src/a.test.ts': 'export function helper() { return 1; }',
         'src/b.test.ts': 'export function helper() { return 1; }',
+        'src/a.bench.ts': 'const UTC = "UTC";',
+        'src/b.bench.ts': 'const UTC = "UTC";',
     });
     try {
         const result = scanDuplication(dir);

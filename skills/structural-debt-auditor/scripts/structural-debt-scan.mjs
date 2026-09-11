@@ -26,7 +26,7 @@ import { join, relative } from 'node:path';
 
 const DEFAULT_EXCLUDES = new Set(['node_modules', 'dist', 'build', '.git', '.next', 'coverage', '.sst']);
 const SRC_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.gleam', '.kt', '.java', '.py']);
-const TEST_MARKERS = ['.test.', '.spec.'];
+const TEST_MARKERS = ['.test.', '.spec.', '.bench.'];
 
 // Top-level declaration extractors, keyed by file extension.
 // Each returns an array of { name, kind, signature } where `signature` is the

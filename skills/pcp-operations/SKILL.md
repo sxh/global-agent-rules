@@ -42,3 +42,8 @@ Every commit proposal must reference the current PCP task (run `pcp_status` befo
 This keeps commits traceable to the work item that produced them. A commit auto-advances the
 active task even when it is not that task's deliverable — after any commit, verify the queue
 state and reconcile before continuing.
+
+When promoted items nest (a subtask of a subtask), a commit auto-completes the *deepest* subtask,
+so a multi-commit task can be closed before its work lands. On 2026-09-11 a nested B084 subtask
+(`T274`) was completed by an unrelated commit; recovery is to reconcile immediately — finish the
+prematurely-completed item with `pcp_done`, then `pcp_start` a fresh task for any remaining work.

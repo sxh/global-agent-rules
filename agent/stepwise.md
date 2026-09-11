@@ -46,8 +46,7 @@ Do not stage, commit, or push without the explicit "go ahead."
 
 ### 4. Coverage Gate Before Commit
 
-Before proposing a commit, run `./scripts/cover.sh` and verify coverage >= 95%.
-State the coverage percentage in the proposal. Do not skip this step.
+Before proposing a commit, run the project's canonical coverage command — verify the command exists in the repo first (e.g. `npm run coverage` from the root, or the script named in the project's test config); do not assume a fixed path like `./scripts/cover.sh`. Verify coverage meets the project's configured threshold. State the coverage percentage (and the threshold source) in the proposal. Do not skip this step.
 
 ### 5. If You Catch Yourself Skipping a Step — Stop
 
