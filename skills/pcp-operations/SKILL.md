@@ -47,3 +47,18 @@ When promoted items nest (a subtask of a subtask), a commit auto-completes the *
 so a multi-commit task can be closed before its work lands. On 2026-09-11 a nested B084 subtask
 (`T274`) was completed by an unrelated commit; recovery is to reconcile immediately — finish the
 prematurely-completed item with `pcp_done`, then `pcp_start` a fresh task for any remaining work.
+
+## Commits only close a task when they name it
+
+A `git commit` auto-closes the active task **only** when the commit message carries an explicit
+trailer naming it:
+
+```
+PCP-Task: T123
+```
+
+Without a matching trailer the queue is left unchanged (the plugin logs this). So every commit
+that should close a task must include `PCP-Task: <active task id>` in its message; a commit that
+does not implement the active task simply omits it and leaves the task open. Close tasks manually
+with `pcp_done` when a commit does not carry the trailer. (Mechanism: `plugins/pcp.ts`
+`parsePcpTaskRef` + `autoDoneTask`, patch marker `PCP_TASK_BINDING_FIX`.)

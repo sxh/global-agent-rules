@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isWriteTool, isBashTool } from "../plugins/pcp.js";
+import { isWriteTool, isBashTool, parsePcpTaskRef } from "../plugins/pcp.js";
 
 // Regression guard for the PCP auto-start hook.
 //
@@ -29,5 +29,26 @@ describe("pcp tool classification", () => {
     for (const name of ["bash", "shell", "terminal"]) {
       expect(isBashTool(name)).toBe(true);
     }
+  });
+});
+
+// Regression guard for task-commit binding (B088).
+//
+// A commit must name the task it closes via a `PCP-Task: T###` trailer. Without
+// an explicit, matching reference the plugin must not auto-close the active
+// task — an unrelated commit previously advanced (and mis-attributed) the queue.
+describe("pcp commit task reference", () => {
+  test("extracts the task id from a PCP-Task trailer", () => {
+    const cmd = `git commit -m "fix: thing" -m "body\n\nPCP-Task: T272"`;
+    expect(parsePcpTaskRef(cmd)).toEqual({ id: "T272" });
+  });
+
+  test("returns null when the commit has no PCP-Task trailer", () => {
+    expect(parsePcpTaskRef(`git commit -m "fix: thing"`)).toBeNull();
+  });
+
+  test("tolerates spacing and casing variants", () => {
+    expect(parsePcpTaskRef(`git commit -m "x\nPCP-Task:T42"`)).toEqual({ id: "T42" });
+    expect(parsePcpTaskRef(`git commit -m "x\npcp-task: T007"`)).toEqual({ id: "T007" });
   });
 });

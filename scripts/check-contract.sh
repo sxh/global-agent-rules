@@ -75,6 +75,7 @@ while IFS=: read -r vfile vmarker; do
   fi
 done <<'VENDORED'
 plugins/pcp.ts:PCP_CACHE_FIX
+plugins/pcp.ts:PCP_TASK_BINDING_FIX
 VENDORED
 
 if [ "$fail" -ne 0 ]; then

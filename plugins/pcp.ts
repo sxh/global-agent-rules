@@ -37,6 +37,15 @@ export function isBashTool(name: string): boolean {
   return BASH_PATTERNS.some((p) => n.includes(p));
 }
 
+// PCP_TASK_BINDING_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
+// A commit only auto-closes a task when it names it explicitly via a `PCP-Task: T###` trailer.
+// Without a matching reference the queue is left unchanged, so an unrelated commit can no longer
+// silently advance (or mis-attribute) the active task.
+export function parsePcpTaskRef(cmd: string): { id: string } | null {
+  const m = /PCP-Task:\s*(T\d+)/i.exec(cmd);
+  return m ? { id: m[1] } : null;
+}
+
 // ──────────────────────────────────────────────
 // Context builders (token budget: ≤3 / ≤5 lines)
 // ──────────────────────────────────────────────
@@ -51,7 +60,7 @@ export function isBashTool(name: string): boolean {
 // prefix and forced a full re-prefill of the entire conversation — measured at ~140s for 37k
 // tokens on the M1 Pro. Task state is available on demand via pcp_status / pcp_backlog.
 // Do NOT reintroduce changing values here.
-const PCP_RULE = `[PCP规则] 任务语言：跟随用户沟通语言(用户说中文→中文任务,说English→English tasks); 任务粒度：每个Task=具体可交付物(≤2h,有完成标准),禁止创建项目目标/Sprint容器类大任务; pcp_sub仅用于临时绕行(做完立即返回),禁止用pcp_sub执行队列中的Task; 【完成审查】任务完成时如有产出文件→列出清单问"需要审查吗？"→需要则按类型展示(.md→pandoc转PDF给路径,.json→格式化关键字段,.txt→短文件直接贴/长文件摘要,代码→git diff关键变更)→确认后再pcp_done,不需要则直接pcp_done; "以后/顺便/记一下X"→pcp_capture; 收到todolist/计划→先扫描项目已有代码和产出文件,已完成的工作不建任务→pcp_plan(tasks)加载后展示清单等用户确认再执行; "本来/原本/改成/发现更好"→确认是否pcp_pivot; 无任务→引导做plan`;
+const PCP_RULE = `[PCP规则] 任务语言：跟随用户沟通语言(用户说中文→中文任务,说English→English tasks); 任务粒度：每个Task=具体可交付物(≤2h,有完成标准),禁止创建项目目标/Sprint容器类大任务; pcp_sub仅用于临时绕行(做完立即返回),禁止用pcp_sub执行队列中的Task; 【完成审查】任务完成时如有产出文件→列出清单问"需要审查吗？"→需要则按类型展示(.md→pandoc转PDF给路径,.json→格式化关键字段,.txt→短文件直接贴/长文件摘要,代码→git diff关键变更)→确认后再pcp_done,不需要则直接pcp_done; "以后/顺便/记一下X"→pcp_capture; 收到todolist/计划→先扫描项目已有代码和产出文件,已完成的工作不建任务→pcp_plan(tasks)加载后展示清单等用户确认再执行; "本来/原本/改成/发现更好"→确认是否pcp_pivot; 无任务→引导做plan; 提交信息须含 "PCP-Task: <当前任务ID>" 才会自动关闭当前任务,否则任务保持打开(用 pcp_done 手动关闭)`;
 
 function buildResumeContext(
   stack: Stack,
@@ -154,6 +163,12 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
     const stack = readStack(dir);
     if (stack.active_task_id) return;
 
+    // Guard: skip creation if a task was just done within the last 1s
+    // This prevents the main-line auto-re-instantiation loop
+    if (stack.last_done_ts && Date.now() - stack.last_done_ts < 1000) {
+      return;
+    }
+
     // Auto-advance from ready queue if available
     if (stack.ready_tasks.length > 0) {
       const next = stack.ready_tasks.shift()!;
@@ -174,9 +189,13 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
     console.log(`[PCP] auto-started ${id}: ${title}`);
   }
 
-  function autoDoneTask(dir: string): void {
+  function autoDoneTask(dir: string, expectedId?: string): void {
     const stack = readStack(dir);
     if (!stack.active_task_id) return;
+    if (expectedId && expectedId !== stack.active_task_id) {
+      console.log(`[PCP] commit references ${expectedId} but active task is ${stack.active_task_id}; leaving queue unchanged`);
+      return;
+    }
 
     const doneId = stack.active_task_id;
     appendEvent(dir, { e: "done", id: doneId, ts: Date.now() });
@@ -193,6 +212,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
       console.log(`[PCP] auto-advanced to ${next.id}: ${next.title}`);
     } else {
       stack.active_task_id = null;
+      stack.last_done_ts = Date.now();
     }
 
     writeStack(dir, stack);
@@ -877,8 +897,14 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
         if (!/git\s+commit/.test(cmd)) return;
 
+        const taskRef = parsePcpTaskRef(cmd);
+        if (!taskRef) {
+          console.log("[PCP] commit has no PCP-Task trailer; leaving active task unchanged");
+          return;
+        }
+
         const dir = await getSessionDir(sessionID);
-        autoDoneTask(dir);
+        autoDoneTask(dir, taskRef.id);
       } catch {
         // silent
       }
