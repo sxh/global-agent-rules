@@ -11,14 +11,17 @@
  * Dependency-free (Node built-ins only) so it runs in any project.
  *
  * Usage:
- *   node scripts/structural-debt-scan.mjs [dir] [--json] [--fail-on N]
+ *   node scripts/structural-debt-scan.mjs [dir] [--json] [--fail-on N] [--exclusions=<path>]
+ *
+ * Exclusions: reads an explicit `--exclusions=<path>` JSON file, or `<dir>/.structural-debt-exclusions.json`
+ * if present. Matching pattern_signatures are reported as `downgraded` and excluded from the ratio.
  *
  * Exit codes:
  *   0  scan completed, no duplication over the fail threshold (or no --fail-on)
  *   1  scan completed, duplication ratio >= --fail-on threshold
  *   2  usage error
  */
-import { readdirSync, statSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const DEFAULT_EXCLUDES = new Set(['node_modules', 'dist', 'build', '.git', '.next', 'coverage', '.sst']);
@@ -38,7 +41,7 @@ const EXTRACTORS = {
     '.cjs': extractTypeScript,
 };
 
-export function scanDuplication(rootDir, { excludeTestFiles = true } = {}) {
+export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSignatures = [] } = {}) {
     const declarations = [];
     const fileCount = walk(rootDir, (file) => {
         const ext = extOf(file);
@@ -64,16 +67,30 @@ export function scanDuplication(rootDir, { excludeTestFiles = true } = {}) {
         byKey.get(key).push(d);
     }
 
+    const exclusionReasons = new Map(excludedSignatures.map((e) => [e.pattern_signature, e.reason]));
+
     const candidates = [];
+    const downgraded = [];
     let duplicatedCount = 0;
     for (const [key, group] of byKey) {
         if (group.length < 2) continue;
         const [kind, name] = key.split(':');
+        const patternSignature = `${kind}_${name}`;
+        const files = group.map((d) => d.file);
+        if (exclusionReasons.has(patternSignature)) {
+            downgraded.push({
+                pattern_signature: patternSignature,
+                kind: 'downgraded',
+                files,
+                reason: exclusionReasons.get(patternSignature),
+            });
+            continue;
+        }
         duplicatedCount += group.length;
         candidates.push({
-            pattern_signature: `${kind}_${name}`,
+            pattern_signature: patternSignature,
             kind: 'duplicate-declaration',
-            files: group.map((d) => d.file),
+            files,
             reason: `'${name}' declared identically in ${group.length} files — likely a missing shared abstraction`,
         });
     }
@@ -81,7 +98,7 @@ export function scanDuplication(rootDir, { excludeTestFiles = true } = {}) {
     const total = declarations.length;
     const ratio = total === 0 ? 0 : duplicatedCount / total;
 
-    return { ratio, totalDeclarations: total, fileCount, candidates };
+    return { ratio, totalDeclarations: total, fileCount, candidates, downgraded };
 }
 
 function walk(dir, onFile) {
@@ -156,15 +173,32 @@ function extractTypeScript(src, file) {
     return decls;
 }
 
+// Load the known-intentional exclusion registry. Reads an explicit path when
+// given, otherwise `<dir>/.structural-debt-exclusions.json` if present.
+function loadExclusions(dir, explicitPath) {
+    const path = explicitPath || join(dir, '.structural-debt-exclusions.json');
+    if (!existsSync(path)) return [];
+    let parsed;
+    try {
+        parsed = JSON.parse(readFileSync(path, 'utf8'));
+    } catch (err) {
+        console.error(`Failed to read exclusions at ${path}: ${err.message}`);
+        process.exit(2);
+    }
+    return Array.isArray(parsed.excludedSignatures) ? parsed.excludedSignatures : [];
+}
+
 // ---- CLI ----
 function main(argv) {
     let dir = process.cwd();
     let json = false;
     let failOn = null;
+    let exclusionsPath = null;
 
     for (const arg of argv.slice(2)) {
         if (arg === '--json') json = true;
         else if (arg.startsWith('--fail-on=')) failOn = parseFloat(arg.split('=')[1]);
+        else if (arg.startsWith('--exclusions=')) exclusionsPath = arg.slice('--exclusions='.length);
         else if (!arg.startsWith('--')) dir = arg;
         else {
             console.error(`Unknown option: ${arg}`);
@@ -172,9 +206,11 @@ function main(argv) {
         }
     }
 
+    const excludedSignatures = loadExclusions(dir, exclusionsPath);
+
     let result;
     try {
-        result = scanDuplication(dir);
+        result = scanDuplication(dir, { excludedSignatures });
     } catch (err) {
         console.error(`Failed to scan ${dir}: ${err.message}`);
         process.exit(2);
@@ -188,6 +224,10 @@ function main(argv) {
         console.log(`Duplication ratio: ${pct}% (${result.candidates.length} candidate pattern(s)).`);
         for (const c of result.candidates) {
             console.log(`\n[${c.pattern_signature}] ${c.reason}`);
+            for (const f of c.files) console.log(`  - ${relative(process.cwd(), f)}`);
+        }
+        for (const c of result.downgraded) {
+            console.log(`\n[downgraded:${c.pattern_signature}] ${c.reason}`);
             for (const f of c.files) console.log(`  - ${relative(process.cwd(), f)}`);
         }
     }

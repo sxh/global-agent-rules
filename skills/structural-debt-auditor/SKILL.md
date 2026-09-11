@@ -35,6 +35,18 @@ node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-s
 
 **Ratchet rule (same as coverage):** once you set a threshold, never lower it. When the gate fails, investigate the rise and unify — do not relax the number. A rising ratio is the early warning that replaces "we keep finding one small problem."
 
+**Excluding known-intentional duplication.** Deliberately-downgraded candidates (e.g. composition-root wiring that legitimately repeats across route files) must not be re-litigated every scan. Record them in a per-project registry at the scan root, `.structural-debt-exclusions.json`:
+
+```json
+{
+  "excludedSignatures": [
+    { "pattern_signature": "const_handler", "reason": "B083 composition-root wiring — intentional per-route service graphs" }
+  ]
+}
+```
+
+The scanner accepts `--exclusions=<path>` and otherwise auto-loads `<dir>/.structural-debt-exclusions.json`. Excluded candidates are reported under `downgraded` (visible, not hidden) and no longer count toward the duplication ratio. Every entry requires a recorded reason — an exclusion without one is silent absence, not a downgrade.
+
 > **Kotlin/Java projects:** the bundled scanner only extracts TypeScript declarations. For Kotlin/Java codebases, use a scanner with a Kotlin/Java extractor (e.g. the ddd-blueprint-pipeline `scripts/structural-debt-scan.mjs` Kotlin extractor from the T463 work) — otherwise the scan reports 0 declarations on `.kt`/`.java` sources and the signal is silently empty.
 
 ### 2. The Discovery Pass (per-layer re-derivation)

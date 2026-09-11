@@ -149,3 +149,93 @@ test('supports --fail-on gating via the CLI', () => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test('excludes a configured signature from candidates and reports it as downgraded', () => {
+    const dir = makeFixture({
+        'src/a.ts': 'export const handler = (e) => e;',
+        'src/b.ts': 'export const handler = (e) => e;',
+        'src/c.ts': 'export const helper = (e) => e;',
+        'src/d.ts': 'export const helper = (e) => e;',
+    });
+    try {
+        const result = scanDuplication(dir, {
+            excludedSignatures: [{ pattern_signature: 'const_handler', reason: 'composition-root wiring' }],
+        });
+        assert.equal(
+            result.candidates.some((c) => c.pattern_signature === 'const_handler'),
+            false,
+            'excluded signature must not appear as a candidate'
+        );
+        const downgraded = result.downgraded.find((c) => c.pattern_signature === 'const_handler');
+        assert.ok(downgraded, 'expected const_handler in downgraded');
+        assert.equal(downgraded.reason, 'composition-root wiring');
+        assert.equal(downgraded.files.length, 2);
+        assert.ok(
+            result.candidates.some((c) => c.pattern_signature === 'const_helper'),
+            'non-excluded duplicates must still be candidates'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('excluded signatures do not contribute to the duplication ratio', () => {
+    const dir = makeFixture({
+        'src/a.ts': 'export const handler = (e) => e;',
+        'src/b.ts': 'export const handler = (e) => e;',
+    });
+    try {
+        const withoutExclusion = scanDuplication(dir);
+        const withExclusion = scanDuplication(dir, {
+            excludedSignatures: [{ pattern_signature: 'const_handler', reason: 'intentional' }],
+        });
+        assert.ok(withoutExclusion.ratio > 0, 'expected a positive ratio without exclusions');
+        assert.equal(withExclusion.ratio, 0, 'excluded duplication must not count toward the ratio');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('CLI loads .structural-debt-exclusions.json from the scanned directory by default', () => {
+    const dir = makeFixture({
+        'src/a.ts': 'export const handler = (e) => e;',
+        'src/b.ts': 'export const handler = (e) => e;',
+        '.structural-debt-exclusions.json': JSON.stringify({
+            excludedSignatures: [{ pattern_signature: 'const_handler', reason: 'composition-root wiring' }],
+        }),
+    });
+    try {
+        const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
+        const run = spawnSync('node', [script, dir, '--json'], { encoding: 'utf8' });
+        assert.equal(run.status, 0);
+        const result = JSON.parse(run.stdout);
+        assert.equal(result.candidates.some((c) => c.pattern_signature === 'const_handler'), false);
+        assert.ok(result.downgraded.some((c) => c.pattern_signature === 'const_handler'));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('CLI --exclusions loads an explicit config path', () => {
+    const dir = makeFixture({
+        'src/a.ts': 'export const handler = (e) => e;',
+        'src/b.ts': 'export const handler = (e) => e;',
+    });
+    const cfgDir = mkdtempSync(join(tmpdir(), 'sda-cfg-'));
+    const cfg = join(cfgDir, 'exclusions.json');
+    writeFileSync(cfg, JSON.stringify({
+        excludedSignatures: [{ pattern_signature: 'const_handler', reason: 'explicit config' }],
+    }));
+    try {
+        const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
+        const run = spawnSync('node', [script, dir, '--json', `--exclusions=${cfg}`], { encoding: 'utf8' });
+        assert.equal(run.status, 0);
+        const result = JSON.parse(run.stdout);
+        const downgraded = result.downgraded.find((c) => c.pattern_signature === 'const_handler');
+        assert.ok(downgraded, 'expected const_handler in downgraded');
+        assert.equal(downgraded.reason, 'explicit config');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+        rmSync(cfgDir, { recursive: true, force: true });
+    }
+});
