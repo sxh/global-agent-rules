@@ -82,6 +82,17 @@ plugins/pcp.ts:PCP_CACHE_FIX
 plugins/pcp.ts:PCP_TASK_BINDING_FIX
 VENDORED
 
+# --- 6. Type-check the TypeScript plugins (`bun test` only transpiles them) ---
+if [ -f "$ROOT/plugins/tsconfig.json" ]; then
+  if out="$(bash "$ROOT/scripts/type-check.sh" 2>&1)"; then
+    echo "types: plugins type-check passed"
+  else
+    echo "FAIL: plugins type-check failed"
+    printf '%s\n' "$out" | tail -20
+    fail=1
+  fi
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "contract check FAILED"
   exit 1
