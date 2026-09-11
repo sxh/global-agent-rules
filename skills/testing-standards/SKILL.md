@@ -49,6 +49,22 @@ These rules ensure code is testable:
 8. **Tests must be hermetic** — Each test must clean up its own side effects. Use `vi.restoreAllMocks()` in `afterEach`, not `vi.clearAllMocks()` in `beforeEach`. A spy on `window.confirm` or other globals that leaks across test boundaries causes spurious failures and erodes trust in the test suite.
 9. **Use resilient selectors** — Target elements with `data-testid` attributes in tests. Never rely on CSS class names (especially CSS module hashes), DOM structure position, or text content that may change. If you need a CSS module class hash to locate an element, the test is too fragile to survive refactoring.
 
+### State-Changing Actions Need Field-Level Assertions
+
+When an action mutates a data structure, assert the specific field that changed — not merely that the action returned successfully. A test proving a delete removes from the intended collection (and not a sibling collection) is the difference between a guard and a formality.
+
+### Full-Flow Integrity Tests
+
+For any create/edit/save workflow, add a test that drives the complete cycle — submit, process, persist, navigate back — and asserts the payload is identical and in the same order. Step-local tests pass while the round-trip silently reorders or mutates data.
+
+### Verify Algorithm Scenarios Before Implementing
+
+Before implementing a sorting, ranking, or volume-sensitive algorithm, restate the expected output for realistic scenarios (small change, large jump, multiple moves) and confirm before coding. Otherwise the implementation encodes the wrong definition of the goal.
+
+### Parsing User-Supplied Delimited Data
+
+User-supplied CSV/TSV can contain free-text fields with embedded newlines; never split rows with a naive `split(text, "\n")` — use a state machine that tracks quote state and handles escaped quotes (`""`). Test with a literal multiline quoted field plus a following normal row to prove the row boundary resets.
+
 ### API Pagination
 
 **Verify the actual pagination mechanism before implementing** — Check HTTP headers AND response body structure with a real request (curl). Do not assume Link headers exist solely because the API is from a known platform (Shopify, etc.). Test with a real endpoint.

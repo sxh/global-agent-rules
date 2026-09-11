@@ -36,6 +36,14 @@ All code must follow **SOLID** principles:
 - **I**nterface Segregation - Specific interfaces over generic ones
 - **D**ependency Inversion - Depend on abstractions, not concrete implementations
 
+### Refactoring
+
+**Field modification checklist** — When retiring a field from logic (Phase A) or removing it from the type (Phase B), work systematically: grep every reference in source and tests, categorize each (type, decoder, serializer, logic, display), update callers and tests, strip it from persisted data, then verify coverage. Removing from the type additionally means deleting the message/field, fixing every constructor call (the shared test helper first), removing view parameters and CSS, and grepping for dead imports. A missed site silently reintroduces the retired data.
+
+**Prefer wrapping over changing a shared signature** — Before adding a parameter to a broadly-used function (layout, shared container), check whether wrapping its output achieves the goal. A signature change ripples through every call site and test; wrapping is local.
+
+**Prefer in-memory computation over a round-trip** — When data needed for a computation is already in memory, compute from it instead of re-fetching. A local recomputation beats an HTTP round-trip.
+
 ### CLI Tools vs Test Frameworks
 
 **CLI tools must not use test frameworks as entry points** — Test frameworks (eunit, gleeunit, etc.) suppress output on success and are designed for CI verification, not user-facing tools. When a tool needs to:

@@ -51,6 +51,8 @@ Every rule in this skill derives from these five values. When you are unsure wha
 - **Iterative Commits Are Desirable:** Multiple commits for one logical change are not a failure — they are the natural result of honest feedback cycles. Each commit that fixes what the previous pass missed confirms the process is working. Do NOT collapse commits or batch changes to appear more efficient. The commit history should reflect the actual learning and refinement trajectory.
 - **Format First:** Run the relevant code formatter (e.g., `gleam format`, `prettier --write`) after every modification before running tests or committing.
 - **No Bypassing Checks:** NEVER use `--no-verify` or similar flags to bypass git hooks, linters, or tests unless explicitly directed by the user for a specific, justified reason.
+- **Design Contract Before Code:** Before writing implementation code for a non-trivial change, restate the agreed architecture and data shapes (messages, request/response bodies) and wait for confirmation. Do not propose alternatives to the agreed design mid-implementation — if it does not work, stop and report the failure rather than iterating on variants.
+- **STOP Means Stop:** When the user issues a halt command ("stop", "STOP"), immediately cease all tool use mid-task and remain silent until explicitly resumed. Do not "finish the thought."
 
 ## 5. Evidence-Based Validation
 - Never "assume" a change worked. Show the green test output before finishing.
