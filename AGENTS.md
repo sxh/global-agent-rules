@@ -76,7 +76,9 @@ outcome: capture exit codes before piping, re-check `git status` and `git diff -
 index-mutating commands, and run the canonical gate command in full rather than a filtered version.
 A pipe masks exit codes; a stash silently unstages; a filtered grep hides errors. An edit made after
 `git add -A` is not in the commit — restage before committing. Before attributing a red gate to your
-change, reproduce it at clean HEAD and at the merge base.
+change, reproduce it at clean HEAD and at the merge base. Before staging, account for every dirty
+file: inspect each one's diff and include it or state why it is excluded — never label a change
+"pre-existing" or "not mine" without inspecting it.
 
 **Generated output must be run** — A generator that compiles is not verified. Generated artifacts
 (scripts, configs, deployment files) must be executed at least once, end to end, before claiming
