@@ -48,6 +48,14 @@ so a multi-commit task can be closed before its work lands. On 2026-09-11 a nest
 (`T274`) was completed by an unrelated commit; recovery is to reconcile immediately — finish the
 prematurely-completed item with `pcp_done`, then `pcp_start` a fresh task for any remaining work.
 
+## Build ordered queues with pcp_plan, not sequential pcp_promote
+
+To load a batch of backlog items to execute **in order**, call `pcp_plan` with the ordered titles:
+it makes the first task active and queues the rest FIFO, so each completion advances to the next in
+the intended order. `pcp_promote` instead nests each item under the *current* active task and makes
+it active, so promoting a sequence builds a LIFO stack whose commit-order is reversed — use it only
+to add a single item to an existing sprint.
+
 ## Commits only close a task when they name it
 
 A `git commit` auto-closes the active task **only** when the commit message carries an explicit

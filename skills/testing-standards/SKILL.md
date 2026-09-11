@@ -49,6 +49,10 @@ These rules ensure code is testable:
 8. **Tests must be hermetic** — Each test must clean up its own side effects. Use `vi.restoreAllMocks()` in `afterEach`, not `vi.clearAllMocks()` in `beforeEach`. A spy on `window.confirm` or other globals that leaks across test boundaries causes spurious failures and erodes trust in the test suite.
 9. **Use resilient selectors** — Target elements with `data-testid` attributes in tests. Never rely on CSS class names (especially CSS module hashes), DOM structure position, or text content that may change. If you need a CSS module class hash to locate an element, the test is too fragile to survive refactoring.
 
+### Enumerate Dependent Tests Before Changing Shared Behavior
+
+Before changing behavior at a shared seam (a command type, an error message, a default value, a response shape), grep the test suite for assertions on the old literal, command, or message and fold those updates into the same change. A 2026-09-11 PR switched `PutCommand`→`UpdateCommand` and sanitized 5xx response bodies; each broke a dependent test the targeted run did not cover, surfacing only at the full gate.
+
 ### State-Changing Actions Need Field-Level Assertions
 
 When an action mutates a data structure, assert the specific field that changed — not merely that the action returned successfully. A test proving a delete removes from the intended collection (and not a sibling collection) is the difference between a guard and a formality.

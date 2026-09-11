@@ -27,7 +27,7 @@ Projects drift from AGENTS.md compliance when:
 2. **Coverage isolation** — Measure only project source, not dependencies
 3. **Five Whys** — Trace defects to missing tests and process gaps, not just symptoms
 
-- **Retrospectives assess documentation/artifact gaps** — Each retrospective should review whether future interactions with the project could be improved by adding or updating supporting files, artifacts, or documentation (module maps, pattern indexes, dependency-flow diagrams, architecture decision records, etc.). Consider the maintenance burden: documentation that isn't kept in sync actively misleads. Prefer automatically generated or validated documentation over hand-written prose. If a gap is identified and worth addressing, capture it as a backlog item for implementation outside the retrospective.
+- **[KNOWLEDGE] Retrospectives assess documentation/artifact gaps** — Each retrospective should review whether future interactions with the project could be improved by adding or updating supporting files, artifacts, or documentation (module maps, pattern indexes, dependency-flow diagrams, architecture decision records, etc.). Consider the maintenance burden: documentation that isn't kept in sync actively misleads. Prefer automatically generated or validated documentation over hand-written prose. If a gap is identified and worth addressing, capture it as a backlog item for implementation outside the retrospective.
 
 - **[2026-06-06] [Testing] Test Resource Cleanup** — When adopting a test pattern from another file, verify resource management (streams, sockets, clients) is equivalent between source and destination. A copy that omits `.use {}` or `close()` creates a leak that may go undetected until CI runs hit file-descriptor limits.
 
@@ -39,17 +39,17 @@ Projects drift from AGENTS.md compliance when:
 
 #### 2026-06-23 Process Rules
 
-- **Verify deployment pipeline before modifying deployment files** — Before changing deployment scripts, readme deployment sections, or infrastructure, verify the actual deployment mechanism by checking CI/CD config (GitHub Actions, Amplify, etc.), build logs, automation like `enableAutoBuild` on Amplify branches, or by asking the user. A stale readme describing a deprecated manual process can lead to wasted effort and incorrect infrastructure changes.
+- **[KNOWLEDGE] Verify deployment pipeline before modifying deployment files** — Before changing deployment scripts, readme deployment sections, or infrastructure, verify the actual deployment mechanism by checking CI/CD config (GitHub Actions, Amplify, etc.), build logs, automation like `enableAutoBuild` on Amplify branches, or by asking the user. A stale readme describing a deprecated manual process can lead to wasted effort and incorrect infrastructure changes.
 
-- **Pre-commit Hook Must Work in Non-TTY** — Tooling with terminal UI (tcell, etc.) crashes in agent/CI/headless environments. When using CLI tooling in the pre-commit hook, verify compatibility with non-interactive execution (e.g., `--mode=mono` flag for SST).
+- **[KNOWLEDGE] Pre-commit Hook Must Work in Non-TTY** — Tooling with terminal UI (tcell, etc.) crashes in agent/CI/headless environments. When using CLI tooling in the pre-commit hook, verify compatibility with non-interactive execution (e.g., `--mode=mono` flag for SST).
 
-- **Let the Pre-commit Hook Manage Infrastructure Lifecycle** — When the pre-commit hook script already handles starting, waiting for, and probing dependent services, do NOT start those services manually for debugging. Read the hook script to understand the lifecycle before intervening. Starting services separately wastes time and creates conflicts.
+- **[KNOWLEDGE] Let the Pre-commit Hook Manage Infrastructure Lifecycle** — When the pre-commit hook script already handles starting, waiting for, and probing dependent services, do NOT start those services manually for debugging. Read the hook script to understand the lifecycle before intervening. Starting services separately wastes time and creates conflicts.
 
-- **Backlog Items Describe Goals, Not Solutions** — A backlog item should state what needs to be achieved (the outcome), not prescribe how to achieve it (the implementation). The solution is determined during execution. Prescribing a fix in the backlog title assumes an unverified diagnosis.
+- **[KNOWLEDGE] Backlog Items Describe Goals, Not Solutions** — A backlog item should state what needs to be achieved (the outcome), not prescribe how to achieve it (the implementation). The solution is determined during execution. Prescribing a fix in the backlog title assumes an unverified diagnosis.
 
 - **[2026-06-25] [Process] [ENFORCED] Review Prompt Should Not Suppress Refactoring Findings** — The system prompt told the model to ignore "refactoring opportunities that are out of scope for this change," which suppressed findings when the PR was itself a refactoring. Review prompts must not use broad suppression categories that overlap with the PR's purpose.
 
-- **[2026-06-25] [Process] Largest Files Need the Most Review** — The review script excluded files >50K chars, silently skipping the most complex files. Per-file size exclusion is wrong — include large files and suggest splitting them.
+- **[2026-06-25] [Process] [KNOWLEDGE] Largest Files Need the Most Review** — The review script excluded files >50K chars, silently skipping the most complex files. Per-file size exclusion is wrong — include large files and suggest splitting them.
 
 - **[2026-06-25] [Process] [ENFORCED] All Issues Must Be Addressed, Not Dismissed** — Every error, warning, or process gap must be fixed or explicitly acknowledged. Dismissing issues as "pre-existing", "out of scope", "trivial", or working around them (e.g., using `--no-verify`, using workarounds instead of fixing root causes) violates process integrity. The burden is on the exception, not on compliance — if you believe a dismissal is warranted, propose it explicitly and wait for approval.
 
@@ -79,7 +79,7 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-07-06] [Process] Compaction Threshold Ignores Blank Lines** — The AGENTS.md compaction rule says to propose compaction when the file exceeds 600 lines, but blank lines should not count toward the threshold. Only content lines (non-whitespace, non-empty) matter for determining file size. Cosmetic blank-line removal is not compaction.
 
-- **[2026-07-08] [Process] [KNOWLEDGE] Search for Regression Tests Before Behavior Changes** — Before modifying event handlers or component behavior, search for all test files referencing the component or behavior. Existing regression tests may depend on the current behavior and must be understood before making changes.
+- **[2026-07-08] [Process] [KNOWLEDGE] Search for Regression Tests Before Behavior Changes** — Before modifying event handlers or component behavior, search for all test files referencing the component or behavior: grep the suite for the old literal, command, or message and fold those updates into the same change. Existing regression tests may depend on the current behavior and must be understood before making changes. Two 2026-09-11 behavior changes (a `PutCommand`→`UpdateCommand` switch and a 5xx response-body sanitization) each broke a dependent test that only the full gate caught, costing an extra cycle apiece.
 
 - **[2026-07-08] [Positive] Batch Similar Refactorings with Analysis** — Constants extraction across 14 files was efficient because: a thorough `grep`/`rg` analysis identified all occurrences first, the user explicitly approved batching, and the constants file was pre-tested. Repeat this pattern for other cross-file refactorings.
 
@@ -217,6 +217,10 @@ Projects drift from AGENTS.md compliance when:
 - **[2026-09-11] [Tooling] [ENFORCED] Role Prompts Must Reference Canonical Project Commands, Not Hardcoded Paths** — An agent/role prompt that hardcodes a project-specific command path breaks on any project that lacks it. `agent/stepwise.md` told the stepwise agent to run `./scripts/cover.sh`, which does not exist in scheduler4 (its canonical command is `npm run coverage`); the line now requires verifying the project's configured command first. (Covering artefact: the corrected instruction in `agent/stepwise.md`.)
 
 - **[2026-09-11] [Tooling] A Runtime `undef` Means Research the Replacement, Not Shim It** — When a standard-library function is `undef` on the installed runtime, check the current version's documentation for the replacement API before adding a try/catch compatibility shim. Patching `ssl:set_options([{log_level, none}])` on OTP 28 with a try/catch was unnecessary — the documented replacement `logger:set_application_level(ssl, error)` existed and was cleaner.
+
+- **[2026-09-11] [Architecture] [KNOWLEDGE] Construct Stateful Dependencies at the Scope of Their Lifetime** — A dependency that holds state (a cache, a connection pool, a timer) must be created once at the scope its lifetime is meant to span; building it inside a per-request path silently discards the state. A `places` API called `getServices()` inside its per-request middleware and `onError`, constructing a fresh `AuditService` + `NodeCacheAdapter({ stdTTL: 300 })` on every request so the audit cache was never shared — fixed by hoisting a module-level singleton as the sibling routes already did, with a test asserting the construction count does not grow across requests.
+
+- **[2026-09-11] [Positive] Verify Backlog Items Are Already Done Before Implementing** — Treat a backlog item as a hypothesis: check the current code and recent commits before writing anything, because the work may already exist and redoing it wastes a cycle. Two PR #108 review items (ErrorModal `type="button"`, focus trap/restore) had already landed in a prior session; both were confirmed against the code and their tests, then closed with no code change.
 
 These entries have been archived as of their respective retrospectives. They document specific platform/tool gotchas or superseded entries preserved for reference.
 - **[2026-08-14] [Process] Bypass Flags Are a Stop, Not a Workaround** — Archived 2026-09-04: superseded by the Process Rule "A commit that would need `--no-verify` is a STOP" (which carries the identical positive-script fix).
