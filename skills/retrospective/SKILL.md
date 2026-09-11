@@ -86,7 +86,7 @@ If a finding does not generalize to a principle that would prevent a different c
   - **INCIDENT** — everything else. This is the default destination: `docs/incidents.md`.
 - Then check coverage *within that destination*: search for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
   - Already covered: **do not add a new entry.** Propose a refinement that clarifies scope (a sentence, or this session's example).
-  - Not covered: propose a new entry (or a contract/skill line, per the destination), carrying a status tag — `[ENFORCED]` (name the covering gate), `[OPEN]` (raise the mechanism backlog item in the same retrospective), or `[EXPIRED]`. An entry that asserts a rule without a tag is a leak and must be resolved before the summary is presented.
+  - Not covered: propose a new entry (or a contract/skill line, per the destination), carrying a status tag — `[ENFORCED]` (name the covering gate), `[OPEN]` (raise the mechanism backlog item in the same retrospective), `[EXPIRED]`, or `[KNOWLEDGE]` (a gotcha/principle with no enforceable mechanism by design). An entry that asserts a rule without a tag is a leak and must be resolved before the summary is presented.
   - Contradicted: mark the old entry for removal or amendment.
 - **Compression scan:** If 3+ incident entries from different sessions express the same principle, propose merging them into one and archiving the surplus.
 - **Recurrence check:** If an incident's failure class recurs despite being documented, the gap is enforcement, not documentation — emit a mechanism backlog item rather than another entry.
@@ -285,7 +285,8 @@ Every entry must express a general principle, not a specific observation. The ti
 - `[ENFORCED]` — a gate covers it. Name the covering artefact (hook, lint rule, CI job, test) so the next audit can verify it still exists and still gates.
 - `[OPEN]` — enforcement identified but not built. A mechanism backlog item must be raised in the same retrospective; the entry is re-reported at every subsequent retrospective until it closes.
 - `[EXPIRED]` — retired: no recurrence observed and no mechanism warranted. Keep it for one more retrospective before archiving.
-- A pure knowledge entry (a gotcha with no rule to enforce) may omit the tag, but the summary must state why no mechanism applies. An entry that asserts a rule and carries neither tag nor mechanism is a leak.
+- `[KNOWLEDGE]` — a gotcha, design principle, or advice with no enforceable mechanism by design. Use the explicit tag (the checker accepts it) so the entry is not re-reported as a leak; state the illustrative example in the body.
+- A pure knowledge entry (a gotcha with no rule to enforce) must carry `[KNOWLEDGE]` rather than no tag, so the Effectiveness Audit and `check-contract.sh` can distinguish it from an unresolved leak. An entry that asserts a rule and carries neither tag nor mechanism is a leak.
 
 Example: `- **[2026-09-09] [Process] [OPEN] Hooks Must Resolve the Repo Root via Git** — ...`
 

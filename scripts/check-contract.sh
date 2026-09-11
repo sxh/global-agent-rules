@@ -51,12 +51,16 @@ for f in "$ROOT"/skills/*/SKILL.md; do
 done
 
 # --- 4. Incident entries that assert a rule must carry a status tag ---
-# Heuristic: entries tagged [ENFORCED]/[OPEN]/[EXPIRED] are fine; untagged entries that use
-# rule language ("Must", "Never", "Always") are reported as candidate leaks for the next
+# Heuristic: entries tagged [ENFORCED]/[OPEN]/[EXPIRED]/[KNOWLEDGE] are resolved; [Positive]
+# practice entries and everything in the archive section are exempt by design. Remaining entries
+# that use rule language ("Must", "Never", "Always") are candidate leaks for the next
 # retrospective to resolve. Reported, not failed — the backlog is the resolution path.
-if [ -f "$ROOT/docs/incidents.md" ]; then
-  leaks=$(grep -n '^- \*\*\[' "$ROOT/docs/incidents.md" \
-    | grep -Ev '\[(ENFORCED|OPEN|EXPIRED)\]' \
+# INCIDENTS_FILE is overridable so scripts/check-contract.test.sh can exercise the heuristic.
+INCIDENTS="${INCIDENTS_FILE:-$ROOT/docs/incidents.md}"
+if [ -f "$INCIDENTS" ]; then
+  leaks=$(awk '/^These entries have been archived/{exit} {print}' "$INCIDENTS" \
+    | grep '^- \*\*\[' \
+    | grep -Ev '\[(ENFORCED|OPEN|EXPIRED|KNOWLEDGE|Positive)\]' \
     | grep -Eic '(must|never|always)' || true)
   echo "incidents: $leaks untagged rule-bearing entr(ies) — see the Effectiveness Audit step"
 fi
