@@ -41,40 +41,17 @@ export function isBashTool(name: string): boolean {
 // Context builders (token budget: ≤3 / ≤5 lines)
 // ──────────────────────────────────────────────
 
-// PCP behavioral rule — always injected to ALL agents via system.transform
+// PCP behavioral rule — always injected to ALL agents via system.transform.
+//
+// PCP_CACHE_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
+// This rule is the ONLY thing injected into the system prompt. It is a constant, so the system
+// array is byte-identical on every request and llama.cpp's prompt cache stays warm for the whole
+// session. Volatile state used to be appended alongside it, which put changing values at the very
+// front of each request: any change (PCP advances the active task on every commit) invalidated the
+// prefix and forced a full re-prefill of the entire conversation — measured at ~140s for 37k
+// tokens on the M1 Pro. Task state is available on demand via pcp_status / pcp_backlog.
+// Do NOT reintroduce changing values here.
 const PCP_RULE = `[PCP规则] 任务语言：跟随用户沟通语言(用户说中文→中文任务,说English→English tasks); 任务粒度：每个Task=具体可交付物(≤2h,有完成标准),禁止创建项目目标/Sprint容器类大任务; pcp_sub仅用于临时绕行(做完立即返回),禁止用pcp_sub执行队列中的Task; 【完成审查】任务完成时如有产出文件→列出清单问"需要审查吗？"→需要则按类型展示(.md→pandoc转PDF给路径,.json→格式化关键字段,.txt→短文件直接贴/长文件摘要,代码→git diff关键变更)→确认后再pcp_done,不需要则直接pcp_done; "以后/顺便/记一下X"→pcp_capture; 收到todolist/计划→先扫描项目已有代码和产出文件,已完成的工作不建任务→pcp_plan(tasks)加载后展示清单等用户确认再执行; "本来/原本/改成/发现更好"→确认是否pcp_pivot; 无任务→引导做plan`;
-
-function buildShortContext(
-  stack: Stack,
-  tasks: Task[],
-  projectCtx: string | null,
-  pendingBacklogCount: number,
-): string {
-  const lines: string[] = [PCP_RULE];
-  const readyCount = stack.ready_tasks.length;
-
-  if (stack.active_task_id) {
-    const active = getTask(tasks, stack.active_task_id);
-    if (active) {
-      if (stack.active_stack.length === 1) {
-        lines.push(`📌 主线: ${active.title} [${active.id}]`);
-      } else {
-        const mainTask = getTask(tasks, stack.active_stack[0]);
-        if (mainTask) lines.push(`📌 主线: ${mainTask.title} [${mainTask.id}]`);
-        lines.push(`⤷ 当前: ${active.title} [${active.id}] (子任务) — git commit 后返回主线`);
-      }
-    }
-    if (readyCount > 0) lines.push(`⏳ 队列: ${readyCount} 个任务待执行`);
-  } else {
-    if (projectCtx) lines.push(`[项目] ${projectCtx.slice(0, 60)}`);
-    if (pendingBacklogCount > 0) {
-      lines.push(`📋 Backlog: ${pendingBacklogCount} 项待回顾 — pcp_backlog 查看`);
-    }
-    lines.push(`💡 无任务 — 建议做plan后pcp_plan加载`);
-  }
-
-  return lines.slice(0, 5).join("\n");
-}
 
 function buildResumeContext(
   stack: Stack,
@@ -909,17 +886,11 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
     // ── Context injection hooks ─────────────────
 
-    "experimental.chat.system.transform": async (input, output) => {
+    // Constant only — see the PCP_CACHE_FIX note on PCP_RULE above. Anything that changes between
+    // turns belongs at the *end* of the request (a message), never in the system array.
+    "experimental.chat.system.transform": async (_input, output) => {
       try {
-        const dir = input.sessionID
-          ? await getSessionDir(input.sessionID)
-          : directory;
-        const stack = readStack(dir);
-        const tasks = replayEvents(dir);
-        const projectCtx = readProjectContext(dir);
-        const pendingCount = getPendingBacklog(dir).length;
-        const ctx = buildShortContext(stack, tasks, projectCtx, pendingCount);
-        if (ctx) output.system.push(ctx);
+        if (!output.system.includes(PCP_RULE)) output.system.push(PCP_RULE);
       } catch {
         // silent
       }

@@ -25,12 +25,12 @@
         "mimo-v2.5": { "id": "mimo-v2.5" }
       }
     },
-    "minicpm5": {
-               "npm": "@ai-sdk/openai-compatible",
-               "name": "MiniCPM5-2B (local)",
-               "options": { "baseURL": "http://localhost:1234/v1" },
-               "models": { "minicpm5-2b": { "id": "minicpm5-2b" } }
-             },
+    "qwen36": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Qwen3.6-35B-A3B (local)",
+      "options": { "baseURL": "http://localhost:1234/v1" },
+      "models": { "qwen3.6-35b-a3b": { "id": "qwen3.6-35b-a3b" } }
+    },
     "local-model": {
           "npm": "@ai-sdk/openai-compatible",
           "name": "Local Qwen 3.5",
