@@ -25,6 +25,7 @@ Every rule in this skill derives from these five values. When you are unsure wha
 - **RED:** Before any implementation change, you MUST execute a test that fails.
 - **GREEN:** Only after a failing test is captured may you implement the fix or feature.
 - **REFACTOR:** After the test passes, you MUST refactor the result to remove duplication and any other code smells, then re-run tests to confirm green. Refactoring is not optional — it is the third mandatory step of the TDD cycle.
+- **Load Testing Standards Before RED:** Before writing or changing any test, read `skills/testing-standards/SKILL.md` and apply it — in particular its rule against relying on CSS-module class hashes, DOM structure, or text content (use `data-testid`/roles/accessible names). Tests written without that standard loaded produce false-green or hash-coupled assertions that only review catches.
 
 ## 3. Engineering Standards
 - **Surgical Priority**: Fix explicit bugs (e.g., argument swaps) and state disconnects (e.g., hardcoded defaults) BEFORE attempting to improve performance or convergence strategies.
