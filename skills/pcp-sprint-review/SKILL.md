@@ -98,7 +98,7 @@ Sprint 完成后，逐条回顾 backlog 中的待处理项，决定每项的命�
 | 用户说「全部加入」 | 依次调用 `pcp_promote` 处理所有 pending 项 |
 | 用户说「全部忽略」 | 依次调用 `pcp_dismiss` 处理所有 pending 项 |
 | 用户说「先跳过」 | 停止回顾，保留所有未处理项在 backlog |
-| `pcp_promote` 失败（无活跃 sprint）| 先 `pcp_start` 创建新 sprint，再重试 |
+| `pcp_promote` 失败（无活跃 sprint）| 该工具要求活跃 sprint；改用 `pcp_plan` 加载该项标题（原子地创建 sprint 并按序排队，避免 `pcp_start`+`pcp_promote` 造成的嵌套/重复），随后清理对应 backlog 条目 |
 
 ---
 
