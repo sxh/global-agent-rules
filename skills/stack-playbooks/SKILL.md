@@ -12,6 +12,31 @@ working in one of the named stacks; it is not needed for other work.
 
 Rules in this section apply only when working in the named stack. **AWS is the exception** — it is common infrastructure and its rules live in the generic sections (Cloud Environments, etc.).
 
+#### Contracts Across Stacks
+
+The full discipline — preconditions, postconditions, invariants, the LSP variance
+rule, and the encoding ladder — is in the `design-by-contract` skill. The
+per-stack encoding, tightest first:
+
+- **Gleam** — invariants via smart constructors returning `Result` (an invalid
+  value is unrepresentable); preconditions in the signature (`Result`,
+  non-empty types); postconditions via purity and property tests. The type system
+  fixes shape, not behaviour, so a port conformance suite is the substitutability
+  check.
+- **React / TypeScript** — invariants via a validated factory or schema at the
+  boundary (remember `z.object()` strips unknown keys by default); preconditions
+  as input validation at the edge; postconditions via property tests (fast-check).
+  Types erase at runtime, so validation and DB constraints carry the invariant.
+- **JVM (Java/Kotlin/Scala)** — invariants in constructors plus immutability
+  (`final`, records, Kotlin `init {}`, `require`/`check`); preconditions via guard
+  clauses and parameter validation (`Objects.requireNonNull`, JSR-380);
+  postconditions via return-type invariants and property tests (jqwik). Overrides
+  are the LSP risk — re-check the variance rule on every `@Override`.
+
+For any other language, use the ladder in `design-by-contract` (pure-static →
+static-OO → dynamic → untyped-BEAM) and push each contract as far toward
+"unrepresentable" as the language allows.
+
 #### Gleam + Lustre + Electron Stack
 
 **Gleam over JS on BEAM** — When targeting BEAM, all logic must be implemented in Gleam. Using JavaScript is a last resort, permitted only when we have *proved* that the task cannot be done in Gleam (e.g., browser-only APIs, Electron IPC that require native Node.js modules). "It feels simpler to write this in JS" is not a valid reason — that is how JS becomes a dumping ground. Every FFI function must be justified by a comment explaining why Gleam cannot do it.

@@ -1,6 +1,6 @@
 ---
 name: testing-standards
-description: "Testing standards relocated from AGENTS.md — testability rules (DI, no framework I/O), functional-over-technical tests, wire-format literals, hermetic tests, resilient selectors, pagination testing, coverage strategy. Load when writing or changing tests."
+description: "Testing standards relocated from AGENTS.md — testability rules (DI, no framework I/O), functional-over-technical tests, wire-format literals, hermetic tests, resilient selectors, pagination testing, property-based testing, port conformance suites, coverage strategy. Load when writing or changing tests."
 ---
 
 # Testing Standards
@@ -74,6 +74,46 @@ User-supplied CSV/TSV can contain free-text fields with embedded newlines; never
 **Verify the actual pagination mechanism before implementing** — Check HTTP headers AND response body structure with a real request (curl). Do not assume Link headers exist solely because the API is from a known platform (Shopify, etc.). Test with a real endpoint.
 **Prefer response body pagination detection** (product count, next-page token) over HTTP headers when the body is already parsed for data extraction. An extra network dependency on headers is fragile.
 **Pagination tests must use mock HTTP responses** that simulate multiple pages (e.g., MockWebConnection) and verify all pages were processed, not just that `hasNextPage()` returned a boolean.
+
+### Property-Based Testing
+
+Example tests are existential — they prove an outcome for the inputs chosen. A
+contract is universal. For any function that carries an invariant or a
+postcondition, add a property test over generated inputs that asserts the
+property holds for all of them (Hypothesis for Python, fast-check for JS/TS,
+StreamData for Elixir; the framework matters less than the property), and
+generate the precondition-violating inputs separately to prove the function
+rejects them at the boundary.
+
+- **Assert the invariant, not the example** — "reordering rows of equal rank
+  leaves the score unchanged" is a property; an example test cannot show it holds
+  beyond the cases written down.
+- **Preconditions are inputs too** — the property set must include the rejection
+  path: invalid input is refused at the edge, not silently coerced.
+- **Shrinking matters** — a property test that cannot report a minimal
+  counterexample is stated too broadly to be useful.
+
+See the `design-by-contract` skill for what each contract means and how far it
+can be pushed into the type.
+
+### Port Conformance Suites
+
+When a port has more than one implementation (a production adapter and a test
+double), write **one** conformance suite that exercises the port's precondition,
+postcondition, and invariant, and run it against every implementation. This is
+the coverage-analog for contracts: an adapter's own example tests prove nothing
+about substitutability, and the conformance suite is the concrete artifact behind
+the LSP variance rule.
+
+- Assert the contract, not the adapter's internals — the same assertions must
+  pass for the real adapter and the double.
+- Include the rejection path: a precondition violation is refused consistently by
+  every implementation.
+- If a port has a single implementation and no double, document the contract on
+  the port and defer the suite until a second implementation exists.
+
+See the `design-by-contract` skill for the LSP criterion and the backend
+translation.
 
 ### Coverage Strategy
 

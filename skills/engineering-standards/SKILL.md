@@ -32,9 +32,21 @@ All applications must implement **Hexagonal Architecture** (Ports and Adapters):
 All code must follow **SOLID** principles:
 - **S**ingle Responsibility - Every module/class has one reason to change
 - **O**pen/Closed - Open for extension, closed for modification
-- **L**iskov Substitution - Objects can be replaced with subtypes without breaking
+- **L**iskov Substitution - A subtype may weaken preconditions, strengthen
+  postconditions, and must preserve invariants — never the reverse. The
+  criterion, the language encoding ladder, and the conformance-suite mechanism
+  are in the `design-by-contract` skill.
 - **I**nterface Segregation - Specific interfaces over generic ones
 - **D**ependency Inversion - Depend on abstractions, not concrete implementations
+
+### Contracts & Invariants
+
+Every type and port boundary carries a contract — a precondition (what the
+caller owes), a postcondition (what the callee guarantees), and an invariant
+(what holds across every operation). Encode them in the type where possible — a
+smart constructor that makes an invalid value unrepresentable beats a runtime
+check — then validate at the edge and rely on the invariant internally. The full
+ladder, including the backend translations, is in the `design-by-contract` skill.
 
 ### Refactoring
 

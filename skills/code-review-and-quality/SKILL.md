@@ -60,6 +60,7 @@ Does the change fit the system's design?
 - **Does this refactor reduce complexity or just relocate it?** Count the concepts a reader must hold to follow the change. If a "cleaner" version leaves that count unchanged, it isn't cleaner — prefer the restructuring that makes whole branches, modes, or layers disappear over one that re-centralizes the same logic. Prefer deleting an abstraction to polishing it.
 - **Is feature-specific logic leaking into a shared or general-purpose module?** Keep logic in its owning layer, reuse the existing canonical helper instead of a near-duplicate, and don't normalize architectural drift.
 - **Are type boundaries explicit?** Question gratuitous `any`/`unknown`/optional/casts and silent fallbacks that paper over an unclear invariant — making the boundary explicit often makes the surrounding control flow simpler.
+- **Are the contracts of the types and ports it touches still honoured?** For every override or adapter implementing a port, apply the variance rule — preconditions weakened, postconditions strengthened, invariants preserved, never the reverse. A boundary that silently accepts or returns a value outside its contract is a finding. See `design-by-contract`.
 
 ### 4. Security
 
@@ -113,6 +114,8 @@ Do the tests actually protect the behavior, or just pass? A green suite is not e
 - Are edge and error paths covered (empty, boundary, rejection), not just the happy path?
 - Do tests use resilient selectors (`data-testid`, roles, accessible names) rather than text content or structure that may change?
 - Would the test catch a regression if the implementation changed?
+- Do invariant-bearing functions have property tests over generated inputs, not only example cases? An example test cannot show an invariant holds for inputs nobody wrote down.
+- Where a port has more than one implementation, is a single conformance suite run against all of them (see `design-by-contract`)?
 
 For UI/desktop apps: unit tests are necessary but not sufficient — a smoke test must verify the app builds, launches, and renders.
 
@@ -377,6 +380,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - [ ] Appropriate abstraction level
 - [ ] Refactors reduce complexity rather than relocate it
 - [ ] No feature logic in shared modules; file stays within a healthy size
+- [ ] Port/type contracts honoured (preconditions weakened, postconditions strengthened, invariants preserved)
 
 ### Security
 - [ ] No secrets in code
@@ -407,6 +411,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - [ ] Test doubles match the real contract
 - [ ] Edge and error paths covered
 - [ ] Resilient selectors (data-testid/roles/names)
+- [ ] Invariant-bearing functions have property tests; multi-implementation ports have a conformance suite
 
 ### Quality Gates
 - [ ] Pre-commit hook exists, runs lint/tests/coverage/smoke, and is not stubbed or bypassed
@@ -430,6 +435,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - For performance review checks, see `references/performance-checklist.md`
 - **structural-debt-auditor** — this skill reviews the *diff* (eight axes on the change); structural-debt-auditor reviews the *structure between diffs* (missing abstractions across files). Run both: this one per change, structural-debt on cadence/layer-touch. This skill's Architecture axis ratifies the existing baseline; structural-debt-auditor measures the baseline itself.
 - **project-scaffold** — defines the required gates (start.sh, pre-commit hook, CI) that the Quality-Gate Integrity axis verifies.
+- **design-by-contract** — the contract discipline (preconditions, postconditions, invariants, and the LSP variance rule) applied in the Architecture and Test Quality axes.
 
 ## Common Rationalizations
 
