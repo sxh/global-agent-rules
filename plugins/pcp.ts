@@ -26,6 +26,7 @@ import { decideStart } from "../pcp/pcp_start.js";
 import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
 import { runReorder } from "../pcp/pcp_reorder.js";
+import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
 
 // Tool classification and commit-trailer parsing live in pcp/ — a top-level plugins/*.ts may
@@ -637,58 +638,33 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
       }),
 
       pcp_status: tool({
-        description: "View the current task stack, queue, project baseline, and backlog status.",
-        args: {},
-        async execute(_args, context) {
+        description:
+          "View PCP state. `view: tasks` (default) shows the active stack, queue and a backlog " +
+          "count; `view: backlog` lists pending backlog items; `view: history` lists completed " +
+          "sprints, in-progress tasks, queue and the full backlog. `pcp_backlog` and " +
+          "`pcp_history` remain as aliases.",
+        args: {
+          view: tool.schema
+            .string()
+            .optional()
+            .describe("tasks (default) | backlog | history"),
+          limit: tool.schema
+            .number()
+            .optional()
+            .describe("For view: history — max completed sprints to show (default 20)"),
+        },
+        async execute({ view = "tasks", limit = 20 }, context) {
           const dir = context.directory;
-          const stack = readStack(dir);
-          const projectCtx = readProjectContext(dir);
-          const lines: string[] = [];
-
-          if (projectCtx) lines.push(`[Project] ${projectCtx}`);
-
-          if (!stack.active_task_id) {
-            lines.push("No active task.");
-            if (stack.ready_tasks.length > 0) {
-              lines.push(`\n⏳ ${stack.ready_tasks.length} queued task(s) waiting:`);
-              for (const t of stack.ready_tasks) {
-                lines.push(`  ${t.id}: ${t.title}`);
-              }
-            }
-            const pending = getPendingBacklog(dir);
-            if (pending.length > 0) {
-              lines.push(`📋 Backlog has ${pending.length} item(s) pending review; see pcp_backlog.`);
-            }
-            lines.push(`\n💡 Suggestion: have the planner lay out tasks, then load them with pcp_plan.`);
-            return lines.join("\n");
+          if (view === "backlog") return renderBacklog(getPendingBacklog(dir));
+          if (view === "history") {
+            return renderHistory(replayEvents(dir), readStack(dir), replayBacklog(dir), limit);
           }
-
-          const tasks = replayEvents(dir);
-          lines.push("Current task stack:");
-
-          for (let i = 0; i < stack.active_stack.length; i++) {
-            const id = stack.active_stack[i];
-            const task = getTask(tasks, id);
-            const isCurrent = id === stack.active_task_id;
-            const prefix = i === 0 ? "[main]" : "[sub]";
-            lines.push(
-              `  ${prefix} ${id} ${task?.title ?? id}${isCurrent ? "  ← current" : ""}`,
-            );
-          }
-
-          if (stack.ready_tasks.length > 0) {
-            lines.push(`\n⏳ Queue (${stack.ready_tasks.length}):`);
-            for (const t of stack.ready_tasks) {
-              lines.push(`  ${t.id}: ${t.title}`);
-            }
-          }
-
-          const pending = getPendingBacklog(dir);
-          if (pending.length > 0) {
-            lines.push(`📋 Backlog: ${pending.length} item(s) pending review`);
-          }
-
-          return lines.join("\n");
+          return renderTasks(
+            readStack(dir),
+            replayEvents(dir),
+            readProjectContext(dir),
+            getPendingBacklog(dir),
+          );
         },
       }),
 
@@ -766,20 +742,10 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
       }),
 
       pcp_backlog: tool({
-        description: "View all pending items in the backlog.",
+        description: "View all pending items in the backlog. Alias for pcp_status with view: backlog.",
         args: {},
         async execute(_args, context) {
-          const dir = context.directory;
-          const pending = getPendingBacklog(dir);
-
-          if (pending.length === 0) return "📋 Backlog is empty.";
-
-          const lines = [`📋 Backlog (${pending.length}):`];
-          for (const item of pending) {
-            lines.push(`  ${item.id}: ${item.title}`);
-            if (item.detail) lines.push(`       ${item.detail}`);
-          }
-          return lines.join("\n");
+          return renderBacklog(getPendingBacklog(context.directory));
         },
       }),
 
@@ -891,7 +857,9 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
       }),
 
       pcp_history: tool({
-        description: "View all historical sprints (completed + in progress) and the full backlog record.",
+        description:
+          "View all historical sprints (completed + in progress) and the full backlog record. " +
+          "Alias for pcp_status with view: history.",
         args: {
           limit: tool.schema
             .number()
@@ -900,67 +868,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
         },
         async execute({ limit = 20 }, context) {
           const dir = context.directory;
-          const tasks = replayEvents(dir);
-          const backlog = replayBacklog(dir);
-          const stack = readStack(dir);
-
-          const lines: string[] = [];
-
-          // Completed main sprints
-          const done = tasks
-            .filter((t) => t.done && t.type === "main")
-            .slice(-limit);
-          if (done.length > 0) {
-            lines.push("=== Completed sprints ===");
-            for (const t of done) {
-              const isPivoted = (t as any).pivoted;
-              const pivotReason = (t as any).pivot_reason;
-              const icon = isPivoted ? "🔄" : "✅";
-              const suffix = isPivoted && pivotReason ? `  (pivot: ${pivotReason})` : "";
-              lines.push(`  ${icon} ${t.id}  ${t.title}${suffix}`);
-            }
-          }
-
-          // Active stack
-          if (stack.active_task_id) {
-            lines.push("\n=== In progress ===");
-            for (let i = 0; i < stack.active_stack.length; i++) {
-              const id = stack.active_stack[i];
-              const t = getTask(tasks, id);
-              const isCurrent = id === stack.active_task_id;
-              const prefix = i === 0 ? "[main]" : "[sub]";
-              lines.push(
-                `  📌 ${prefix} ${id}  ${t?.title ?? id}${isCurrent ? "  ← current" : ""}`,
-              );
-            }
-          }
-
-          // Ready queue
-          if (stack.ready_tasks.length > 0) {
-            lines.push("\n=== Queue ===");
-            for (const t of stack.ready_tasks) {
-              lines.push(`  ⏳ ${t.id}  ${t.title}`);
-            }
-          }
-
-          // Full backlog
-          if (backlog.length > 0) {
-            lines.push("\n=== Backlog ===");
-            for (const item of backlog) {
-              const icon =
-                item.status === "pending" ? "📝" :
-                item.status === "promoted" ? "📦" :
-                item.status === "done" ? "✅" : "❌";
-              const suffix =
-                item.status === "promoted" ? ` → added to ${item.promoted_to}` :
-                item.status === "done" ? " (done)" :
-                item.status === "dismissed" ? " (dismissed)" : "";
-              lines.push(`  ${icon} ${item.id}  ${item.title}${suffix}`);
-            }
-          }
-
-          if (lines.length === 0) return "No records yet.";
-          return lines.join("\n");
+          return renderHistory(replayEvents(dir), readStack(dir), replayBacklog(dir), limit);
         },
       }),
     },
