@@ -25,8 +25,7 @@ import { isWriteTool, isBashTool } from "../pcp/tool_classify.js";
 import { decideStart } from "../pcp/pcp_start.js";
 import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
-import { decideReorder, reorderOutcome } from "../pcp/pcp_reorder.js";
-import type { ReorderAnchor } from "../pcp/pcp_reorder.js";
+import { runReorder } from "../pcp/pcp_reorder.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
 
 // Tool classification and commit-trailer parsing live in pcp/ — a top-level plugins/*.ts may
@@ -837,31 +836,17 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           before: tool.schema.string().optional().describe("Move directly before this ready task id"),
           after: tool.schema.string().optional().describe("Move directly after this ready task id"),
         },
-        async execute({ id, top, position, before, after }, context) {
+        async execute(args, context) {
           const dir = context.directory;
           ensureDir(dir);
           const stack = readStack(dir);
-
-          const anchors = [top, position, before, after].filter((value) => value !== undefined);
-          if (anchors.length !== 1) {
-            return "❌ Specify exactly one anchor: top, position, before, or after.";
-          }
-
-          let anchor: ReorderAnchor;
-          if (top) anchor = { kind: "top" };
-          else if (position !== undefined) anchor = { kind: "position", position };
-          else if (before !== undefined) anchor = { kind: "before", id: before };
-          else if (after !== undefined) anchor = { kind: "after", id: after };
-          else return "❌ Specify exactly one anchor: top, position, before, or after.";
-
-          const decision = decideReorder(stack, id, anchor);
-          if (decision.kind === "reorder") {
-            stack.ready_tasks = decision.order;
-            writeStack(dir, stack);
-            appendWorklog(dir, `↕️ Reordered [${id}] in the ready queue`);
-          }
-
-          return reorderOutcome(decision, id);
+          return runReorder(stack, args, {
+            writeOrder: (order) => {
+              stack.ready_tasks = order;
+              writeStack(dir, stack);
+            },
+            log: (message) => appendWorklog(dir, message),
+          });
         },
       }),
 

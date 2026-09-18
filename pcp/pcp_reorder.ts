@@ -98,3 +98,54 @@ export function reorderOutcome(decision: ReorderDecision, taskId: string): strin
       return `❌ Position ${decision.position} is out of range (1..queue length).`;
   }
 }
+
+export interface ReorderArgs {
+  id: string;
+  top?: boolean;
+  position?: number;
+  before?: string;
+  after?: string;
+}
+
+// Exactly one anchor must be present; `top: false` counts as absent.
+export function anchorFromArgs(args: ReorderArgs): ReorderAnchor | null {
+  const present = [
+    args.top === true,
+    args.position !== undefined,
+    args.before !== undefined,
+    args.after !== undefined,
+  ].filter(Boolean).length;
+  if (present !== 1) return null;
+
+  if (args.top === true) return { kind: "top" };
+  if (args.position !== undefined) return { kind: "position", position: args.position };
+  if (args.before !== undefined) return { kind: "before", id: args.before };
+  return { kind: "after", id: args.after ?? "" };
+}
+
+export interface ReorderEffects {
+  writeOrder(order: ReadyTask[]): void;
+  log(message: string): void;
+}
+
+// Orchestrates the handler: parse args, decide, apply. Effects are injected so the queue
+// write and audit log are observable in tests without importing the plugin or touching a
+// real .opencode/pcp directory. Never mutates the stack it is given.
+export function runReorder(
+  stack: Pick<Stack, "active_task_id" | "ready_tasks">,
+  args: ReorderArgs,
+  effects: ReorderEffects,
+): string {
+  const anchor = anchorFromArgs(args);
+  if (!anchor) {
+    return "❌ Specify exactly one anchor: top, position, before, or after.";
+  }
+
+  const decision = decideReorder(stack, args.id, anchor);
+  if (decision.kind === "reorder") {
+    effects.writeOrder(decision.order);
+    effects.log(`↕️ Reordered [${args.id}] in the ready queue`);
+  }
+
+  return reorderOutcome(decision, args.id);
+}
