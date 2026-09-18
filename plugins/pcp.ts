@@ -23,6 +23,7 @@ import type { ProjectData, Stack, Task } from "./state.js";
 import { commitTrailerSource } from "./commit_ref.js";
 import { decideStart } from "./pcp_start.js";
 import { decidePromote } from "./pcp_promote.js";
+import { decideRename, renameOutcome } from "./pcp_rename.js";
 import { PCP_RULE } from "./pcp_rule.js";
 
 // ──────────────────────────────────────────────
@@ -479,6 +480,32 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           writeStack(dir, stack);
 
           return `✅ Subtask [${id}] started: ${title}\n\nAfter git commit it returns to the main line automatically`;
+        },
+      }),
+
+      // PCP_RENAME_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
+      pcp_rename: tool({
+        description:
+          "Rename a task. Defaults to the active task; pass `id` to rename another (e.g. a " +
+          "mis-named auto-created task). The new title is required and must be non-empty.",
+        args: {
+          id: tool.schema
+            .string()
+            .optional()
+            .describe("Optional: task id to rename (defaults to the active task)"),
+          title: tool.schema.string().describe("New task title"),
+        },
+        async execute({ id, title }, context) {
+          const dir = context.directory;
+          ensureDir(dir);
+          const stack = readStack(dir);
+          const tasks = replayEvents(dir);
+
+          const decision = decideRename(tasks, id ?? null, stack.active_task_id, title);
+          const { event, message } = renameOutcome(decision);
+          if (event) appendEvent(dir, { ...event, ts: Date.now() });
+
+          return message;
         },
       }),
 

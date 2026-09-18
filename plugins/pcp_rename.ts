@@ -8,7 +8,7 @@
 // Target resolution runs before title validation: a bad id must be reported as
 // an unknown task rather than masked by an empty title.
 
-import type { Task } from "./state.js";
+import type { PcpEvent, Task } from "./state.js";
 
 export type RenameDecision =
   | { kind: "rename"; id: string; title: string }
@@ -36,4 +36,34 @@ export function decideRename(
   }
 
   return { kind: "rename", id: targetId, title };
+}
+
+export interface RenameOutcome {
+  event: Omit<PcpEvent, "ts"> | null;
+  message: string;
+}
+
+export function renameOutcome(decision: RenameDecision): RenameOutcome {
+  switch (decision.kind) {
+    case "rename":
+      return {
+        event: { e: "renamed", id: decision.id, title: decision.title },
+        message: `✅ Renamed [${decision.id}] to: ${decision.title}`,
+      };
+    case "no-task":
+      return {
+        event: null,
+        message: "❌ No active task to rename. Pass an explicit id.",
+      };
+    case "unknown-task":
+      return {
+        event: null,
+        message: `❌ No task [${decision.id}] to rename.`,
+      };
+    case "empty-title":
+      return {
+        event: null,
+        message: "❌ A rename needs a non-empty title.",
+      };
+  }
 }

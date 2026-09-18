@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideRename } from '../pcp_rename.ts';
+import { decideRename, renameOutcome } from '../pcp_rename.ts';
+import { applyTaskEvents } from '../task_state.ts';
 
 const tasks = [
   { id: 'T001', type: 'main', title: 'first', done: false },
@@ -69,4 +70,34 @@ test('does not mutate the tasks it is given', () => {
   const snapshot = structuredClone(tasks);
   decideRename(tasks, null, 'T001', 'changed');
   assert.deepEqual(tasks, snapshot);
+});
+
+test('a rename decision yields the event to append and a confirmation', () => {
+  const decision = decideRename(tasks, null, 'T001', 'new title');
+  assert.deepEqual(renameOutcome(decision), {
+    event: { e: 'renamed', id: 'T001', title: 'new title' },
+    message: '✅ Renamed [T001] to: new title',
+  });
+});
+
+test('blocked decisions append nothing and explain why', () => {
+  const blocked = [
+    [{ kind: 'no-task' }, '❌ No active task to rename. Pass an explicit id.'],
+    [{ kind: 'unknown-task', id: 'T999' }, '❌ No task [T999] to rename.'],
+    [{ kind: 'empty-title' }, '❌ A rename needs a non-empty title.'],
+  ];
+  for (const [decision, message] of blocked) {
+    assert.deepEqual(renameOutcome(decision), { event: null, message });
+  }
+});
+
+test('the emitted event round-trips through the task replay', () => {
+  // Contract: whatever renameOutcome hands the handler must actually rename the
+  // task once applied to the event log.
+  const { event } = renameOutcome({ kind: 'rename', id: 'T001', title: 'renamed' });
+  const replayed = applyTaskEvents([
+    { e: 'created', id: 'T001', type: 'main', title: 'original', ts: 1 },
+    { ...event, ts: 2 },
+  ]);
+  assert.equal(replayed[0].title, 'renamed');
 });
