@@ -17,9 +17,11 @@ export function renderTasks(
   tasks: Task[],
   projectContext: string | null,
   pending: BacklogItem[],
+  lastEvent: string | null = null,
 ): string {
   const lines: string[] = [];
   if (projectContext) lines.push(`[Project] ${projectContext}`);
+  if (lastEvent) lines.push(`🕐 Last: ${lastEvent}`);
 
   if (!stack.active_task_id) {
     lines.push("No active task.");

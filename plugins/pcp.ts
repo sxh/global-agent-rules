@@ -9,6 +9,7 @@ import {
   ensureDir,
   getPendingBacklog,
   getTask,
+  readEventLog,
   readProjectContext,
   readProjectMd,
   readStack,
@@ -28,6 +29,7 @@ import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
 import { runReorder } from "../pcp/pcp_reorder.js";
 import { decideBacklogAction } from "../pcp/backlog_state.js";
 import { decideTaskDone } from "../pcp/pcp_done.js";
+import { lastEventSummary } from "../pcp/task_state.js";
 import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
 
@@ -668,6 +670,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
             replayEvents(dir),
             readProjectContext(dir),
             getPendingBacklog(dir),
+            lastEventSummary(readEventLog(dir)),
           );
         },
       }),

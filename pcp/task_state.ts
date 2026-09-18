@@ -76,3 +76,9 @@ export function formatEventSummary(event: PcpEvent): string {
       return event.e;
   }
 }
+
+// E1/B014: the most recent event, summarised for the status view.
+export function lastEventSummary(events: PcpEvent[]): string | null {
+  if (events.length === 0) return null;
+  return formatEventSummary(events[events.length - 1]);
+}
