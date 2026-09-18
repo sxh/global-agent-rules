@@ -27,3 +27,13 @@ export function commitTrailerSource(
   }
   return parts.join("\n");
 }
+
+// Extract the `PCP-Task: T###` trailer from commit text (command plus any -F file contents).
+//
+// The plugin auto-closes a task only when the commit names it explicitly via this trailer;
+// without a matching reference the active task is left unchanged, so an unrelated commit
+// cannot silently advance (or mis-attribute) the queue (B088 / PCP_TASK_BINDING_FIX).
+export function parsePcpTaskRef(cmd: string): { id: string } | null {
+  const m = /PCP-Task:\s*(T\d+)/i.exec(cmd);
+  return m ? { id: m[1] } : null;
+}

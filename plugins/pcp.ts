@@ -20,28 +20,17 @@ import {
   writeStack,
 } from "../pcp/state.js";
 import type { ProjectData, Stack, Task } from "../pcp/state.js";
-import { commitTrailerSource } from "../pcp/commit_ref.js";
+import { commitTrailerSource, parsePcpTaskRef } from "../pcp/commit_ref.js";
+import { isWriteTool, isBashTool } from "../pcp/tool_classify.js";
 import { decideStart } from "../pcp/pcp_start.js";
 import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
 
-// ──────────────────────────────────────────────
-// Tool name classifiers
-// ──────────────────────────────────────────────
-
-const WRITE_PATTERNS = ["write", "edit", "patch", "create", "apply"];
-const BASH_PATTERNS  = ["bash", "shell", "exec", "run", "terminal"];
-
-export function isWriteTool(name: string): boolean {
-  const n = name.toLowerCase();
-  return WRITE_PATTERNS.some((p) => n.includes(p));
-}
-
-export function isBashTool(name: string): boolean {
-  const n = name.toLowerCase();
-  return BASH_PATTERNS.some((p) => n.includes(p));
-}
+// Tool classification and commit-trailer parsing live in pcp/ — a top-level plugins/*.ts may
+// export only plugin factories, because opencode invokes every export as a plugin factory
+// (see scripts/check-contract.sh section 8). isWriteTool/isBashTool are in
+// pcp/tool_classify.ts; parsePcpTaskRef is in pcp/commit_ref.ts.
 
 // PCP_TASK_BINDING_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
 // Fallback closure path. The preferred path (B077/P4) is to call pcp_done before the closing
@@ -49,10 +38,6 @@ export function isBashTool(name: string): boolean {
 // only auto-closes a task when the commit names it explicitly via a `PCP-Task: T###` trailer.
 // Without a matching reference the queue is left unchanged, so an unrelated commit can no longer
 // silently advance (or mis-attribute) the active task.
-export function parsePcpTaskRef(cmd: string): { id: string } | null {
-  const m = /PCP-Task:\s*(T\d+)/i.exec(cmd);
-  return m ? { id: m[1] } : null;
-}
 
 // ──────────────────────────────────────────────
 // Context builders (token budget: ≤3 / ≤5 lines)
