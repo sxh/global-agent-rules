@@ -134,6 +134,7 @@ For each gate, in this review:
 
 - Verify existence by **reading the artefact** (hook script, workflow YAML, config file) — never the README or a claim in the description.
 - Verify it **actually gates**: a hook that is present but stubbed (`echo 'disabled'`), a workflow that never triggers, or a threshold set below the current measurement is a finding, not a pass.
+- Verify the gate's **failure path**: inject the failure it exists to catch and confirm a non-zero exit. A gate that only ever passes is untested — a coverage runner that discarded its test runner's error result reported a passing total while the suite had been cancelled.
 - Verify the config **resolves in a pristine checkout** — referenced files are committed, not gitignored generated output.
 - Where a gate is **absent**, the absence must be an explicit, user-approved exclusion recorded in the project. Silent absence is a Required finding.
 - A gate that is **disabled with intent to re-enable** needs a re-enable path and an owner. "Temporarily disabled" left in place is a finding, not a note.
