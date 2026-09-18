@@ -1,0 +1,7 @@
+{
+  "next_id": 2,
+  "backlog_next_id": 1,
+  "active_stack": ["T001"],
+  "active_task_id": "T001",
+  "ready_tasks": []
+}

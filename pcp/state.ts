@@ -3,6 +3,7 @@ import * as path from "node:path";
 
 import { applyBacklogEvents, pendingBacklog } from "./backlog_state.js";
 import { applyTaskEvents, formatEventSummary } from "./task_state.js";
+import { emptyStack, parseStack } from "./stack_state.js";
 
 export interface Stack {
   next_id: number;
@@ -90,15 +91,12 @@ export function ensureDir(dir: string): void {
 export function readStack(dir: string): Stack {
   const p = path.join(pcpDir(dir), "stack.json");
   if (!fs.existsSync(p)) {
-    return { next_id: 1, backlog_next_id: 1, active_stack: [], active_task_id: null, ready_tasks: [] };
+    return emptyStack();
   }
   try {
-    const s = JSON.parse(fs.readFileSync(p, "utf8")) as Stack;
-    if (s.backlog_next_id === undefined) s.backlog_next_id = 1;
-    if (s.ready_tasks === undefined) s.ready_tasks = [];
-    return s;
+    return parseStack(fs.readFileSync(p, "utf8"));
   } catch {
-    return { next_id: 1, backlog_next_id: 1, active_stack: [], active_task_id: null, ready_tasks: [] };
+    return emptyStack();
   }
 }
 

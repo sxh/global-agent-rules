@@ -1,0 +1,11 @@
+{
+  "next_id": 157,
+  "backlog_next_id": 82,
+  "active_stack": ["T150"],
+  "active_task_id": "T150",
+  "ready_tasks": [
+    { "id": "T151", "title": "Queued A" },
+    { "id": "T152", "title": "Queued B" }
+  ],
+  "last_done_ts": 1789734677368
+}
