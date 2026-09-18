@@ -826,6 +826,27 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
         },
       }),
 
+      pcp_backlog_done: tool({
+        description:
+          "Mark a backlog item done when it was completed outside pcp_promote (e.g. an ad-hoc " +
+          "detour). Unlike pcp_dismiss, this records that the item was actually delivered.",
+        args: {
+          backlog_id: tool.schema.string().describe("Backlog item ID (e.g. B001)"),
+        },
+        async execute({ backlog_id }, context) {
+          const dir = context.directory;
+          ensureDir(dir);
+
+          const backlog = replayBacklog(dir);
+          const item = backlog.find((b) => b.id === backlog_id);
+          if (!item) return `❌ Backlog item ${backlog_id} not found`;
+          if (item.status !== "pending") return `ℹ️ ${backlog_id} is already ${item.status}`;
+
+          appendEvent(dir, { e: "backlog_done", backlog_id, ts: Date.now() });
+          return `✅ [${backlog_id}] marked done: ${item.title}`;
+        },
+      }),
+
       pcp_history: tool({
         description: "View all historical sprints (completed + in progress) and the full backlog record.",
         args: {
@@ -885,9 +906,11 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
             for (const item of backlog) {
               const icon =
                 item.status === "pending" ? "📝" :
-                item.status === "promoted" ? "✅" : "❌";
+                item.status === "promoted" ? "📦" :
+                item.status === "done" ? "✅" : "❌";
               const suffix =
                 item.status === "promoted" ? ` → added to ${item.promoted_to}` :
+                item.status === "done" ? " (done)" :
                 item.status === "dismissed" ? " (dismissed)" : "";
               lines.push(`  ${icon} ${item.id}  ${item.title}${suffix}`);
             }

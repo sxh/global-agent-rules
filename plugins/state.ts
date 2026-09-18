@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { applyBacklogEvents, pendingBacklog } from "./backlog_state.js";
+
 export interface Stack {
   next_id: number;
   backlog_next_id: number;
@@ -20,6 +22,7 @@ export interface PcpEvent {
     | "project_context"
     | "backlog_add"
     | "backlog_promote"
+    | "backlog_done"
     | "backlog_dismiss";
   id?: string;
   type?: "main" | "sub";
@@ -49,7 +52,7 @@ export interface BacklogItem {
   id: string;
   title: string;
   detail?: string;
-  status: "pending" | "promoted" | "dismissed";
+  status: "pending" | "promoted" | "done" | "dismissed";
   promoted_to?: string;
 }
 
@@ -244,33 +247,11 @@ export function replayEvents(dir: string): Task[] {
 }
 
 export function replayBacklog(dir: string): BacklogItem[] {
-  const items = new Map<string, BacklogItem>();
-
-  for (const event of readEventLog(dir)) {
-    if (event.e === "backlog_add" && event.id) {
-      items.set(event.id, {
-        id: event.id,
-        title: event.title ?? "",
-        detail: event.detail,
-        status: "pending",
-      });
-    } else if (event.e === "backlog_promote" && event.backlog_id) {
-      const item = items.get(event.backlog_id);
-      if (item) {
-        item.status = "promoted";
-        item.promoted_to = event.task_id;
-      }
-    } else if (event.e === "backlog_dismiss" && event.backlog_id) {
-      const item = items.get(event.backlog_id);
-      if (item) item.status = "dismissed";
-    }
-  }
-
-  return Array.from(items.values());
+  return applyBacklogEvents(readEventLog(dir));
 }
 
 export function getPendingBacklog(dir: string): BacklogItem[] {
-  return replayBacklog(dir).filter((item) => item.status === "pending");
+  return pendingBacklog(replayBacklog(dir));
 }
 
 export function getTask(tasks: Task[], id: string): Task | undefined {
@@ -419,6 +400,8 @@ function formatEventSummary(event: PcpEvent): string {
       return `Logged backlog [${event.id}] ${event.title ?? ""}`.trim();
     case "backlog_promote":
       return `Promoted backlog [${event.backlog_id}] into task [${event.task_id}]`;
+    case "backlog_done":
+      return `Marked backlog [${event.backlog_id}] done`;
     case "backlog_dismiss":
       return `Dismissed backlog [${event.backlog_id}]`;
     default:
