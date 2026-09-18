@@ -93,6 +93,26 @@ if [ -f "$ROOT/plugins/tsconfig.json" ]; then
   fi
 fi
 
+# --- 7. Skill script test suites ---
+# Skills ship testable Node scripts (e.g. the structural-debt scanner). Run their
+# suites so a broken skill script fails the gate instead of drifting unnoticed.
+# SKILLS_DIR is overridable so scripts/check-contract.test.sh can exercise this.
+SKILLS_DIR="${SKILLS_DIR:-$ROOT/skills}"
+SKILL_TEST_COUNT="$(find "$SKILLS_DIR" -path '*/test/*.test.mjs' 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$SKILL_TEST_COUNT" -gt 0 ]; then
+  if out="$(find "$SKILLS_DIR" -path '*/test/*.test.mjs' -print0 2>/dev/null \
+      | xargs -0 node --test --experimental-test-coverage 2>&1)"; then
+    cov="$(printf '%s\n' "$out" | awk -F'|' '/all files/ {gsub(/ /, "", $2); print $2; exit}')"
+    echo "skills: $SKILL_TEST_COUNT test file(s) passed (coverage ${cov:-n/a}% lines)"
+  else
+    echo "FAIL: skill test suites failed"
+    printf '%s\n' "$out" | tail -30
+    fail=1
+  fi
+else
+  echo "skills: no test files found"
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "contract check FAILED"
   exit 1
