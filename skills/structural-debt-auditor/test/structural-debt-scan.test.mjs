@@ -93,6 +93,19 @@ test('ignores node_modules, test, and benchmark files by default', () => {
     }
 });
 
+test('ignores Gleam test files (*_test.gleam) by default', () => {
+    const dir = makeFixture({
+        'test/scale_alerts/a_test.gleam': 'pub fn main() {\n  gleeunit.main()\n}',
+        'test/scale_alerts/b_test.gleam': 'pub fn main() {\n  gleeunit.main()\n}',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'Gleam test files are not production declarations');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('reports per-candidate file paths and a reason', () => {
     const dir = makeFixture({
         'src/x.ts': 'export const LIMIT = 10;',
