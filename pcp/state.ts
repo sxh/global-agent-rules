@@ -3,7 +3,7 @@ import * as path from "node:path";
 
 import { applyBacklogEvents, pendingBacklog } from "./backlog_state.js";
 import { applyTaskEvents, formatEventSummary } from "./task_state.js";
-import { emptyStack, parseStack } from "./stack_state.js";
+import { parseStackStrict, recoverStackFromEvents } from "./stack_state.js";
 
 export interface Stack {
   next_id: number;
@@ -90,13 +90,14 @@ export function ensureDir(dir: string): void {
 
 export function readStack(dir: string): Stack {
   const p = path.join(pcpDir(dir), "stack.json");
+  const recover = () => recoverStackFromEvents(replayEvents(dir));
   if (!fs.existsSync(p)) {
-    return emptyStack();
+    return recover();
   }
   try {
-    return parseStack(fs.readFileSync(p, "utf8"));
+    return parseStackStrict(fs.readFileSync(p, "utf8")) ?? recover();
   } catch {
-    return emptyStack();
+    return recover();
   }
 }
 
