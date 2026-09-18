@@ -76,25 +76,10 @@ if [ -f "$INCIDENTS" ]; then
   echo "incidents: $leaks untagged rule-bearing entr(ies) — see the Effectiveness Audit step"
 fi
 
-# --- 5. Local patches to vendored files must survive a re-download ---
-# plugins/pcp.ts is installed by curl from the pcp-skills repo; re-running that installer silently
-# drops local patches. Each patch marks itself with a token, and this check fails if one vanishes.
-while IFS=: read -r vfile vmarker; do
-  [ -z "${vfile:-}" ] && continue
-  [ -f "$ROOT/$vfile" ] || continue
-  if grep -q "$vmarker" "$ROOT/$vfile"; then
-    echo "vendored: $vfile carries $vmarker"
-  else
-    echo "FAIL: $vfile is missing $vmarker (re-downloaded?) — re-apply the local patch"
-    fail=1
-  fi
-done <<'VENDORED'
-plugins/pcp.ts:PCP_CACHE_FIX
-plugins/pcp.ts:PCP_TASK_BINDING_FIX
-plugins/pcp.ts:PCP_COMMIT_FILE_FIX
-plugins/pcp.ts:PCP_PROMOTE_ENQUEUE_FIX
-plugins/pcp.ts:PCP_RENAME_FIX
-VENDORED
+# --- 5. (retired) vendored-patch markers ---
+# plugins/pcp.ts was forked from pcp-skills on 2026-09-18 and is now owned here; there is no
+# upstream re-download to guard against, so the PCP_*_FIX marker check was removed. See
+# docs/pcp-recovery.md ("Ownership").
 
 # --- 6. Type-check the TypeScript plugins (`bun test` only transpiles them) ---
 if [ -f "$ROOT/plugins/tsconfig.json" ]; then

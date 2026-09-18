@@ -33,7 +33,7 @@ import { PCP_RULE } from "../pcp/pcp_rule.js";
 // (see scripts/check-contract.sh section 8). isWriteTool/isBashTool are in
 // pcp/tool_classify.ts; parsePcpTaskRef is in pcp/commit_ref.ts.
 
-// PCP_TASK_BINDING_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
+// PCP_TASK_BINDING_FIX (forked locally; not re-downloaded):
 // Fallback closure path. The preferred path (B077/P4) is to call pcp_done before the closing
 // commit, which writes the PCP state so it can be staged into that same commit. This hook then
 // only auto-closes a task when the commit names it explicitly via a `PCP-Task: T###` trailer.
@@ -46,7 +46,7 @@ import { PCP_RULE } from "../pcp/pcp_rule.js";
 
 // PCP behavioral rule — always injected to ALL agents via system.transform.
 //
-// PCP_CACHE_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
+// PCP_CACHE_FIX (forked locally; not re-downloaded):
 // This rule is the ONLY thing injected into the system prompt. It is a constant, so the system
 // array is byte-identical on every request and llama.cpp's prompt cache stays warm for the whole
 // session. Volatile state used to be appended alongside it, which put changing values at the very
@@ -469,7 +469,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
         },
       }),
 
-      // PCP_RENAME_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
+      // PCP_RENAME_FIX (forked locally; not re-downloaded):
       pcp_rename: tool({
         description:
           "Rename a task. Defaults to the active task; pass `id` to rename another (e.g. a " +
@@ -998,7 +998,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
         const dir = await getSessionDir(sessionID);
 
-        // PCP_COMMIT_FILE_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
+        // PCP_COMMIT_FILE_FIX (forked locally; not re-downloaded):
         // `git commit -F <file>` keeps the message out of the command string, so parse
         // the file's contents too; a bare command match misses the trailer and
         // auto-close silently skips (B024).

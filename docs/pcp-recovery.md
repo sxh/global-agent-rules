@@ -5,6 +5,13 @@ the plugin registry malformed and make opencode **unstartable** (the 2026-09-18 
 helper parked in `plugins/` was invoked as a plugin factory). This is the anchor to roll back to
 and the recovery procedure when something goes wrong.
 
+## Ownership
+
+`plugins/pcp.ts` is a **local fork** of the pcp-skills plugin (forked 2026-09-18). It is owned in
+this repo and is **not** re-downloaded. The former `PCP_*_FIX` markers are kept only as labels
+for git history; do not run the upstream installer over this file, as it would drop local work
+(notably `pcp_reorder`).
+
 ## Anchor
 
 - **Git tag:** `pcp-known-good-2026-09-18` → `3f421090443c4ff8564e3a479271a8d4976a1438`
