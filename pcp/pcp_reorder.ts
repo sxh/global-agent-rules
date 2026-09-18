@@ -87,11 +87,11 @@ export function reorderOutcome(decision: ReorderDecision, taskId: string): strin
     case "reorder":
       return `↕️ Moved [${taskId}].\nQueue: ${decision.order.map((task) => task.id).join(", ")}`;
     case "no-sprint":
-      return "❌ No active sprint to reorder; call pcp_start to begin one first.";
+      return "❌ No active sprint. Begin one with pcp_start, then retry.";
     case "unknown-task":
-      return `❌ No ready task [${decision.id}] to reorder.`;
+      return `❌ No ready task [${decision.id}] to reorder. Check pcp_status for queued ids.`;
     case "unknown-anchor":
-      return `❌ No ready task [${decision.id}] to position against.`;
+      return `❌ No ready task [${decision.id}] to position against. Check pcp_status for queued ids.`;
     case "same-anchor":
       return `❌ [${decision.id}] cannot be positioned against itself.`;
     case "bad-position":

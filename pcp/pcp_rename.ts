@@ -53,12 +53,12 @@ export function renameOutcome(decision: RenameDecision): RenameOutcome {
     case "no-task":
       return {
         event: null,
-        message: "❌ No active task to rename. Pass an explicit id.",
+        message: "❌ No active task to rename. Pass an explicit id, or start one with pcp_plan.",
       };
     case "unknown-task":
       return {
         event: null,
-        message: `❌ No task [${decision.id}] to rename.`,
+        message: `❌ No task [${decision.id}] to rename. Check pcp_status for valid ids.`,
       };
     case "empty-title":
       return {

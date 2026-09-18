@@ -68,6 +68,7 @@ test('runReorder writes nothing for an unknown task', () => {
   const message = runReorder(stack(), { id: 'T999', top: true }, sp);
   assert.equal(sp.calls.length, 0);
   assert.match(message, /No ready task \[T999\]/);
+  assert.match(message, /pcp_status/);
 });
 
 test('runReorder writes nothing without an active sprint', () => {

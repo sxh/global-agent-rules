@@ -82,8 +82,8 @@ test('a rename decision yields the event to append and a confirmation', () => {
 
 test('blocked decisions append nothing and explain why', () => {
   const blocked = [
-    [{ kind: 'no-task' }, '❌ No active task to rename. Pass an explicit id.'],
-    [{ kind: 'unknown-task', id: 'T999' }, '❌ No task [T999] to rename.'],
+    [{ kind: 'no-task' }, '❌ No active task to rename. Pass an explicit id, or start one with pcp_plan.'],
+    [{ kind: 'unknown-task', id: 'T999' }, '❌ No task [T999] to rename. Check pcp_status for valid ids.'],
     [{ kind: 'empty-title' }, '❌ A rename needs a non-empty title.'],
   ];
   for (const [decision, message] of blocked) {

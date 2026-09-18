@@ -28,6 +28,7 @@ import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
 import { runReorder } from "../pcp/pcp_reorder.js";
 import { decideBacklogAction } from "../pcp/backlog_state.js";
+import { noActiveSprint, noActiveTask } from "../pcp/guidance.js";
 import { decideTaskDone } from "../pcp/pcp_done.js";
 import { lastEventSummary } from "../pcp/task_state.js";
 import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
@@ -514,7 +515,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           ensureDir(dir);
           const stack = readStack(dir);
 
-          if (!stack.active_task_id) return "❌ No active task";
+          if (!stack.active_task_id) return noActiveTask();
 
           const doneId = stack.active_task_id;
           const tasks = replayEvents(dir);
@@ -596,7 +597,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           ensureDir(dir);
           const stack = readStack(dir);
 
-          if (!stack.active_task_id) return "❌ No active task";
+          if (!stack.active_task_id) return noActiveTask();
 
           const pivotId = stack.active_task_id;
           const tasks = replayEvents(dir);
@@ -775,7 +776,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           // active. Enqueuing preserves FIFO order and works at any depth.
           const decision = decidePromote(stack);
           if (decision.kind === "no-sprint") {
-            return `❌ No active sprint; call pcp_start to begin one first`;
+            return noActiveSprint();
           }
 
           const action = decideBacklogAction(replayBacklog(dir), backlog_id);
