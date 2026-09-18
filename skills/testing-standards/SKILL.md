@@ -58,6 +58,10 @@ Before changing behavior at a shared seam (a command type, an error message, a d
 
 When an action mutates a data structure, assert the specific field that changed — not merely that the action returned successfully. A test proving a delete removes from the intended collection (and not a sibling collection) is the difference between a guard and a formality.
 
+### Prove a Mechanical Move Is Lossless
+
+When moving code between files (extracting a module, splitting a test file, relocating helpers), prove the move by equality before trusting the suite: assert the moved block is byte-identical to its source and that the set of declared names is preserved (no additions, removals, or duplicates). A green suite alone can hide a silently dropped case or a stale import; the compiler's warnings, not textual occurrence counts, identify unused imports. In the 2026-09-18 B017 split, seven moves each passed a byte-identity assertion plus a test-name multiset check (126 = 126) before the gates ran.
+
 ### Prove a Characterization Guard Can Fail
 
 A test written against already-correct behaviour — a regression guard, a migration equivalence check, a snapshot of existing behaviour — cannot produce a RED, so its green is not evidence that it guards anything. After writing it, deliberately break the thing it protects (a one-line mutation of the production path) and confirm the test fails, then revert and confirm green. A 2026-09-18 URL-identity guard over captured scraper URLs only became meaningful once changing the product-row URL path from `/product/` to `/products/` made it fail.
