@@ -116,3 +116,17 @@ type — `.md` → convert to PDF with pandoc and give the path; `.json` → for
 - No active task → guide the user to make a plan rather than inventing tasks.
 - After a pivot with no active task, use `pcp_start` to advance the queue head; never mint a
   duplicate task id.
+
+## Queue verbs
+
+The ready queue is FIFO by default, but it can be adjusted:
+
+- `pcp_plan` loads an ordered batch (first task active, rest queued); `pcp_promote` appends a
+  single backlog item to the queue end.
+- `pcp_reorder <id>` moves a **queued** task: `top`, `position` (1-based), `before <id>`, or
+  `after <id>`.
+- `pcp_swap <id>` pauses the active main task (it goes to the queue head) and promotes a queued
+  task in its place; it is refused while a subtask is active.
+- `pcp_demote <id>` removes a queued task and returns its originating backlog item to `pending`.
+
+The **active** task cannot be reordered — use `pcp_swap`, `pcp_done`, or `pcp_pivot`.
