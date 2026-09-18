@@ -16,6 +16,14 @@ CONTRACT="${1:-AGENTS.md}"
 MAX_CONTENT_LINES=200
 fail=0
 
+# check-contract.test.sh overrides these to point at fixtures. Capture that here, before the
+# defaults below are applied, so section 9 can skip the opencode boot in that context only.
+# A real commit-run leaves them unset (section 7 assigns defaults later).
+metal_test=0
+if [ -n "${SKILLS_DIR:-}${PLUGINS_DIR:-}${INCIDENTS_FILE:-}" ]; then
+  metal_test=1
+fi
+
 if [ ! -f "$CONTRACT" ]; then
   echo "FAIL: contract file not found: $CONTRACT"
   exit 1
@@ -145,6 +153,27 @@ while IFS= read -r pfile; do
     esac
   done <<< "$names"
 done < <(find "$PLUGINS_DIR" -maxdepth 1 -type f \( -name '*.ts' -o -name '*.js' \) 2>/dev/null | sort)
+
+# --- 9. Plugin load smoke check ---
+# A plugin that throws at load can leave opencode unstartable (2026-09-18 incident). Boot
+# opencode and assert PCP initialises; also run the checker's own test so a rotted checker
+# fails here instead of silently passing.
+# Skipped when the metal-test overrides were present (captured as metal_test at the top), so
+# check-contract.test.sh does not spawn opencode once per section. A real commit-run sets none.
+if [ "$metal_test" -eq 0 ]; then
+  if [ -f "$ROOT/scripts/smoke-plugin-load.test.sh" ]; then
+    if out="$(bash "$ROOT/scripts/smoke-plugin-load.test.sh" 2>&1)"; then
+      echo "smoke: plugin load check passed (loadable accepted, broken rejected)"
+    else
+      echo "FAIL: plugin load smoke check failed"
+      printf '%s\n' "$out" | tail -20
+      fail=1
+    fi
+  else
+    echo "FAIL: scripts/smoke-plugin-load.test.sh is missing"
+    fail=1
+  fi
+fi
 
 if [ "$fail" -ne 0 ]; then
   echo "contract check FAILED"
