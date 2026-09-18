@@ -1,0 +1,50 @@
+# PCP recovery runbook
+
+The PCP plugin is loaded by opencode at startup. A module that throws while loading can leave
+the plugin registry malformed and make opencode **unstartable** (the 2026-09-18 incident: a pure
+helper parked in `plugins/` was invoked as a plugin factory). This is the anchor to roll back to
+and the recovery procedure when something goes wrong.
+
+## Anchor
+
+- **Git tag:** `pcp-known-good-2026-09-18` → `3f421090443c4ff8564e3a479271a8d4976a1438`
+  (the A0–A2 gate safety net plus the `pcp_reorder` verb — the last verified-good state before
+  the structural refactor).
+- **Off-git backup:** `~/pcp-backups/20260918T151735Z/`
+  - `config/` — `opencode.json`, `plugins/`, `pcp/`, `scripts/`
+  - `live/` — this session's `~/.opencode/pcp/` state
+
+  Off-git on purpose: `git reset --hard` cannot touch it.
+
+## If opencode will not start
+
+1. **Bypass the plugin:** `opencode --pure` starts with no external plugins.
+2. **Disable the plugin:**
+   `mv ~/.config/opencode/plugins/pcp.ts ~/.config/opencode/plugins/pcp.ts.disabled`
+   Then opencode starts with the plugin ignored.
+3. Fix or revert (below), then rename the file back to `pcp.ts`.
+
+## If a change is bad but opencode starts
+
+- One change: `git revert <sha>` in `~/.config/opencode`, then re-run the gate.
+- Rewind to the anchor: `git reset --hard pcp-known-good-2026-09-18`.
+- Restore from the backup if needed, e.g.
+  `cp -R ~/pcp-backups/<ts>/config/plugins/pcp.ts ~/.config/opencode/plugins/`.
+
+## The gate
+
+`bash scripts/check-contract.sh` is the canonical gate. It includes the plugin-load smoke check
+(section 9) and enforces the coverage floor. Run it after any recovery.
+
+## Drill evidence (2026-09-18)
+
+| Step | Command | Result |
+|---|---|---|
+| Escape hatch | `opencode --pure debug info --print-logs` | exit 0, `PCP initialized` × 0 |
+| Disabled plugin | `HOME=<fake> opencode debug info --print-logs` | exit 0, `plugins: none` |
+| Smoke detects it | `SMOKE_HOME=<fake> scripts/smoke-plugin-load.sh` | exit 1, "did not initialise" |
+
+## Maintaining this anchor
+
+Re-point the tag (`git tag -f pcp-known-good-<date>`) and take a fresh backup after each stable
+milestone. Never point it at a commit whose gate has not passed.
