@@ -13,3 +13,7 @@ export function noActiveTask(): string {
 export function noActiveSprint(): string {
   return "❌ No active sprint. Begin one with pcp_start, then retry.";
 }
+
+export function noReadyTask(id: string): string {
+  return `❌ No queued task [${id}]. Check pcp_status for queued ids.`;
+}

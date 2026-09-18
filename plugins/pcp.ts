@@ -28,13 +28,15 @@ import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
 import { runReorder } from "../pcp/pcp_reorder.js";
 import { decideBacklogAction } from "../pcp/backlog_state.js";
-import { noActiveSprint, noActiveTask } from "../pcp/guidance.js";
+import { noActiveSprint, noActiveTask, noReadyTask } from "../pcp/guidance.js";
 import { decideTaskDone } from "../pcp/pcp_done.js";
 import {
   decideAutoCreate,
+  decideDemote,
   decidePivot,
   decidePlan,
   decideSubStart,
+  decideSwap,
 } from "../pcp/task_flow.js";
 import { lastEventSummary } from "../pcp/task_state.js";
 import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
@@ -819,6 +821,71 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
             },
             log: (message) => appendWorklog(dir, message),
           });
+        },
+      }),
+
+      pcp_swap: tool({
+        description:
+          "Pause the active main task and promote a queued task in its place. The paused task " +
+          "moves to the head of the queue. Only allowed when a main task (not a subtask) is active.",
+        args: { id: tool.schema.string().describe("Queued task id to promote into the active slot") },
+        async execute({ id }, context) {
+          const dir = context.directory;
+          ensureDir(dir);
+          const stack = readStack(dir);
+          const activeTitle = stack.active_task_id
+            ? getTask(replayEvents(dir), stack.active_task_id)?.title ?? stack.active_task_id
+            : null;
+
+          const decision = decideSwap(stack, id, activeTitle);
+          if (decision.kind === "no-sprint") return noActiveSprint();
+          if (decision.kind === "nested") {
+            return "❌ Cannot swap while a subtask is active; complete the subtask first.";
+          }
+          if (decision.kind === "unknown-task") return noReadyTask(decision.id);
+          if (decision.kind === "same-task") return `❌ [${id}] is already the active task.`;
+
+          const pausedId = stack.active_task_id ?? "";
+          stack.active_task_id = decision.newActive.id;
+          stack.active_stack = [decision.newActive.id];
+          stack.ready_tasks = decision.order;
+          writeStack(dir, stack);
+          appendWorklog(dir, `🔁 Swapped [${pausedId}] (paused) with [${decision.newActive.id}]`);
+
+          return `🔁 [${decision.newActive.id}] is now active; [${pausedId}] paused at the head of the queue.`;
+        },
+      }),
+
+      pcp_demote: tool({
+        description:
+          "Remove a queued task from the sprint and return its backlog item to pending. " +
+          "Cannot demote the active task (use pcp_done or pcp_swap).",
+        args: { id: tool.schema.string().describe("Queued task id to demote") },
+        async execute({ id }, context) {
+          const dir = context.directory;
+          ensureDir(dir);
+          const stack = readStack(dir);
+
+          const decision = decideDemote(stack, id);
+          if (decision.kind === "no-sprint") return noActiveSprint();
+          if (decision.kind === "unknown-task") return noReadyTask(decision.id);
+          if (decision.kind === "active") {
+            return `❌ [${id}] is the active task; use pcp_done or pcp_swap instead.`;
+          }
+
+          stack.ready_tasks = decision.order;
+          writeStack(dir, stack);
+
+          // Return the originating backlog item to pending, if this task came from one.
+          const item = replayBacklog(dir).find((b) => b.promoted_to === id);
+          if (item) {
+            appendEvent(dir, { e: "backlog_demote", backlog_id: item.id, ts: Date.now() });
+            appendWorklog(dir, `↩️ Demoted [${id}] back to backlog [${item.id}]`);
+            return `↩️ [${id}] removed from the queue; backlog [${item.id}] is pending again.`;
+          }
+
+          appendWorklog(dir, `↩️ Demoted [${id}] (removed from the queue)`);
+          return `↩️ [${id}] removed from the queue.`;
         },
       }),
 

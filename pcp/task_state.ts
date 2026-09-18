@@ -72,6 +72,8 @@ export function formatEventSummary(event: PcpEvent): string {
       return `Marked backlog [${event.backlog_id}] done`;
     case "backlog_dismiss":
       return `Dismissed backlog [${event.backlog_id}]`;
+    case "backlog_demote":
+      return `Returned backlog [${event.backlog_id}] to pending`;
     default:
       return event.e;
   }

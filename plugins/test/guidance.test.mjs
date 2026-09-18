@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { noActiveTask, noActiveSprint } from '../../pcp/guidance.ts';
+import { noActiveTask, noActiveSprint, noReadyTask } from '../../pcp/guidance.ts';
 
 // E2/B015: a blocked action must name a concrete next step, so a user who hits "no active task"
 // is not left stuck. NEXT_STEP is any PCP verb that unblocks them.
@@ -12,4 +12,9 @@ test('noActiveTask names a way to start work', () => {
 
 test('noActiveSprint names how to begin one', () => {
   assert.match(noActiveSprint(), NEXT_STEP);
+});
+
+test('noReadyTask names the id and where to look', () => {
+  assert.match(noReadyTask('T999'), /\[T999\]/);
+  assert.match(noReadyTask('T999'), /pcp_status/);
 });

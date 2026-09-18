@@ -31,6 +31,12 @@ export function applyBacklogEvents(events: PcpEvent[]): BacklogItem[] {
     } else if (event.e === "backlog_dismiss" && event.backlog_id) {
       const item = items.get(event.backlog_id);
       if (item) item.status = "dismissed";
+    } else if (event.e === "backlog_demote" && event.backlog_id) {
+      const item = items.get(event.backlog_id);
+      if (item) {
+        item.status = "pending";
+        item.promoted_to = undefined;
+      }
     }
   }
 

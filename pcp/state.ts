@@ -26,7 +26,8 @@ export interface PcpEvent {
     | "backlog_add"
     | "backlog_promote"
     | "backlog_done"
-    | "backlog_dismiss";
+    | "backlog_dismiss"
+    | "backlog_demote";
   id?: string;
   type?: "main" | "sub";
   title?: string;

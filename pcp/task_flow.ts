@@ -91,3 +91,53 @@ export function decideAutoCreate(
   if (stack.ready_tasks.length > 0) return { kind: "advance", next: stack.ready_tasks[0] };
   return { kind: "create", newId: formatId(stack.next_id) };
 }
+
+// --- pcp_swap (B021) ---
+
+export type SwapDecision =
+  | { kind: "no-sprint" }
+  | { kind: "nested" }
+  | { kind: "unknown-task"; id: string }
+  | { kind: "same-task" }
+  | { kind: "swap"; newActive: ReadyTask; order: ReadyTask[] };
+
+export function decideSwap(
+  stack: Pick<Stack, "active_stack" | "active_task_id" | "ready_tasks">,
+  taskId: string,
+  activeTitle: string | null,
+): SwapDecision {
+  if (!stack.active_task_id) return { kind: "no-sprint" };
+  if (stack.active_stack.length > 1) return { kind: "nested" };
+  if (taskId === stack.active_task_id) return { kind: "same-task" };
+
+  const index = stack.ready_tasks.findIndex((task) => task.id === taskId);
+  if (index === -1) return { kind: "unknown-task", id: taskId };
+
+  const paused: ReadyTask = {
+    id: stack.active_task_id,
+    title: activeTitle ?? stack.active_task_id,
+  };
+  const rest = stack.ready_tasks.filter((_, i) => i !== index);
+  return { kind: "swap", newActive: stack.ready_tasks[index], order: [paused, ...rest] };
+}
+
+// --- pcp_demote (B021) ---
+
+export type DemoteDecision =
+  | { kind: "no-sprint" }
+  | { kind: "unknown-task"; id: string }
+  | { kind: "active"; id: string }
+  | { kind: "demote"; id: string; order: ReadyTask[] };
+
+export function decideDemote(
+  stack: Pick<Stack, "active_task_id" | "ready_tasks">,
+  taskId: string,
+): DemoteDecision {
+  if (!stack.active_task_id) return { kind: "no-sprint" };
+  if (taskId === stack.active_task_id) return { kind: "active", id: taskId };
+
+  const index = stack.ready_tasks.findIndex((task) => task.id === taskId);
+  if (index === -1) return { kind: "unknown-task", id: taskId };
+
+  return { kind: "demote", id: taskId, order: stack.ready_tasks.filter((_, i) => i !== index) };
+}

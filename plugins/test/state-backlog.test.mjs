@@ -45,3 +45,15 @@ test('promote and dismiss still drive the lifecycle', () => {
   assert.equal(items.find((i) => i.id === 'B002')?.status, 'dismissed');
   assert.deepEqual(pendingBacklog(items).map((i) => i.id), ['B003']);
 });
+
+test('a backlog_demote event returns a promoted item to pending', () => {
+  const items = applyBacklogEvents([
+    add('B001', 'first'),
+    { e: 'backlog_promote', backlog_id: 'B001', task_id: 'T010', ts: 2 },
+    { e: 'backlog_demote', backlog_id: 'B001', ts: 3 },
+  ]);
+  const item = items.find((i) => i.id === 'B001');
+  assert.equal(item?.status, 'pending');
+  assert.equal(item?.promoted_to, undefined);
+  assert.deepEqual(pendingBacklog(items).map((i) => i.id), ['B001']);
+});
