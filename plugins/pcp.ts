@@ -1,5 +1,6 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin/tool";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -19,6 +20,7 @@ import {
   writeStack,
 } from "./state.js";
 import type { ProjectData, Stack, Task } from "./state.js";
+import { commitTrailerSource } from "./commit_ref.js";
 
 // ──────────────────────────────────────────────
 // Tool name classifiers
@@ -897,13 +899,27 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
         if (!/git\s+commit/.test(cmd)) return;
 
-        const taskRef = parsePcpTaskRef(cmd);
+        const dir = await getSessionDir(sessionID);
+
+        // PCP_COMMIT_FILE_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
+        // `git commit -F <file>` keeps the message out of the command string, so parse
+        // the file's contents too; a bare command match misses the trailer and
+        // auto-close silently skips (B024).
+        const source = commitTrailerSource(cmd, (file) => {
+          try {
+            const resolved = path.isAbsolute(file) ? file : path.join(dir, file);
+            return readFileSync(resolved, "utf8");
+          } catch {
+            return null;
+          }
+        });
+
+        const taskRef = parsePcpTaskRef(source);
         if (!taskRef) {
           console.log("[PCP] commit has no PCP-Task trailer; leaving active task unchanged");
           return;
         }
 
-        const dir = await getSessionDir(sessionID);
         autoDoneTask(dir, taskRef.id);
       } catch {
         // silent

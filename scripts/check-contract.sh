@@ -80,6 +80,7 @@ while IFS=: read -r vfile vmarker; do
 done <<'VENDORED'
 plugins/pcp.ts:PCP_CACHE_FIX
 plugins/pcp.ts:PCP_TASK_BINDING_FIX
+plugins/pcp.ts:PCP_COMMIT_FILE_FIX
 VENDORED
 
 # --- 6. Type-check the TypeScript plugins (`bun test` only transpiles them) ---
@@ -93,24 +94,25 @@ if [ -f "$ROOT/plugins/tsconfig.json" ]; then
   fi
 fi
 
-# --- 7. Skill script test suites ---
-# Skills ship testable Node scripts (e.g. the structural-debt scanner). Run their
-# suites so a broken skill script fails the gate instead of drifting unnoticed.
+# --- 7. First-party test suites (skills + plugin parsers) ---
+# Skills and plugins ship testable Node scripts. Run their suites so a broken
+# first-party script fails the gate instead of drifting unnoticed.
 # SKILLS_DIR is overridable so scripts/check-contract.test.sh can exercise this.
 SKILLS_DIR="${SKILLS_DIR:-$ROOT/skills}"
-SKILL_TEST_COUNT="$(find "$SKILLS_DIR" -path '*/test/*.test.mjs' 2>/dev/null | wc -l | tr -d ' ')"
-if [ "$SKILL_TEST_COUNT" -gt 0 ]; then
-  if out="$(find "$SKILLS_DIR" -path '*/test/*.test.mjs' -print0 2>/dev/null \
+PLUGINS_DIR="${PLUGINS_DIR:-$ROOT/plugins}"
+TEST_COUNT="$(find "$SKILLS_DIR" "$PLUGINS_DIR" -path '*/test/*.test.mjs' 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$TEST_COUNT" -gt 0 ]; then
+  if out="$(find "$SKILLS_DIR" "$PLUGINS_DIR" -path '*/test/*.test.mjs' -print0 2>/dev/null \
       | xargs -0 node --test --experimental-test-coverage 2>&1)"; then
     cov="$(printf '%s\n' "$out" | awk -F'|' '/all files/ {gsub(/ /, "", $2); print $2; exit}')"
-    echo "skills: $SKILL_TEST_COUNT test file(s) passed (coverage ${cov:-n/a}% lines)"
+    echo "tests: $TEST_COUNT test file(s) passed (coverage ${cov:-n/a}% lines)"
   else
-    echo "FAIL: skill test suites failed"
+    echo "FAIL: first-party test suites failed"
     printf '%s\n' "$out" | tail -30
     fail=1
   fi
 else
-  echo "skills: no test files found"
+  echo "tests: no test files found"
 fi
 
 if [ "$fail" -ne 0 ]; then

@@ -60,8 +60,8 @@ trap 'rm -f "$fixture"; rm -rf "$skills" "$skills_ok"' EXIT
 mkdir -p "$skills_ok/ok/test"
 cp "$skills/ok/test/ok.test.mjs" "$skills_ok/ok/test/ok.test.mjs"
 ok_out="$(SKILLS_DIR="$skills_ok" bash scripts/check-contract.sh AGENTS.md 2>&1)" || true
-if ! printf '%s\n' "$ok_out" | grep -Eq 'skills: [0-9]+ test file\(s\) passed'; then
-  echo "FAIL: expected the gate to report skill test results/coverage"
+if ! printf '%s\n' "$ok_out" | grep -Eq 'tests: [0-9]+ test file\(s\) passed'; then
+  echo "FAIL: expected the gate to report first-party test results/coverage"
   printf '%s\n' "$ok_out"
   exit 1
 fi
