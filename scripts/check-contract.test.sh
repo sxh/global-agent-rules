@@ -66,3 +66,34 @@ if ! printf '%s\n' "$ok_out" | grep -Eq 'tests: [0-9]+ test file\(s\) passed'; t
   exit 1
 fi
 echo "PASS: a passing skill test suite is reported by the gate"
+
+# --- Top-level plugins/ modules may export only plugin factories ---
+# opencode auto-discovers plugins/*.{ts,js} and (legacy path) invokes EVERY function export
+# as a plugin factory. A pure helper parked in that directory is therefore called with a
+# plugin-input object, throws, and can break startup. Only `default` and `*Plugin` exports
+# are permitted; helpers belong in pcp/.
+plug_bad="$(mktemp -d)"
+plug_ok="$(mktemp -d)"
+trap 'rm -f "$fixture"; rm -rf "$skills" "$skills_ok" "$plug_bad" "$plug_ok"' EXIT
+
+cat > "$plug_bad/helper.ts" <<'TS'
+export function decideStart(stack: { active: string }) {
+  return stack.active;
+}
+TS
+cat > "$plug_ok/pcp.ts" <<'TS'
+export const PcpPlugin = async () => ({});
+export default PcpPlugin;
+TS
+
+if PLUGINS_DIR="$plug_bad" SKILLS_DIR="$plug_bad" bash scripts/check-contract.sh AGENTS.md >/dev/null 2>&1; then
+  echo "FAIL: a top-level plugins/ module exporting a non-plugin helper must fail the gate"
+  exit 1
+fi
+echo "PASS: a non-plugin export in plugins/ fails the gate"
+
+if ! PLUGINS_DIR="$plug_ok" SKILLS_DIR="$plug_ok" bash scripts/check-contract.sh AGENTS.md >/dev/null 2>&1; then
+  echo "FAIL: a plugins/ module exporting only Plugin/default must pass the gate"
+  exit 1
+fi
+echo "PASS: a well-formed plugin module passes the gate"

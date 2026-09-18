@@ -117,6 +117,35 @@ else
   echo "tests: no test files found"
 fi
 
+# --- 8. Top-level plugins/ modules may export only plugin factories ---
+# opencode auto-discovers plugins/*.{ts,js} and, on the legacy path, invokes EVERY export of a
+# module as a plugin factory. A pure helper parked in this directory is therefore called with a
+# plugin-input object, throws, and can leave the plugin registry malformed (the 2026-09-18
+# unstartable-opencode incident). Only `default` and `*Plugin` exports are permitted; helpers
+# belong in pcp/ (a sibling directory, which opencode does not auto-scan).
+while IFS= read -r pfile; do
+  [ -z "$pfile" ] && continue
+  # Runtime-relevant export identifiers: `default`, plus declared function/const/let/var/class
+  # names. `export type` / `export interface` are erased and absent from the module namespace.
+  names="$(
+    {
+      if grep -qE '^export[[:space:]]+default([[:space:]]|$)' "$pfile"; then echo default; fi
+      grep -oE '^export[[:space:]]+(async[[:space:]]+)?(function|const|let|var|class)[[:space:]]+[A-Za-z0-9_$]+' "$pfile" \
+        | sed -E 's/.*[[:space:]]([A-Za-z0-9_$]+)$/\1/' || true
+    }
+  )" || true
+  while IFS= read -r name; do
+    [ -z "$name" ] && continue
+    case "$name" in
+      default|*Plugin) ;;
+      *)
+        echo "FAIL: ${pfile#"$ROOT"/} exports '$name' — a top-level plugins/ module may export only default/*Plugin"
+        fail=1
+        ;;
+    esac
+  done <<< "$names"
+done < <(find "$PLUGINS_DIR" -maxdepth 1 -type f \( -name '*.ts' -o -name '*.js' \) 2>/dev/null | sort)
+
 if [ "$fail" -ne 0 ]; then
   echo "contract check FAILED"
   exit 1
