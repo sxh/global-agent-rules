@@ -15,6 +15,9 @@ test('PCP_RULE states the post-pivot queue-advance guidance', () => {
   assert.match(PCP_RULE, /queue/i);
 });
 
-test('PCP_RULE keeps the commit-trailer requirement', () => {
+test('PCP_RULE states the pcp_done-first closing protocol', () => {
+  assert.match(PCP_RULE, /pcp_done before/i);
+  assert.match(PCP_RULE, /\.opencode\/pcp/);
+  assert.match(PCP_RULE, /one commit/i);
   assert.match(PCP_RULE, /PCP-Task/);
 });

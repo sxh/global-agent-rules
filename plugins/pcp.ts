@@ -43,7 +43,9 @@ export function isBashTool(name: string): boolean {
 }
 
 // PCP_TASK_BINDING_FIX (local patch — re-apply if this file is re-downloaded from pcp-skills):
-// A commit only auto-closes a task when it names it explicitly via a `PCP-Task: T###` trailer.
+// Fallback closure path. The preferred path (B077/P4) is to call pcp_done before the closing
+// commit, which writes the PCP state so it can be staged into that same commit. This hook then
+// only auto-closes a task when the commit names it explicitly via a `PCP-Task: T###` trailer.
 // Without a matching reference the queue is left unchanged, so an unrelated commit can no longer
 // silently advance (or mis-attribute) the active task.
 export function parsePcpTaskRef(cmd: string): { id: string } | null {
@@ -482,8 +484,10 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
       pcp_done: tool({
         description:
-          "Manually complete the current task (git commit does this automatically; use only when manual completion is needed). " +
-          "If the queue has a next task it advances automatically; when all are done it prompts for a new plan.",
+          "Complete the current task. Call this before the closing commit: it writes the PCP state, " +
+          "so you can stage .opencode/pcp in that same commit (one commit per task). A git commit " +
+          "with a `PCP-Task` trailer also closes the active task, as a fallback. If the queue has a " +
+          "next task it advances automatically; when all are done it prompts for a new plan.",
         args: {},
         async execute(_args, context) {
           const dir = context.directory;

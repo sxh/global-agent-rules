@@ -56,24 +56,30 @@ the intended order. `pcp_promote` instead nests each item under the *current* ac
 it active, so promoting a sequence builds a LIFO stack whose commit-order is reversed — use it only
 to add a single item to an existing sprint.
 
-## Commits only close a task when they name it
+## Close a task before its commit (one commit per task)
 
-A `git commit` auto-closes the active task **only** when the commit message carries an explicit
-trailer naming it:
+Call `pcp_done` to close the active task, then stage `.opencode/pcp` together with the code in
+that same commit: the state is written at `pcp_done` time, so it lands in the commit and no
+separate bookkeeping commit is needed.
+
+As a fallback — when `pcp_done` was not called — a `git commit` auto-closes the active task
+**only** when the commit message carries an explicit trailer naming it:
 
 ```
 PCP-Task: T123
 ```
 
-Without a matching trailer the queue is left unchanged (the plugin logs this). So every commit
-that should close a task must include `PCP-Task: <active task id>` in its message; a commit that
-does not implement the active task simply omits it and leaves the task open. Close tasks manually
-with `pcp_done` when a commit does not carry the trailer. (Mechanism: `plugins/pcp.ts`
-`parsePcpTaskRef` + `autoDoneTask`, patch marker `PCP_TASK_BINDING_FIX`.)
+Without a matching trailer the queue is left unchanged (the plugin logs this); a commit that does
+not implement the active task simply omits it and leaves the task open. (Mechanism:
+`plugins/pcp.ts` `parsePcpTaskRef` + `autoDoneTask`, patch marker `PCP_TASK_BINDING_FIX`.)
 
-## PCP state is written asynchronously after a commit
+The fallback path writes `.opencode/pcp/` state *after* `git commit` returns, so a `git status`
+run in the same command can still show a clean tree even though the task was auto-closed. Re-check
+`git status` (and `pcp_status`) a moment later before concluding that no state change occurred.
 
-The plugin writes `.opencode/pcp/` state *after* `git commit` returns, so a `git status` run in
-the same command can still show a clean tree even though the task was auto-closed and the state
-files are about to change. Re-check `git status` (and `pcp_status`) a moment later before
-concluding that no state change occurred or that a PCP-state commit is unnecessary.
+## Cross-repo work commits its state in the state's repo
+
+The PCP state lives under the session directory's `.opencode/pcp/`, which may be a different git
+repo from the one being edited. When the commit's repo is not the state's repo, the state cannot
+be staged into that commit — leave it to ride into the next commit **in its own repo** (the
+PCP-State rule) rather than making a dedicated bookkeeping commit.
