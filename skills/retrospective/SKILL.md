@@ -226,6 +226,20 @@ For each finding from the Five Whys or Positive Amplification Analysis, decide w
 - **Verified structural-debt candidates** from Step 2 — unify the missing abstraction (e.g., "Extract shared Fetcher type into repositories/types.ts") — and any rising-ratio finding
 - **Any lesson that failed destination triage** but is still a concrete, doable task
 
+**Before capturing, prove the work is not already done.** A backlog item is a
+hypothesis that work remains, so verify it before recording it — the same coverage
+check Step 5 applies to incident entries. Check, in order:
+1. **Already implemented** — grep the source or skill for the behaviour; the lesson
+   may already be codified. On 2026-09-18 a retro recorded B109 ("add the non-vacuity
+   proof step to the testing standard") when `skills/testing-standards/SKILL.md` had
+   carried that section for 82 minutes.
+2. **Already an entry** — run Step 5's coverage check against `docs/incidents.md`, the
+   contract, and the relevant skill.
+3. **Already in PCP** — grep the backlog and queue for the same principle before
+   calling `pcp_capture`.
+If any holds, do not create the item: refine the existing artefact, or close the
+finding with no action.
+
 **Use `pcp_capture`** to add each item with a descriptive title. For example:
 > `pcp_capture("Add NOT NULL constraint to products.url column")`
 > `pcp_capture("Document multi-layer investigation pattern in AGENTS.md")`
