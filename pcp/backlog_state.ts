@@ -40,3 +40,17 @@ export function applyBacklogEvents(events: PcpEvent[]): BacklogItem[] {
 export function pendingBacklog(items: BacklogItem[]): BacklogItem[] {
   return items.filter((item) => item.status === "pending");
 }
+
+// The lookup + status guard shared by pcp_promote / pcp_dismiss / pcp_backlog_done. Each verb
+// maps the decision to its own message wording.
+export type BacklogAction =
+  | { kind: "ok"; item: BacklogItem }
+  | { kind: "unknown"; id: string }
+  | { kind: "not-pending"; id: string; status: BacklogItem["status"] };
+
+export function decideBacklogAction(items: BacklogItem[], id: string): BacklogAction {
+  const item = items.find((entry) => entry.id === id);
+  if (!item) return { kind: "unknown", id };
+  if (item.status !== "pending") return { kind: "not-pending", id, status: item.status };
+  return { kind: "ok", item };
+}

@@ -26,6 +26,7 @@ import { decideStart } from "../pcp/pcp_start.js";
 import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
 import { runReorder } from "../pcp/pcp_reorder.js";
+import { decideBacklogAction } from "../pcp/backlog_state.js";
 import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
 
@@ -771,12 +772,13 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
             return `❌ No active sprint; call pcp_start to begin one first`;
           }
 
-          const backlog = replayBacklog(dir);
-          const item = backlog.find((b) => b.id === backlog_id);
-          if (!item) return `❌ Backlog item ${backlog_id} not found`;
-          if (item.status !== "pending") return `❌ ${backlog_id} is ${item.status} and cannot be added`;
+          const action = decideBacklogAction(replayBacklog(dir), backlog_id);
+          if (action.kind === "unknown") return `❌ Backlog item ${backlog_id} not found`;
+          if (action.kind === "not-pending") {
+            return `❌ ${backlog_id} is ${action.status} and cannot be added`;
+          }
 
-          const taskTitle = title || item.title;
+          const taskTitle = title || action.item.title;
           const id = `T${String(stack.next_id).padStart(3, "0")}`;
 
           appendEvent(dir, { e: "created", id, type: "main", title: taskTitle, ts: Date.now() });
@@ -825,13 +827,12 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           const dir = context.directory;
           ensureDir(dir);
 
-          const backlog = replayBacklog(dir);
-          const item = backlog.find((b) => b.id === backlog_id);
-          if (!item) return `❌ Backlog item ${backlog_id} not found`;
-          if (item.status !== "pending") return `ℹ️ ${backlog_id} is already ${item.status}`;
+          const action = decideBacklogAction(replayBacklog(dir), backlog_id);
+          if (action.kind === "unknown") return `❌ Backlog item ${backlog_id} not found`;
+          if (action.kind === "not-pending") return `ℹ️ ${backlog_id} is already ${action.status}`;
 
           appendEvent(dir, { e: "backlog_dismiss", backlog_id, ts: Date.now() });
-          return `❌ [${backlog_id}] dismissed: ${item.title}`;
+          return `❌ [${backlog_id}] dismissed: ${action.item.title}`;
         },
       }),
 
@@ -846,13 +847,12 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           const dir = context.directory;
           ensureDir(dir);
 
-          const backlog = replayBacklog(dir);
-          const item = backlog.find((b) => b.id === backlog_id);
-          if (!item) return `❌ Backlog item ${backlog_id} not found`;
-          if (item.status !== "pending") return `ℹ️ ${backlog_id} is already ${item.status}`;
+          const action = decideBacklogAction(replayBacklog(dir), backlog_id);
+          if (action.kind === "unknown") return `❌ Backlog item ${backlog_id} not found`;
+          if (action.kind === "not-pending") return `ℹ️ ${backlog_id} is already ${action.status}`;
 
           appendEvent(dir, { e: "backlog_done", backlog_id, ts: Date.now() });
-          return `✅ [${backlog_id}] marked done: ${item.title}`;
+          return `✅ [${backlog_id}] marked done: ${action.item.title}`;
         },
       }),
 
