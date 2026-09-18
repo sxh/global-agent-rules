@@ -39,14 +39,24 @@ const EXTRACTORS = {
     '.jsx': extractTypeScript,
     '.mjs': extractTypeScript,
     '.cjs': extractTypeScript,
+    '.gleam': extractGleam,
 };
 
 export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSignatures = [] } = {}) {
     const declarations = [];
+    const unsupported = new Map();
     const fileCount = walk(rootDir, (file) => {
         const ext = extOf(file);
         const extractor = EXTRACTORS[ext];
-        if (!extractor) return;
+        if (!extractor) {
+            // A source extension we claim to scan but have no extractor for.
+            // Record it so an empty/undercounted result is loud, not silent.
+            if (SRC_EXTS.has(ext)) {
+                if (!unsupported.has(ext)) unsupported.set(ext, []);
+                unsupported.get(ext).push(file);
+            }
+            return;
+        }
         if (excludeTestFiles && TEST_MARKERS.some((m) => file.includes(m))) return;
         let src;
         try {
@@ -97,8 +107,9 @@ export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSign
 
     const total = declarations.length;
     const ratio = total === 0 ? 0 : duplicatedCount / total;
+    const unsupportedExtensions = [...unsupported.entries()].map(([ext, files]) => ({ ext, files }));
 
-    return { ratio, totalDeclarations: total, fileCount, candidates, downgraded };
+    return { ratio, totalDeclarations: total, fileCount, candidates, downgraded, unsupportedExtensions };
 }
 
 function walk(dir, onFile) {
@@ -133,6 +144,20 @@ function normalize(s) {
     return s.replace(/\s+/g, ' ').trim();
 }
 
+// Slice each declaration body from the end of its matched prefix to the next
+// declaration start (or end of file). Shared by every language extractor, so
+// "same name + same body" groups consistently across languages.
+function sliceDeclBodies(src, starts, kindOf) {
+    const decls = [];
+    for (let i = 0; i < starts.length; i++) {
+        const start = starts[i];
+        const end = i + 1 < starts.length ? starts[i + 1].index : src.length;
+        const body = src.slice(start.index + start.prefix.length, end);
+        decls.push({ name: start.name, kind: kindOf(start), signature: body });
+    }
+    return decls;
+}
+
 // Extract top-level named declarations. Handles:
 //   export type X = ...;        export interface X { ... }
 //   export const X = ...;       export function X(...) { ... }
@@ -144,8 +169,7 @@ function normalize(s) {
 // `signature` is the declaration body from the name to the next top-level
 // declaration (or end of file) — so identical bodies group together and
 // differing bodies stay separate.
-function extractTypeScript(src, file) {
-    const decls = [];
+function extractTypeScript(src) {
     // Find every top-level declaration start (column 0, optional export).
     const declRe =
         /^(?:export\s+)?(?:abstract\s+)?(?:type|interface|const|function|class)\s+([A-Za-z_$][\w$]*)/gm;
@@ -154,23 +178,36 @@ function extractTypeScript(src, file) {
     while ((m = declRe.exec(src)) !== null) {
         starts.push({ index: m.index, name: m[1], prefix: m[0].trim() });
     }
-    for (let i = 0; i < starts.length; i++) {
-        const start = starts[i];
-        const end = i + 1 < starts.length ? starts[i + 1].index : src.length;
-        const body = src.slice(start.index + start.prefix.length, end);
+    return sliceDeclBodies(src, starts, (start) => {
         const prefix = start.prefix.replace(/^export\s+/, '');
-        const kind = /^type\b/.test(prefix)
-            ? 'type'
-            : /^function\b/.test(prefix)
-              ? 'function'
-              : /^class\b/.test(prefix)
-                ? 'class'
-                : /^interface\b/.test(prefix)
-                  ? 'interface'
-                  : 'const';
-        decls.push({ name: start.name, kind, signature: body });
+        if (/^type\b/.test(prefix)) return 'type';
+        if (/^function\b/.test(prefix)) return 'function';
+        if (/^class\b/.test(prefix)) return 'class';
+        if (/^interface\b/.test(prefix)) return 'interface';
+        return 'const';
+    });
+}
+
+// Extract Gleam top-level named declarations. Handles:
+//   pub fn name(...) -> ... { ... }   fn name(...) { ... }
+//   pub type Name { ... }             pub type Name = ...      (alias)
+//   pub type Name { ... }             pub opaque type Name { ... }
+//   pub const name = ...
+// Gleam requires top-level declarations to start at column 0; an indented `fn`
+// is a local function inside a body, not a named abstraction, and must not be
+// grouped. `signature` is the declaration body from the name to the next
+// top-level declaration (or end of file) — the same convention as
+// extractTypeScript, so identical bodies group and differing bodies stay apart.
+function extractGleam(src) {
+    const declRe = /^(?:pub\s+)?(?:opaque\s+)?(fn|type|const)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
+    const starts = [];
+    let m;
+    while ((m = declRe.exec(src)) !== null) {
+        starts.push({ index: m.index, name: m[2], keyword: m[1], prefix: m[0].trim() });
     }
-    return decls;
+    return sliceDeclBodies(src, starts, (start) =>
+        start.keyword === 'fn' ? 'function' : start.keyword
+    );
 }
 
 // Load the known-intentional exclusion registry. Reads an explicit path when
@@ -229,6 +266,13 @@ function main(argv) {
         for (const c of result.downgraded) {
             console.log(`\n[downgraded:${c.pattern_signature}] ${c.reason}`);
             for (const f of c.files) console.log(`  - ${relative(process.cwd(), f)}`);
+        }
+        for (const u of result.unsupportedExtensions) {
+            console.log(
+                `\nWARNING: ${u.files.length} source file(s) with extension ${u.ext} were not parsed — ` +
+                    `no ${u.ext} extractor is bundled, so this result may undercount.`
+            );
+            for (const f of u.files) console.log(`  - ${relative(process.cwd(), f)}`);
         }
     }
 

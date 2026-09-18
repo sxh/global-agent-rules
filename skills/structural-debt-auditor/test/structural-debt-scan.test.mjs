@@ -241,3 +241,82 @@ test('CLI --exclusions loads an explicit config path', () => {
         rmSync(cfgDir, { recursive: true, force: true });
     }
 });
+
+test('detects an identical named Gleam function declared in two files', () => {
+    const dir = makeFixture({
+        'src/a.gleam': 'pub fn notify_error(msg: String) -> String {\n  msg\n}',
+        'src/b.gleam': 'pub fn notify_error(msg: String) -> String {\n  msg\n}',
+    });
+    try {
+        const result = scanDuplication(dir);
+        const fn = result.candidates.find((c) => c.pattern_signature === 'function_notify_error');
+        assert.ok(fn, 'expected a notify_error candidate');
+        assert.equal(fn.files.length, 2);
+        assert.equal(fn.kind, 'duplicate-declaration');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('detects an identical named Gleam type declared in two files', () => {
+    const dir = makeFixture({
+        'src/a.gleam': 'pub type Weight {\n  Weight(Int)\n}',
+        'src/b.gleam': 'pub type Weight {\n  Weight(Int)\n}',
+    });
+    try {
+        const result = scanDuplication(dir);
+        const t = result.candidates.find((c) => c.pattern_signature === 'type_Weight');
+        assert.ok(t, 'expected a Weight candidate');
+        assert.equal(t.files.length, 2);
+        assert.equal(t.kind, 'duplicate-declaration');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not group same-named Gleam declarations with different bodies', () => {
+    const dir = makeFixture({
+        'src/x.gleam': 'pub fn sort(values: List(Int)) -> List(Int) {\n  list.sort(values, int.compare)\n}',
+        'src/y.gleam':
+            'pub fn sort(values: List(String)) -> List(String) {\n  list.sort(values, string.compare)\n}',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'same name, different body is not duplication');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('reports source extensions it cannot parse instead of silently ignoring them', () => {
+    const dir = makeFixture({
+        'src/Service.kt': 'class Service {\n    fun run() {}\n}',
+        'src/Other.kt': 'class Other {\n    fun run() {}\n}',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.ok(
+            Array.isArray(result.unsupportedExtensions),
+            'expected an unsupportedExtensions array in the result'
+        );
+        const kt = result.unsupportedExtensions.find((e) => e.ext === '.kt');
+        assert.ok(kt, 'expected .kt to be reported as unsupported');
+        assert.equal(kt.files.length, 2);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('CLI warns about source files it has no extractor for', () => {
+    const dir = makeFixture({
+        'src/Service.kt': 'class Service {\n    fun run() {}\n}',
+    });
+    try {
+        const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
+        const run = spawnSync('node', [script, dir], { encoding: 'utf8' });
+        assert.equal(run.status, 0);
+        assert.match(run.stdout, /WARNING: 1 source file\(s\) with extension \.kt were not parsed/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
