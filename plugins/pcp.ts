@@ -21,6 +21,7 @@ import {
 } from "./state.js";
 import type { ProjectData, Stack, Task } from "./state.js";
 import { commitTrailerSource } from "./commit_ref.js";
+import { decideStart } from "./pcp_start.js";
 
 // ──────────────────────────────────────────────
 // Tool name classifiers
@@ -303,12 +304,16 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           ensureDir(dir);
           const stack = readStack(dir);
 
-          // Guard: block if sprint already active
-          if (stack.active_task_id) {
+          // B020: never mint a new id while the ready queue holds work. After a
+          // pivot with no new_task the active slot is empty but the queue is not;
+          // the old code created a duplicate T-id instead of activating the head.
+          const decision = decideStart(stack, title);
+
+          if (decision.kind === "blocked") {
             const tasks = replayEvents(dir);
-            const active = getTask(tasks, stack.active_task_id);
+            const active = getTask(tasks, decision.activeId);
             return [
-              `⚠️ Sprint [${stack.active_task_id}: ${active?.title ?? ""}] 还在进行中。`,
+              `⚠️ Sprint [${decision.activeId}: ${active?.title ?? ""}] 还在进行中。`,
               ``,
               `请先结束当前 sprint：`,
               `  1. git commit 当前改动（会自动关闭 sprint）`,
@@ -316,15 +321,35 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
             ].join("\n");
           }
 
-          // Start new sprint
-          const id = `T${String(stack.next_id).padStart(3, "0")}`;
-          appendEvent(dir, { e: "created", id, type: "main", title, ts: Date.now() });
-          stack.active_stack = [id];
-          stack.active_task_id = id;
-          stack.next_id++;
-          writeStack(dir, stack);
+          let id: string;
+          let startedTitle: string;
+          let advanced = false;
 
-          const lines = [`✅ Sprint [${id}] 开始：${title}`];
+          if (decision.kind === "advance") {
+            // Activate the queued head; the handler owns the mutation (decideStart is pure).
+            stack.ready_tasks.shift();
+            id = decision.id;
+            startedTitle = decision.title;
+            advanced = true;
+            stack.active_stack = [id];
+            stack.active_task_id = id;
+            writeStack(dir, stack);
+            console.log(`[PCP] pcp_start advanced to queued ${id}: ${startedTitle}`);
+          } else {
+            id = decision.id;
+            startedTitle = title;
+            appendEvent(dir, { e: "created", id, type: "main", title, ts: Date.now() });
+            stack.active_stack = [id];
+            stack.active_task_id = id;
+            stack.next_id++;
+            writeStack(dir, stack);
+          }
+
+          const lines = [
+            advanced
+              ? `⏭️ Sprint [${id}] 从队列开始：${startedTitle}`
+              : `✅ Sprint [${id}] 开始：${startedTitle}`,
+          ];
 
           // Surface backlog items
           const pending = getPendingBacklog(dir);
