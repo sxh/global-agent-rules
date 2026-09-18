@@ -26,7 +26,15 @@ import { join, relative } from 'node:path';
 
 const DEFAULT_EXCLUDES = new Set(['node_modules', 'dist', 'build', '.git', '.next', 'coverage', '.sst']);
 const SRC_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.gleam', '.kt', '.java', '.py']);
-const TEST_MARKERS = ['.test.', '.spec.', '.bench.', '_test.gleam'];
+const TEST_MARKERS = [
+    '.test.',
+    '.spec.',
+    '.bench.',
+    '_test.gleam',
+    '/src/test/',
+    '/src/androidTest/',
+    '/src/testFixtures/',
+];
 
 // Top-level declaration extractors, keyed by file extension.
 // Each returns an array of { name, kind, signature } where `signature` is the
@@ -40,6 +48,8 @@ const EXTRACTORS = {
     '.mjs': extractTypeScript,
     '.cjs': extractTypeScript,
     '.gleam': extractGleam,
+    '.kt': extractKotlin,
+    '.java': extractKotlin,
 };
 
 export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSignatures = [] } = {}) {
@@ -208,6 +218,40 @@ function extractGleam(src) {
     return sliceDeclBodies(src, starts, (start) =>
         start.keyword === 'fn' ? 'function' : start.keyword
     );
+}
+
+// Extract Kotlin/Java top-level named declarations. Handles:
+//   class X { ... }            data class X(...)         enum class X { ... }
+//   interface X { ... }        sealed interface X        fun interface X
+//   object X { ... }           data object X
+//   fun x(...) { ... }         val x = ...               var x = ...
+//   typealias X = ...          record X(...)             enum X { ... } (Java)
+// Also with leading modifiers (public/private/internal/data/sealed/abstract/
+// open/final/annotation/value/inline/expect/actual/non-sealed).
+// A declaration is "top-level" only when it starts at column 0 — an indented
+// member inside a class or function body is nested, not a named abstraction, and
+// must not be grouped. `signature` is the declaration body from the name to the
+// next top-level declaration (or end of file) — the same convention as the other
+// extractors, so identical bodies group and differing bodies stay apart.
+function extractKotlin(src) {
+    const declRe =
+        /^(?:(?:public|private|protected|internal|data|sealed|enum|abstract|open|final|annotation|value|inline|expect|actual|non-sealed)\s+)*(?:fun\s+interface|class|interface|object|fun|val|var|typealias|record|enum)\s+([A-Za-z_$][\w$]*)/gm;
+    const starts = [];
+    let m;
+    while ((m = declRe.exec(src)) !== null) {
+        starts.push({ index: m.index, name: m[1], prefix: m[0].trim() });
+    }
+    return sliceDeclBodies(src, starts, (start) => {
+        const head = start.prefix.replace(/\s*[A-Za-z_$][\w$]*$/, '');
+        const keyword = head.trim().split(/\s+/).pop();
+        if (keyword === 'class' || keyword === 'record') return 'class';
+        if (keyword === 'interface') return 'interface';
+        if (keyword === 'object') return 'object';
+        if (keyword === 'fun') return 'function';
+        if (keyword === 'val' || keyword === 'var') return 'property';
+        if (keyword === 'typealias') return 'type';
+        return keyword;
+    });
 }
 
 // Load the known-intentional exclusion registry. Reads an explicit path when

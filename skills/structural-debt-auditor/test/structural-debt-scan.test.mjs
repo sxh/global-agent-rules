@@ -303,8 +303,8 @@ test('does not group same-named Gleam declarations with different bodies', () =>
 
 test('reports source extensions it cannot parse instead of silently ignoring them', () => {
     const dir = makeFixture({
-        'src/Service.kt': 'class Service {\n    fun run() {}\n}',
-        'src/Other.kt': 'class Other {\n    fun run() {}\n}',
+        'src/Service.py': 'class Service:\n    def run(self):\n        pass\n',
+        'src/Other.py': 'class Other:\n    def run(self):\n        pass\n',
     });
     try {
         const result = scanDuplication(dir);
@@ -312,9 +312,9 @@ test('reports source extensions it cannot parse instead of silently ignoring the
             Array.isArray(result.unsupportedExtensions),
             'expected an unsupportedExtensions array in the result'
         );
-        const kt = result.unsupportedExtensions.find((e) => e.ext === '.kt');
-        assert.ok(kt, 'expected .kt to be reported as unsupported');
-        assert.equal(kt.files.length, 2);
+        const py = result.unsupportedExtensions.find((e) => e.ext === '.py');
+        assert.ok(py, 'expected .py to be reported as unsupported');
+        assert.equal(py.files.length, 2);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -322,13 +322,151 @@ test('reports source extensions it cannot parse instead of silently ignoring the
 
 test('CLI warns about source files it has no extractor for', () => {
     const dir = makeFixture({
-        'src/Service.kt': 'class Service {\n    fun run() {}\n}',
+        'src/Service.py': 'class Service:\n    def run(self):\n        pass\n',
     });
     try {
         const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
         const run = spawnSync('node', [script, dir], { encoding: 'utf8' });
         assert.equal(run.status, 0);
-        assert.match(run.stdout, /WARNING: 1 source file\(s\) with extension \.kt were not parsed/);
+        assert.match(run.stdout, /WARNING: 1 source file\(s\) with extension \.py were not parsed/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('detects an identical named Kotlin class declared in two files', () => {
+    const dir = makeFixture({
+        'src/main/kotlin/a/Passage.kt': 'data class Passage(val passageId: String, val title: String)\n',
+        'src/main/kotlin/b/Passage.kt': 'data class Passage(val passageId: String, val title: String)\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        const candidate = result.candidates.find((c) => c.pattern_signature === 'class_Passage');
+        assert.ok(candidate, 'expected a class_Passage candidate');
+        assert.equal(candidate.files.length, 2);
+        assert.equal(candidate.kind, 'duplicate-declaration');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('detects an identical named Java class declared in two files', () => {
+    const dir = makeFixture({
+        'src/main/java/a/Service.java': 'public class Service {\n    void run() {}\n}\n',
+        'src/main/java/b/Service.java': 'public class Service {\n    void run() {}\n}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        const candidate = result.candidates.find((c) => c.pattern_signature === 'class_Service');
+        assert.ok(candidate, 'expected a class_Service candidate');
+        assert.equal(candidate.files.length, 2);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('extracts every Kotlin/Java declaration kind', () => {
+    const source = [
+        'class Clazz',
+        'interface Iface',
+        'object Obj',
+        'fun doThing() {}',
+        'val property = 1',
+        'var mutable = 2',
+        'typealias Alias = String',
+    ].join('\n');
+    const dir = makeFixture({
+        'src/main/kotlin/a/Kinds.kt': source,
+        'src/main/kotlin/b/Kinds.kt': source,
+        'src/main/java/a/Point.java': 'public record Point(int x, int y) {}\n',
+        'src/main/java/b/Point.java': 'public record Point(int x, int y) {}\n',
+        'src/main/java/a/Colour.java': 'public enum Colour { RED }\n',
+        'src/main/java/b/Colour.java': 'public enum Colour { RED }\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        for (const signature of [
+            'class_Clazz',
+            'interface_Iface',
+            'object_Obj',
+            'function_doThing',
+            'property_property',
+            'property_mutable',
+            'type_Alias',
+            'class_Point',
+            'enum_Colour',
+        ]) {
+            assert.ok(
+                result.candidates.some((c) => c.pattern_signature === signature),
+                `expected a ${signature} candidate`
+            );
+        }
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not group same-named Kotlin declarations with different bodies', () => {
+    const dir = makeFixture({
+        'src/main/kotlin/a/Repo.kt': 'class Repo {\n    fun find(): Int = 1\n}\n',
+        'src/main/kotlin/b/Repo.kt': 'class Repo {\n    fun find(): String = "x"\n}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'same name, different body is not duplication');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not treat indented Kotlin members as top-level declarations', () => {
+    const dir = makeFixture({
+        'src/main/kotlin/a/Repo.kt': 'class Repo {\n    fun helper(): Int = 1\n}\n',
+        'src/main/kotlin/b/Repo.kt': 'class Repo {\n    fun helper(): Int = 1\n}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(
+            result.candidates.some((c) => c.pattern_signature === 'function_helper'),
+            false,
+            'indented members are not top-level declarations'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('excludes Kotlin test sources under src/test from the scan', () => {
+    const dir = makeFixture({
+        'src/main/kotlin/a/Shared.kt': 'class Shared\n',
+        'src/main/kotlin/b/Shared.kt': 'class Shared\n',
+        'src/test/kotlin/a/Shared.kt': 'class Shared\n',
+        'src/test/kotlin/b/Shared.kt': 'class Shared\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        const candidate = result.candidates.find((c) => c.pattern_signature === 'class_Shared');
+        assert.ok(candidate, 'expected the production class to be detected');
+        assert.equal(candidate.files.length, 2, 'test sources must not be scanned');
+        assert.ok(
+            candidate.files.every((f) => f.includes('src/main/')),
+            'no test files may appear in the candidate'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not report .kt or .java as unsupported once their extractor is bundled', () => {
+    const dir = makeFixture({
+        'src/main/kotlin/a/Only.kt': 'class Only\n',
+        'src/main/java/b/Only.java': 'class Only {}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.unsupportedExtensions.some((e) => e.ext === '.kt'), false);
+        assert.equal(result.unsupportedExtensions.some((e) => e.ext === '.java'), false);
+        assert.ok(result.totalDeclarations >= 2, 'expected the Kotlin/Java declarations to be parsed');
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

@@ -47,7 +47,11 @@ node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-s
 
 The scanner accepts `--exclusions=<path>` and otherwise auto-loads `<dir>/.structural-debt-exclusions.json`. Excluded candidates are reported under `downgraded` (visible, not hidden) and no longer count toward the duplication ratio. Every entry requires a recorded reason — an exclusion without one is silent absence, not a downgrade.
 
-> **Kotlin/Java projects:** the bundled scanner only extracts TypeScript declarations. For Kotlin/Java codebases, use a scanner with a Kotlin/Java extractor (e.g. the ddd-blueprint-pipeline `scripts/structural-debt-scan.mjs` Kotlin extractor from the T463 work) — otherwise the scan reports 0 declarations on `.kt`/`.java` sources and the signal is silently empty.
+> **Kotlin/Java projects:** the bundled scanner extracts Kotlin/Java top-level
+> declarations (`.kt`/`.java`) alongside TypeScript and Gleam, and excludes
+> `src/test`, `src/androidTest`, and `src/testFixtures` by default. Any other
+> scanned extension without an extractor is surfaced under
+> `unsupportedExtensions` rather than silently ignored.
 
 ### 2. The Discovery Pass (per-layer re-derivation)
 
