@@ -283,7 +283,6 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           lines.push(
             ``,
             `📝 Generated .opencode/pcp/PROJECT.md — consider filling in the "Current state" section`,
-            `🌐 Browser preview: .opencode/pcp/PROJECT.html`,
             `📝 Initialized .opencode/pcp/WORKLOG.md — later operations are recorded automatically`,
             ``,
             `This context is injected automatically on every turn and compaction.`,

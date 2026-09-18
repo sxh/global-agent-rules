@@ -114,39 +114,12 @@ export function appendEvent(dir: string, event: PcpEvent): void {
   );
 }
 
-export function mdToHtml(md: string, title: string): string {
-  const body = md
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`(.+?)`/g, "<code>$1</code>")
-    .replace(/^- (.+)$/gm, "<li>$1</li>")
-    .replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`)
-    .replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>")
-    .replace(/\n{2,}/g, "<br><br>")
-    .replace(/---/g, "<hr>");
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
-<style>body{font-family:-apple-system,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#1a1a1a;line-height:1.6}
-h1{border-bottom:2px solid #e1e4e8;padding-bottom:8px}h2{color:#24292f;margin-top:24px}
-code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:0.9em}
-li{margin:4px 0}blockquote{border-left:4px solid #dfe2e5;margin:0;padding:0 16px;color:#57606a}
-hr{border:none;border-top:1px solid #d0d7de;margin:24px 0}
-ul{padding-left:20px}</style></head><body>${body}</body></html>`;
-}
-
-export function writeHtml(dir: string, name: string, md: string, title: string): void {
-  fs.writeFileSync(path.join(pcpDir(dir), name), mdToHtml(md, title));
-}
-
 export function appendWorklog(dir: string, line: string): void {
   const p = path.join(pcpDir(dir), "WORKLOG.md");
   const ts = new Date().toISOString().replace("T", " ").slice(0, 16);
   const header = "# PCP Worklog\n\n";
   if (!fs.existsSync(p)) fs.writeFileSync(p, header);
   fs.appendFileSync(p, `- ${ts} ${line}\n`);
-  writeHtml(dir, "WORKLOG.html", fs.readFileSync(p, "utf8"), "PCP Worklog");
 }
 
 export function writeProjectFiles(dir: string, data: ProjectData): void {
@@ -175,7 +148,6 @@ export function writeProjectFiles(dir: string, data: ProjectData): void {
 
   const md = lines.join("\n");
   fs.writeFileSync(path.join(pcpDir(dir), "PROJECT.md"), md);
-  writeHtml(dir, "PROJECT.html", md, `PCP: ${data.name}`);
 }
 
 export function readProjectJson(dir: string): ProjectData | null {
