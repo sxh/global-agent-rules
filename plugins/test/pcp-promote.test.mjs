@@ -7,26 +7,28 @@ function stack(ids) {
   return { active_task_id: ids.length > 0 ? ids[ids.length - 1] : null, active_stack: ids };
 }
 
-test('decidePromote allows promotion from the sprint main (depth 1)', () => {
-  assert.deepEqual(decidePromote(stack(['T120'])), { kind: 'allow', activeId: 'T120' });
+test('enqueues a promotion from the sprint main (depth 1)', () => {
+  assert.deepEqual(decidePromote(stack(['T120'])), { kind: 'enqueue', activeId: 'T120' });
 });
 
-test('decidePromote refuses to nest a promotion under an active subtask', () => {
-  const decision = decidePromote(stack(['T120', 'T135']));
-  assert.equal(decision.kind, 'nested');
-  assert.equal(decision.activeId, 'T135');
-  assert.equal(decision.rootId, 'T120');
-  assert.equal(decision.depth, 2);
+test('enqueues a promotion from a nested subtask instead of refusing', () => {
+  assert.deepEqual(decidePromote(stack(['T120', 'T135'])), { kind: 'enqueue', activeId: 'T135' });
 });
 
-test('decidePromote refuses repeated promotion (depth >= 3) and points at the sprint root', () => {
-  const decision = decidePromote(stack(['T120', 'T135', 'T136']));
-  assert.equal(decision.kind, 'nested');
-  assert.equal(decision.activeId, 'T136');
-  assert.equal(decision.rootId, 'T120');
-  assert.equal(decision.depth, 3);
+test('enqueues a promotion from a deeply nested stack (no LIFO, no refusal)', () => {
+  assert.deepEqual(decidePromote(stack(['T120', 'T135', 'T136'])), {
+    kind: 'enqueue',
+    activeId: 'T136',
+  });
 });
 
-test('decidePromote reports no active sprint when the stack is empty', () => {
+test('reports no active sprint when the stack is empty', () => {
   assert.deepEqual(decidePromote(stack([])), { kind: 'no-sprint' });
+});
+
+test('does not mutate the stack it is given', () => {
+  const s = stack(['T120', 'T135']);
+  const snapshot = structuredClone(s);
+  decidePromote(s);
+  assert.deepEqual(s, snapshot);
 });

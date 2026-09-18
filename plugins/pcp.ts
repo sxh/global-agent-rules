@@ -768,31 +768,24 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
       pcp_promote: tool({
         description:
-          "Add a backlog item to the current sprint as a subtask. Used during sprint review.",
+          "Add a backlog item to the current sprint. It is appended to the ready queue and " +
+          "runs in FIFO order after the active task. Used during sprint review.",
         args: {
           backlog_id: tool.schema.string().describe("Backlog item ID (e.g. B001)"),
-          title: tool.schema.string().optional().describe("Optional: override the subtask title"),
+          title: tool.schema.string().optional().describe("Optional: override the task title"),
         },
         async execute({ backlog_id, title }, context) {
           const dir = context.directory;
           ensureDir(dir);
           const stack = readStack(dir);
 
-          // PCP_PROMOTE_GUARD_FIX: refuse nesting a promotion under an active
-          // subtask — repeated pcp_promote stacked items and reversed their order
-          // (B074/T135). The branch decision lives in the tested decidePromote.
+          // PCP_PROMOTE_ENQUEUE_FIX: append the promoted item to the sprint queue
+          // instead of nesting it on the active stack. Nesting reversed repeated
+          // promotions (LIFO, B074/T135) and forced a refusal while a subtask was
+          // active. Enqueuing preserves FIFO order and works at any depth.
           const decision = decidePromote(stack);
           if (decision.kind === "no-sprint") {
             return `❌ No active sprint; call pcp_start to begin one first`;
-          }
-          if (decision.kind === "nested") {
-            const tasks = replayEvents(dir);
-            const activeTitle = getTask(tasks, decision.activeId)?.title ?? decision.activeId;
-            const rootTitle = getTask(tasks, decision.rootId)?.title ?? decision.rootId;
-            return (
-              `❌ The active task is the subtask [${activeTitle}]; nesting a backlog task under it would reverse the order.\n` +
-              `Finish and return to the main task [${rootTitle}] before promoting, or load batch tasks in order with pcp_plan.`
-            );
           }
 
           const backlog = replayBacklog(dir);
@@ -802,22 +795,15 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
           const taskTitle = title || item.title;
           const id = `T${String(stack.next_id).padStart(3, "0")}`;
-          const parentId = decision.activeId;
 
-          const tasks = replayEvents(dir);
-          const parentTitle = getTask(tasks, parentId)?.title ?? parentId;
-          const resumePrompt = `Subtask [${taskTitle}] from the backlog; when done, continue the main line: ${parentTitle}.`;
-
-          appendEvent(dir, { e: "resume_set", id: parentId, prompt: resumePrompt, ts: Date.now() });
-          appendEvent(dir, { e: "sub", id, parent: parentId, title: taskTitle, ts: Date.now() });
+          appendEvent(dir, { e: "created", id, type: "main", title: taskTitle, ts: Date.now() });
           appendEvent(dir, { e: "backlog_promote", backlog_id, task_id: id, ts: Date.now() });
 
-          stack.active_stack.push(id);
-          stack.active_task_id = id;
+          stack.ready_tasks.push({ id, title: taskTitle });
           stack.next_id++;
           writeStack(dir, stack);
 
-          return `✅ [${backlog_id}] added to the sprint as subtask [${id}]: ${taskTitle}`;
+          return `✅ [${backlog_id}] queued as [${id}]: ${taskTitle} (runs after the active task [${decision.activeId}])`;
         },
       }),
 

@@ -6,7 +6,7 @@ test('PCP_RULE states the batch-loading guidance', () => {
   assert.match(PCP_RULE, /Batch-load/);
   assert.match(PCP_RULE, /pcp_plan/);
   assert.match(PCP_RULE, /pcp_promote/);
-  assert.match(PCP_RULE, /LIFO/);
+  assert.match(PCP_RULE, /FIFO/);
 });
 
 test('PCP_RULE states the post-pivot queue-advance guidance', () => {
