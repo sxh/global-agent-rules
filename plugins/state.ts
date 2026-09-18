@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { applyBacklogEvents, pendingBacklog } from "./backlog_state.js";
+import { applyTaskEvents, formatEventSummary } from "./task_state.js";
 
 export interface Stack {
   next_id: number;
@@ -18,6 +19,7 @@ export interface PcpEvent {
     | "sub"
     | "done"
     | "pivoted"
+    | "renamed"
     | "resume_set"
     | "project_context"
     | "backlog_add"
@@ -212,38 +214,7 @@ export function readEventLog(dir: string): PcpEvent[] {
 }
 
 export function replayEvents(dir: string): Task[] {
-  const tasks = new Map<string, Task>();
-
-  for (const event of readEventLog(dir)) {
-    if (event.e === "created" && event.id) {
-      tasks.set(event.id, {
-        id: event.id,
-        type: event.type ?? "main",
-        title: event.title ?? "",
-        done: false,
-      });
-    } else if (event.e === "sub" && event.id) {
-      tasks.set(event.id, {
-        id: event.id,
-        type: "sub",
-        title: event.title ?? "",
-        parent: event.parent,
-        done: false,
-      });
-    } else if ((event.e === "done" || event.e === "pivoted") && event.id) {
-      const task = tasks.get(event.id);
-      if (task) {
-        task.done = true;
-        if (event.e === "pivoted") task.pivoted = true;
-        if (event.reason) task.pivot_reason = event.reason;
-      }
-    } else if (event.e === "resume_set" && event.id) {
-      const task = tasks.get(event.id);
-      if (task) task.resume_prompt = event.prompt;
-    }
-  }
-
-  return Array.from(tasks.values());
+  return applyTaskEvents(readEventLog(dir));
 }
 
 export function replayBacklog(dir: string): BacklogItem[] {
@@ -380,33 +351,6 @@ function readWorklogEntries(dir: string, limit: number): string[] {
     .split("\n")
     .filter((line) => line.startsWith("- "))
     .slice(-limit);
-}
-
-function formatEventSummary(event: PcpEvent): string {
-  switch (event.e) {
-    case "created":
-      return `Created main task [${event.id}] ${event.title ?? ""}`.trim();
-    case "sub":
-      return `Created subtask [${event.id}] ${event.title ?? ""}`.trim();
-    case "done":
-      return `Completed task [${event.id}]`;
-    case "pivoted":
-      return `Task [${event.id}] pivoted: ${event.reason ?? "no reason given"}`;
-    case "resume_set":
-      return `Updated resume prompt [${event.id}] ${event.prompt ?? ""}`.trim();
-    case "project_context":
-      return `Updated project baseline: ${event.summary ?? ""}`.trim();
-    case "backlog_add":
-      return `Logged backlog [${event.id}] ${event.title ?? ""}`.trim();
-    case "backlog_promote":
-      return `Promoted backlog [${event.backlog_id}] into task [${event.task_id}]`;
-    case "backlog_done":
-      return `Marked backlog [${event.backlog_id}] done`;
-    case "backlog_dismiss":
-      return `Dismissed backlog [${event.backlog_id}]`;
-    default:
-      return event.e;
-  }
 }
 
 export function buildHandoffMarkdown(dir: string, options: HandoffOptions = {}): string {
