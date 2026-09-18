@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 // heading we still want to match for backward compatibility must be written as
 // a `\u` escape, not a literal, so the source stays Han-free.
 const pluginDir = join(dirname(fileURLToPath(import.meta.url)), '..');
-const FILES = ['pcp.ts', 'state.ts', 'backlog_state.ts', 'task_state.ts', 'pcp_rule.ts'];
+const FILES = ['pcp.ts', 'state.ts', 'backlog_state.ts', 'task_state.ts', 'pcp_rename.ts', 'pcp_rule.ts'];
 
 for (const file of FILES) {
   test(`${file} has no Han characters (English-only PCP output)`, () => {
