@@ -153,21 +153,21 @@ export function writeProjectFiles(dir: string, data: ProjectData): void {
   );
 
   const lines = [`# ${data.name}`, ""];
-  if (data.summary) lines.push("## 摘要", data.summary, "");
-  if (data.detail) lines.push("## 扫描详情", data.detail, "");
+  if (data.summary) lines.push("## Summary", data.summary, "");
+  if (data.detail) lines.push("## Scan details", data.detail, "");
   if (data.key_files.length > 0) {
-    lines.push("## 关键文件", ...data.key_files.map((file) => `- ${file}`), "");
+    lines.push("## Key files", ...data.key_files.map((file) => `- ${file}`), "");
   }
-  if (data.extra) lines.push("## 补充说明", data.extra, "");
-  lines.push("## 现状");
+  if (data.extra) lines.push("## Notes", data.extra, "");
+  lines.push("## Current state");
   if (data.status?.trim()) {
     lines.push(data.status.trim(), "");
   } else {
-    lines.push("> 建议手动补充：当前能做什么、已知问题、下一步方向", "");
+    lines.push("> To fill in manually: what it can do now, known issues, next steps", "");
   }
   lines.push(
     "---",
-    `*更新于 ${data.updated_at}，再次调用 pcp_init 可刷新*`,
+    `*Updated ${data.updated_at}; call pcp_init again to refresh*`,
   );
 
   const md = lines.join("\n");
@@ -363,7 +363,7 @@ export function scanProject(dir: string): { summary: string; detail: string; key
     "main.go", "cmd/main.go",
     "src/main.rs", "src/lib.rs",
   ].filter((entry) => fs.existsSync(path.join(dir, entry)));
-  if (entries.length > 0) detail.push(`入口: ${entries.slice(0, 3).join(", ")}`);
+  if (entries.length > 0) detail.push(`Entry points: ${entries.slice(0, 3).join(", ")}`);
 
   const summary = facts.filter(Boolean).join(" ").slice(0, 100) || path.basename(dir);
   return { summary, detail: detail.join("\n"), key_files: entries.slice(0, 5) };
@@ -373,13 +373,21 @@ function extractProjectStatus(projectJson: ProjectData | null, projectMd: string
   if (projectJson?.status?.trim()) return projectJson.status.trim();
   if (!projectMd) return null;
 
-  const statusMatch = projectMd.match(/## 现状\n([\s\S]*?)(?=\n## |\n---|\n*$)/);
+  // Match the English heading and the legacy Chinese one (\u73b0\u72b6) so
+  // PROJECT.md files written before the English-only change are still read.
+  const statusMatch = projectMd.match(/## (?:\u73b0\u72b6|Current state)\n([\s\S]*?)(?=\n## |\n---|\n*$)/);
   if (!statusMatch?.[1]) return null;
 
   const cleaned = statusMatch[1]
     .replace(/^>\s?/gm, "")
     .trim();
-  if (!cleaned || cleaned.includes("建议手动补充")) return null;
+  if (
+    !cleaned ||
+    cleaned.includes("To fill in manually:") ||
+    cleaned.includes("\u5efa\u8bae\u624b\u52a8\u8865\u5145")
+  ) {
+    return null;
+  }
   return cleaned;
 }
 
@@ -396,23 +404,23 @@ function readWorklogEntries(dir: string, limit: number): string[] {
 function formatEventSummary(event: PcpEvent): string {
   switch (event.e) {
     case "created":
-      return `创建主任务 [${event.id}] ${event.title ?? ""}`.trim();
+      return `Created main task [${event.id}] ${event.title ?? ""}`.trim();
     case "sub":
-      return `创建子任务 [${event.id}] ${event.title ?? ""}`.trim();
+      return `Created subtask [${event.id}] ${event.title ?? ""}`.trim();
     case "done":
-      return `完成任务 [${event.id}]`;
+      return `Completed task [${event.id}]`;
     case "pivoted":
-      return `任务 [${event.id}] pivot：${event.reason ?? "未提供原因"}`;
+      return `Task [${event.id}] pivoted: ${event.reason ?? "no reason given"}`;
     case "resume_set":
-      return `更新恢复提示 [${event.id}] ${event.prompt ?? ""}`.trim();
+      return `Updated resume prompt [${event.id}] ${event.prompt ?? ""}`.trim();
     case "project_context":
-      return `更新项目基线：${event.summary ?? ""}`.trim();
+      return `Updated project baseline: ${event.summary ?? ""}`.trim();
     case "backlog_add":
-      return `记录 backlog [${event.id}] ${event.title ?? ""}`.trim();
+      return `Logged backlog [${event.id}] ${event.title ?? ""}`.trim();
     case "backlog_promote":
-      return `将 backlog [${event.backlog_id}] 加入任务 [${event.task_id}]`;
+      return `Promoted backlog [${event.backlog_id}] into task [${event.task_id}]`;
     case "backlog_dismiss":
-      return `忽略 backlog [${event.backlog_id}]`;
+      return `Dismissed backlog [${event.backlog_id}]`;
     default:
       return event.e;
   }
@@ -450,111 +458,111 @@ export function buildHandoffMarkdown(dir: string, options: HandoffOptions = {}):
   const lines: string[] = [
     "# PCP Handoff",
     "",
-    `- 生成时间: ${new Date().toISOString()}`,
+    `- Generated: ${new Date().toISOString()}`,
   ];
 
-  if (audience) lines.push(`- 接手对象: ${audience}`);
-  if (focus) lines.push(`- 交接重点: ${focus}`);
+  if (audience) lines.push(`- Audience: ${audience}`);
+  if (focus) lines.push(`- Focus: ${focus}`);
   lines.push("");
 
-  lines.push("## 项目概况");
-  if (projectJson?.name) lines.push(`- 项目: ${projectJson.name}`);
+  lines.push("## Project overview");
+  if (projectJson?.name) lines.push(`- Project: ${projectJson.name}`);
   if (projectJson?.summary ?? projectContext) {
-    lines.push(`- 摘要: ${projectJson?.summary ?? projectContext ?? ""}`);
+    lines.push(`- Summary: ${projectJson?.summary ?? projectContext ?? ""}`);
   }
-  if (projectStatus) lines.push(`- 现状: ${projectStatus}`);
+  if (projectStatus) lines.push(`- Current state: ${projectStatus}`);
   if (keyFiles.length > 0) {
-    lines.push(`- 关键文件: ${keyFiles.join(", ")}`);
+    lines.push(`- Key files: ${keyFiles.join(", ")}`);
   }
   lines.push("");
 
-  lines.push("## 当前任务");
+  lines.push("## Current tasks");
   if (mainTask) {
-    lines.push(`- 当前主线任务: [${mainTask.id}] ${mainTask.title}`);
+    lines.push(`- Main task: [${mainTask.id}] ${mainTask.title}`);
   } else {
-    lines.push("- 当前主线任务: 无");
+    lines.push("- Main task: none");
   }
   if (activeTask) {
-    lines.push(`- 当前执行任务: [${activeTask.id}] ${activeTask.title}`);
+    lines.push(`- Active task: [${activeTask.id}] ${activeTask.title}`);
   } else {
-    lines.push("- 当前执行任务: 无");
+    lines.push("- Active task: none");
   }
   if (parentTask?.resume_prompt) {
-    lines.push(`- 返回主线提示: ${parentTask.resume_prompt}`);
+    lines.push(`- Return-to-main prompt: ${parentTask.resume_prompt}`);
   }
   if (stack.ready_tasks.length > 0) {
-    lines.push("- 队列中的未完成任务:");
+    lines.push("- Queued tasks:");
     for (const task of stack.ready_tasks) {
       lines.push(`  - [${task.id}] ${task.title}`);
     }
   } else {
-    lines.push("- 队列中的未完成任务: 无");
+    lines.push("- Queued tasks: none");
   }
   lines.push("");
 
-  lines.push("## 当前进展");
+  lines.push("## Progress");
   const completedTasks = tasks.filter((task) => task.done).slice(-5);
   if (completedTasks.length > 0) {
-    lines.push("- 最近完成:");
+    lines.push("- Recently completed:");
     for (const task of completedTasks) {
       lines.push(`  - [${task.id}] ${task.title}`);
     }
   } else {
-    lines.push("- 最近完成: 暂无");
+    lines.push("- Recently completed: none yet");
   }
   if (recentWorklog.length > 0) {
-    lines.push("- 最近 worklog:");
+    lines.push("- Recent worklog:");
     lines.push(...recentWorklog.map((entry) => `  ${entry}`));
   }
   lines.push("");
 
-  lines.push("## 未完成事项");
+  lines.push("## Outstanding work");
   if (activeTask) {
-    lines.push(`- 继续当前任务 [${activeTask.id}] ${activeTask.title}`);
+    lines.push(`- Continue active task [${activeTask.id}] ${activeTask.title}`);
   }
   if (stack.ready_tasks[0]) {
-    lines.push(`- 完成当前任务后推进 [${stack.ready_tasks[0].id}] ${stack.ready_tasks[0].title}`);
+    lines.push(`- After the active task, advance to [${stack.ready_tasks[0].id}] ${stack.ready_tasks[0].title}`);
   }
   if (!activeTask && stack.ready_tasks.length === 0) {
-    lines.push("- 当前没有活动任务，建议重新规划并调用 pcp_plan。");
+    lines.push("- No active task; plan the next round and call pcp_plan.");
   }
   lines.push("");
 
   if (include_backlog) {
-    lines.push("## Backlog 待决项");
+    lines.push("## Backlog (pending)");
     if (pendingBacklog.length > 0) {
       for (const item of pendingBacklog) {
         const detailSuffix = item.detail ? ` — ${item.detail}` : "";
         lines.push(`- [${item.id}] ${item.title}${detailSuffix}`);
       }
     } else {
-      lines.push("- 无");
+      lines.push("- none");
     }
     lines.push("");
   }
 
-  lines.push("## 最近关键事件");
+  lines.push("## Recent key events");
   if (recentEvents.length > 0) {
     lines.push(...recentEvents);
   } else {
-    lines.push("- 暂无");
+    lines.push("- none");
   }
   lines.push("");
 
-  lines.push("## 建议下一步");
+  lines.push("## Suggested next steps");
   if (activeTask) {
-    lines.push(`1. 先继续完成 [${activeTask.id}] ${activeTask.title}。`);
+    lines.push(`1. Finish the active task [${activeTask.id}] ${activeTask.title} first.`);
   } else if (stack.ready_tasks[0]) {
-    lines.push(`1. 从队列首项 [${stack.ready_tasks[0].id}] ${stack.ready_tasks[0].title} 开始。`);
+    lines.push(`1. Start from the queue head [${stack.ready_tasks[0].id}] ${stack.ready_tasks[0].title}.`);
   } else {
-    lines.push("1. 让 planner 生成下一轮计划，再调用 pcp_plan。");
+    lines.push("1. Have the planner produce the next round, then call pcp_plan.");
   }
   if (stack.ready_tasks[0] && activeTask) {
-    lines.push(`2. 当前任务完成后，推进到 [${stack.ready_tasks[0].id}] ${stack.ready_tasks[0].title}。`);
+    lines.push(`2. After the active task, advance to [${stack.ready_tasks[0].id}] ${stack.ready_tasks[0].title}.`);
   } else if (pendingBacklog[0]) {
-    lines.push(`2. 评估 backlog 首项 [${pendingBacklog[0].id}] ${pendingBacklog[0].title} 是否进入下一轮。`);
+    lines.push(`2. Evaluate whether backlog head [${pendingBacklog[0].id}] ${pendingBacklog[0].title} enters the next round.`);
   } else {
-    lines.push("2. 如需中途切换工具，先把本文件交给下一个 AI。");
+    lines.push("2. If switching tools mid-way, hand this file to the next AI first.");
   }
 
   return lines.join("\n");
