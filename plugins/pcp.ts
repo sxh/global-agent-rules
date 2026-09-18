@@ -18,13 +18,13 @@ import {
   writeHandoff,
   writeProjectFiles,
   writeStack,
-} from "./state.js";
-import type { ProjectData, Stack, Task } from "./state.js";
-import { commitTrailerSource } from "./commit_ref.js";
-import { decideStart } from "./pcp_start.js";
-import { decidePromote } from "./pcp_promote.js";
-import { decideRename, renameOutcome } from "./pcp_rename.js";
-import { PCP_RULE } from "./pcp_rule.js";
+} from "../pcp/state.js";
+import type { ProjectData, Stack, Task } from "../pcp/state.js";
+import { commitTrailerSource } from "../pcp/commit_ref.js";
+import { decideStart } from "../pcp/pcp_start.js";
+import { decidePromote } from "../pcp/pcp_promote.js";
+import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
+import { PCP_RULE } from "../pcp/pcp_rule.js";
 
 // ──────────────────────────────────────────────
 // Tool name classifiers

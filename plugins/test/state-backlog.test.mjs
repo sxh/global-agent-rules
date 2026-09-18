@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyBacklogEvents, pendingBacklog } from '../backlog_state.ts';
+import { applyBacklogEvents, pendingBacklog } from '../../pcp/backlog_state.ts';
 
 const add = (id, title) => ({ e: 'backlog_add', id, title, ts: 1 });
 

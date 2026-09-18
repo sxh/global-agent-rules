@@ -45,7 +45,6 @@
         }
   },
   "disabled_providers": ["deepseek"],
-  "plugin": ["~/.config/opencode/plugins/pcp.ts"],
   "lsp": {
     "jdtls": {
       "disabled": true

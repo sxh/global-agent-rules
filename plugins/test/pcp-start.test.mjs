@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideStart } from '../pcp_start.ts';
+import { decideStart } from '../../pcp/pcp_start.ts';
 
 const idle = { active_task_id: null, ready_tasks: [], next_id: 7 };
 

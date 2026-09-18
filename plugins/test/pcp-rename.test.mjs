@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideRename, renameOutcome } from '../pcp_rename.ts';
-import { applyTaskEvents } from '../task_state.ts';
+import { decideRename, renameOutcome } from '../../pcp/pcp_rename.ts';
+import { applyTaskEvents } from '../../pcp/task_state.ts';
 
 const tasks = [
   { id: 'T001', type: 'main', title: 'first', done: false },

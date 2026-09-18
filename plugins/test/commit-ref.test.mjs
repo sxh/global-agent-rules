@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { commitTrailerSource, extractMessageFiles } from '../commit_ref.ts';
+import { commitTrailerSource, extractMessageFiles } from '../../pcp/commit_ref.ts';
 
 test('extracts every -F/--file message path from a git commit command', () => {
   assert.deepEqual(extractMessageFiles('git commit -F /tmp/msg.txt'), ['/tmp/msg.txt']);

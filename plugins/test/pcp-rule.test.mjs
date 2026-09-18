@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PCP_RULE } from '../pcp_rule.ts';
+import { PCP_RULE } from '../../pcp/pcp_rule.ts';
 
 test('PCP_RULE states the batch-loading guidance', () => {
   assert.match(PCP_RULE, /Batch-load/);

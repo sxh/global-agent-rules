@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyTaskEvents, formatEventSummary } from '../task_state.ts';
+import { applyTaskEvents, formatEventSummary } from '../../pcp/task_state.ts';
 
 const created = (id, title) => ({ e: 'created', id, type: 'main', title, ts: 1 });
 

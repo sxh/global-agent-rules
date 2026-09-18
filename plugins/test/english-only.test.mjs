@@ -9,11 +9,21 @@ import { dirname, join } from 'node:path';
 // heading we still want to match for backward compatibility must be written as
 // a `\u` escape, not a literal, so the source stays Han-free.
 const pluginDir = join(dirname(fileURLToPath(import.meta.url)), '..');
-const FILES = ['pcp.ts', 'state.ts', 'backlog_state.ts', 'task_state.ts', 'pcp_rename.ts', 'pcp_rule.ts'];
+// Pure/library modules were moved out of plugins/ (opencode treats every named export in
+// every top-level .ts there as a plugin, so libraries must not live in that directory).
+const libDir = join(pluginDir, '..', 'pcp');
+const FILES = [
+  ['pcp.ts', pluginDir],
+  ['state.ts', libDir],
+  ['backlog_state.ts', libDir],
+  ['task_state.ts', libDir],
+  ['pcp_rename.ts', libDir],
+  ['pcp_rule.ts', libDir],
+];
 
-for (const file of FILES) {
+for (const [file, dir] of FILES) {
   test(`${file} has no Han characters (English-only PCP output)`, () => {
-    const source = readFileSync(join(pluginDir, file), 'utf8');
+    const source = readFileSync(join(dir, file), 'utf8');
     const offenders = source
       .split('\n')
       .map((line, index) => ({ lineNumber: index + 1, line }))

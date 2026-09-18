@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decidePromote } from '../pcp_promote.ts';
+import { decidePromote } from '../../pcp/pcp_promote.ts';
 
 // Build the minimal stack shape decidePromote reads.
 function stack(ids) {
