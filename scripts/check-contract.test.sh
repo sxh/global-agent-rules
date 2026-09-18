@@ -97,3 +97,38 @@ if ! PLUGINS_DIR="$plug_ok" SKILLS_DIR="$plug_ok" bash scripts/check-contract.sh
   exit 1
 fi
 echo "PASS: a well-formed plugin module passes the gate"
+
+# --- Coverage threshold: a measured value below the floor must fail the gate ---
+# Force an impossible floor so the real suite's coverage is bound to be below it.
+smoke_stub="$(mktemp)"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$smoke_stub"
+
+trap 'rm -f "$fixture" "$smoke_stub"; rm -rf "$skills" "$skills_ok" "$plug_bad" "$plug_ok"' EXIT
+
+cov_out="$(COVERAGE_MIN=100.01 bash scripts/check-contract.sh AGENTS.md 2>&1)"
+cov_rc=$?
+if [ "$cov_rc" -eq 0 ]; then
+  echo "FAIL: coverage below the pinned threshold must fail the gate"
+  printf '%s\n' "$cov_out" | tail -20
+  exit 1
+fi
+if ! printf '%s\n' "$cov_out" | grep -qi 'coverage'; then
+  echo "FAIL: a threshold failure should report coverage"
+  printf '%s\n' "$cov_out" | tail -20
+  exit 1
+fi
+echo "PASS: coverage below the pinned threshold fails the gate"
+
+smoke_out="$(SMOKE_TEST="$smoke_stub" bash scripts/check-contract.sh AGENTS.md 2>&1)"
+smoke_rc=$?
+if [ "$smoke_rc" -eq 0 ]; then
+  echo "FAIL: a failing smoke check must fail the gate"
+  printf '%s\n' "$smoke_out" | tail -20
+  exit 1
+fi
+if ! printf '%s\n' "$smoke_out" | grep -qi 'smoke'; then
+  echo "FAIL: a smoke failure should be reported as smoke"
+  printf '%s\n' "$smoke_out" | tail -20
+  exit 1
+fi
+echo "PASS: a failing smoke check fails the gate"

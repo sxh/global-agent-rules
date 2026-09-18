@@ -14,6 +14,9 @@ cd "$ROOT"
 
 CONTRACT="${1:-AGENTS.md}"
 MAX_CONTENT_LINES=200
+# Coverage floor, hardcoded from the canonical measurement (97.33% at pinning time) with a
+# deliberate buffer. Overridable only so check-contract.test.sh can exercise the failure path.
+COVERAGE_MIN="${COVERAGE_MIN:-97}"
 fail=0
 
 # check-contract.test.sh overrides these to point at fixtures. Capture that here, before the
@@ -116,6 +119,11 @@ if [ "$TEST_COUNT" -gt 0 ]; then
       | xargs -0 node --test --experimental-test-coverage 2>&1)"; then
     cov="$(printf '%s\n' "$out" | awk -F'|' '/all files/ {gsub(/ /, "", $2); print $2; exit}')"
     echo "tests: $TEST_COUNT test file(s) passed (coverage ${cov:-n/a}% lines)"
+    # A missing or non-numeric coverage value counts as 0 and therefore fails the floor.
+    if ! awk -v c="${cov:-0}" -v m="$COVERAGE_MIN" 'BEGIN { exit !(c + 0 >= m) }'; then
+      echo "FAIL: coverage ${cov:-n/a}% is below the pinned threshold ${COVERAGE_MIN}%"
+      fail=1
+    fi
   else
     echo "FAIL: first-party test suites failed"
     printf '%s\n' "$out" | tail -30
@@ -161,8 +169,11 @@ done < <(find "$PLUGINS_DIR" -maxdepth 1 -type f \( -name '*.ts' -o -name '*.js'
 # Skipped when the metal-test overrides were present (captured as metal_test at the top), so
 # check-contract.test.sh does not spawn opencode once per section. A real commit-run sets none.
 if [ "$metal_test" -eq 0 ]; then
-  if [ -f "$ROOT/scripts/smoke-plugin-load.test.sh" ]; then
-    if out="$(bash "$ROOT/scripts/smoke-plugin-load.test.sh" 2>&1)"; then
+  # SMOKE_TEST is overridable only so check-contract.test.sh can inject a failing check and
+  # assert the gate propagates it; a real commit-run uses the default.
+  smoke_test="${SMOKE_TEST:-$ROOT/scripts/smoke-plugin-load.test.sh}"
+  if [ -f "$smoke_test" ]; then
+    if out="$(bash "$smoke_test" 2>&1)"; then
       echo "smoke: plugin load check passed (loadable accepted, broken rejected)"
     else
       echo "FAIL: plugin load smoke check failed"
@@ -170,7 +181,7 @@ if [ "$metal_test" -eq 0 ]; then
       fail=1
     fi
   else
-    echo "FAIL: scripts/smoke-plugin-load.test.sh is missing"
+    echo "FAIL: smoke check script is missing: $smoke_test"
     fail=1
   fi
 fi
