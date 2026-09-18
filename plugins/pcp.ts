@@ -22,6 +22,7 @@ import {
 import type { ProjectData, Stack, Task } from "./state.js";
 import { commitTrailerSource } from "./commit_ref.js";
 import { decideStart } from "./pcp_start.js";
+import { decidePromote } from "./pcp_promote.js";
 import { PCP_RULE } from "./pcp_rule.js";
 
 // ──────────────────────────────────────────────
@@ -771,8 +772,21 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           ensureDir(dir);
           const stack = readStack(dir);
 
-          if (!stack.active_task_id) {
+          // PCP_PROMOTE_GUARD_FIX: refuse nesting a promotion under an active
+          // subtask — repeated pcp_promote stacked items and reversed their order
+          // (B074/T135). The branch decision lives in the tested decidePromote.
+          const decision = decidePromote(stack);
+          if (decision.kind === "no-sprint") {
             return `❌ 没有进行中的 sprint，请先 pcp_start 开始一个 sprint`;
+          }
+          if (decision.kind === "nested") {
+            const tasks = replayEvents(dir);
+            const activeTitle = getTask(tasks, decision.activeId)?.title ?? decision.activeId;
+            const rootTitle = getTask(tasks, decision.rootId)?.title ?? decision.rootId;
+            return (
+              `❌ 当前活动任务是子任务【${activeTitle}】，在其下再嵌套 backlog 任务会反转顺序。\n` +
+              `先完成并返回主任务【${rootTitle}】后再 promote，或用 pcp_plan 一次按序加载批量任务。`
+            );
           }
 
           const backlog = replayBacklog(dir);
@@ -782,7 +796,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
           const taskTitle = title || item.title;
           const id = `T${String(stack.next_id).padStart(3, "0")}`;
-          const parentId = stack.active_task_id;
+          const parentId = decision.activeId;
 
           const tasks = replayEvents(dir);
           const parentTitle = getTask(tasks, parentId)?.title ?? parentId;

@@ -81,6 +81,7 @@ done <<'VENDORED'
 plugins/pcp.ts:PCP_CACHE_FIX
 plugins/pcp.ts:PCP_TASK_BINDING_FIX
 plugins/pcp.ts:PCP_COMMIT_FILE_FIX
+plugins/pcp.ts:PCP_PROMOTE_GUARD_FIX
 VENDORED
 
 # --- 6. Type-check the TypeScript plugins (`bun test` only transpiles them) ---
