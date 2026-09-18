@@ -27,6 +27,7 @@ import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
 import { runReorder } from "../pcp/pcp_reorder.js";
 import { decideBacklogAction } from "../pcp/backlog_state.js";
+import { decideTaskDone } from "../pcp/pcp_done.js";
 import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
 
@@ -200,12 +201,14 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
 
     const doneId = stack.active_task_id;
     appendEvent(dir, { e: "done", id: doneId, ts: Date.now() });
+
+    const decision = decideTaskDone(stack);
     stack.active_stack.pop();
 
-    if (stack.active_stack.length > 0) {
+    if (decision.kind === "sub-return") {
       // Return to parent task (sub-task done)
-      stack.active_task_id = stack.active_stack[stack.active_stack.length - 1];
-    } else if (stack.ready_tasks.length > 0) {
+      stack.active_task_id = decision.parentId;
+    } else if (decision.kind === "advance") {
       // Auto-advance from ready queue
       const next = stack.ready_tasks.shift()!;
       stack.active_stack = [next.id];
@@ -516,43 +519,43 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           const doneTask = getTask(tasks, doneId);
           appendEvent(dir, { e: "done", id: doneId, ts: Date.now() });
           appendWorklog(dir, `✅ [${doneId}] ${doneTask?.title ?? doneId}`);
+
+          const decision = decideTaskDone(stack);
           stack.active_stack.pop();
 
-          // Case 1: sub-task done → return to parent
-          if (stack.active_stack.length > 0) {
-            const parentId = stack.active_stack[stack.active_stack.length - 1];
-            stack.active_task_id = parentId;
+          // Subtask done → return to parent
+          if (decision.kind === "sub-return") {
+            stack.active_task_id = decision.parentId;
             writeStack(dir, stack);
 
-            const parentTask = getTask(tasks, parentId);
+            const parentTask = getTask(tasks, decision.parentId);
             if (parentTask) {
               return `Subtask [${doneTask?.title ?? doneId}] complete.\nContinue the main task: ${parentTask.title}.`;
             }
-            return `✅ [${doneId}] complete; back to [${parentId}]`;
+            return `✅ [${doneId}] complete; back to [${decision.parentId}]`;
           }
 
-          // Case 2: main task done → try auto-advance from ready queue
-          if (stack.ready_tasks.length > 0) {
+          // Main task done → auto-advance from the ready queue
+          if (decision.kind === "advance") {
             const next = stack.ready_tasks.shift()!;
             stack.active_stack = [next.id];
             stack.active_task_id = next.id;
             writeStack(dir, stack);
 
-            const remaining = stack.ready_tasks.length;
             const lines = [
               `✅ [${doneId}] ${doneTask?.title ?? ""} complete!`,
               ``,
               `⏭️ Auto-advancing → [${next.id}] ${next.title}`,
             ];
-            if (remaining > 0) {
-              lines.push(`   (${remaining} more task(s) queued)`);
+            if (decision.remaining > 0) {
+              lines.push(`   (${decision.remaining} more task(s) queued)`);
             } else {
               lines.push(`   (this is the last planned task)`);
             }
             return lines.join("\n");
           }
 
-          // Case 3: all tasks done
+          // All tasks done
           stack.active_task_id = null;
           writeStack(dir, stack);
 
