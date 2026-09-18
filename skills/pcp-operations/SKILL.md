@@ -70,3 +70,10 @@ that should close a task must include `PCP-Task: <active task id>` in its messag
 does not implement the active task simply omits it and leaves the task open. Close tasks manually
 with `pcp_done` when a commit does not carry the trailer. (Mechanism: `plugins/pcp.ts`
 `parsePcpTaskRef` + `autoDoneTask`, patch marker `PCP_TASK_BINDING_FIX`.)
+
+## PCP state is written asynchronously after a commit
+
+The plugin writes `.opencode/pcp/` state *after* `git commit` returns, so a `git status` run in
+the same command can still show a clean tree even though the task was auto-closed and the state
+files are about to change. Re-check `git status` (and `pcp_status`) a moment later before
+concluding that no state change occurred or that a PCP-state commit is unnecessary.

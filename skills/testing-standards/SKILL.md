@@ -58,6 +58,10 @@ Before changing behavior at a shared seam (a command type, an error message, a d
 
 When an action mutates a data structure, assert the specific field that changed — not merely that the action returned successfully. A test proving a delete removes from the intended collection (and not a sibling collection) is the difference between a guard and a formality.
 
+### Prove a Characterization Guard Can Fail
+
+A test written against already-correct behaviour — a regression guard, a migration equivalence check, a snapshot of existing behaviour — cannot produce a RED, so its green is not evidence that it guards anything. After writing it, deliberately break the thing it protects (a one-line mutation of the production path) and confirm the test fails, then revert and confirm green. A 2026-09-18 URL-identity guard over captured scraper URLs only became meaningful once changing the product-row URL path from `/product/` to `/products/` made it fail.
+
 ### Full-Flow Integrity Tests
 
 For any create/edit/save workflow, add a test that drives the complete cycle — submit, process, persist, navigate back — and asserts the payload is identical and in the same order. Step-local tests pass while the round-trip silently reorders or mutates data.

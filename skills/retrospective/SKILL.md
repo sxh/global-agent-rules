@@ -33,7 +33,7 @@ If the session's project is a **software project** (a codebase with source files
    ```
    node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-scan.mjs [project-dir] [--json]
    ```
-   If the project does not have source code the scanner supports, skip this step and note why.
+   If the project does not have source code the scanner supports, skip this step and note why. The bundled scanner only extracts TypeScript; for Kotlin/Java use the Kotlin extractor referenced in the `structural-debt-auditor` skill — a scan reporting "0 declarations" on `.kt`/`.java` is an unsupported-language result, not a "no duplication" result.
 2. **Apply the evidence gate** to every candidate (see `structural-debt-auditor/references/evidence-gate.md`): verify at the source that the same-named declaration is truly the same shape with the same ownership; downgrade intentional duplication (different security contexts, divergent evolution paths, deliberate decoupling).
 3. **Treat each verified candidate as a finding** — it feeds the same pipeline as defect and positive findings: it gets generalized to a principle in Step 3, checked for coverage in Step 4, reported in the summary (Step 5), and becomes a backlog item.
 4. **Record the ratio** in the retrospective summary as a baseline for the next retrospective — a rising ratio between retrospectives is itself a finding ("structure is diverging"), even if no single candidate is severe.
