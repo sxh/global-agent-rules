@@ -29,6 +29,7 @@ These rules ensure code is testable:
    - Be injectable/mockable
    - Have sensible defaults for production
    - Not execute on module import
+6. **Tests must assert observable behaviour** - A test that runs code without asserting on the result satisfies a coverage number while protecting nothing ("coverage theatre"). When a unit's output is unobservable (an opaque type, a third-party runtime with no seam), that is a signal of missing design: extract a pure, assertable representation (e.g., a request descriptor) and test that, or run the code on the target it ships to. Never keep a non-asserting test to prop up coverage.
 
 ### Functional Tests Over Technical Tests
 
