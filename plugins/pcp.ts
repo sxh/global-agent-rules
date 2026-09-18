@@ -30,6 +30,12 @@ import { runReorder } from "../pcp/pcp_reorder.js";
 import { decideBacklogAction } from "../pcp/backlog_state.js";
 import { noActiveSprint, noActiveTask } from "../pcp/guidance.js";
 import { decideTaskDone } from "../pcp/pcp_done.js";
+import {
+  decideAutoCreate,
+  decidePivot,
+  decidePlan,
+  decideSubStart,
+} from "../pcp/task_flow.js";
 import { lastEventSummary } from "../pcp/task_state.js";
 import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
@@ -166,16 +172,10 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
   function autoCreateTask(dir: string, title: string): void {
     ensureDir(dir);
     const stack = readStack(dir);
-    if (stack.active_task_id) return;
+    const decision = decideAutoCreate(stack, Date.now());
+    if (decision.kind === "skip-active" || decision.kind === "skip-recent") return;
 
-    // Guard: skip creation if a task was just done within the last 1s
-    // This prevents the main-line auto-re-instantiation loop
-    if (stack.last_done_ts && Date.now() - stack.last_done_ts < 1000) {
-      return;
-    }
-
-    // Auto-advance from ready queue if available
-    if (stack.ready_tasks.length > 0) {
+    if (decision.kind === "advance") {
       const next = stack.ready_tasks.shift()!;
       stack.active_stack = [next.id];
       stack.active_task_id = next.id;
@@ -184,8 +184,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
       return;
     }
 
-    // No ready tasks → create ad-hoc task
-    const id = `T${String(stack.next_id).padStart(3, "0")}`;
+    const id = decision.newId;
     appendEvent(dir, { e: "created", id, type: "main", title, ts: Date.now() });
     stack.active_stack = [id];
     stack.active_task_id = id;
@@ -385,20 +384,22 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           ensureDir(dir);
           const stack = readStack(dir);
 
-          if (tasks.length === 0) return "❌ Task list is empty";
+          const allocation = decidePlan(stack, tasks);
+          if (allocation.kind === "empty") return "❌ Task list is empty";
 
-          const created: { id: string; title: string }[] = [];
-          for (const title of tasks) {
-            const id = `T${String(stack.next_id).padStart(3, "0")}`;
-            appendEvent(dir, { e: "created", id, type: "main", title, ts: Date.now() });
-            created.push({ id, title });
-            stack.next_id++;
+          const created =
+            allocation.kind === "enqueue"
+              ? allocation.created
+              : [allocation.first, ...allocation.rest];
+
+          for (const t of created) {
+            appendEvent(dir, { e: "created", id: t.id, type: "main", title: t.title, ts: Date.now() });
           }
+          stack.next_id += created.length;
 
-          if (stack.active_task_id) {
+          if (allocation.kind === "enqueue") {
             // Active task exists → all new tasks append to ready queue
-            const activeTasks = replayEvents(dir);
-            const activeTask = getTask(activeTasks, stack.active_task_id);
+            const activeTask = getTask(replayEvents(dir), stack.active_task_id ?? "");
             stack.ready_tasks = [...stack.ready_tasks, ...created];
             writeStack(dir, stack);
             return [
@@ -413,16 +414,15 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           }
 
           // No active task → first = doing, rest = ready
-          const [first, ...rest] = created;
-          stack.active_stack = [first.id];
-          stack.active_task_id = first.id;
-          stack.ready_tasks = [...stack.ready_tasks, ...rest];
+          stack.active_stack = [allocation.first.id];
+          stack.active_task_id = allocation.first.id;
+          stack.ready_tasks = [...stack.ready_tasks, ...allocation.rest];
           writeStack(dir, stack);
 
           appendWorklog(dir, `📋 Plan loaded ${created.length} task(s): ${created.map(t => t.id).join(", ")}`);
           const lines = [`📋 Plan loaded (${created.length} task(s)), awaiting confirmation:`];
-          lines.push(`  📌 ${first.id}: ${first.title}`);
-          for (const t of rest) {
+          lines.push(`  📌 ${allocation.first.id}: ${allocation.first.title}`);
+          for (const t of allocation.rest) {
             lines.push(`  ⏳ ${t.id}: ${t.title}`);
           }
 
@@ -448,31 +448,29 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           ensureDir(dir);
           const stack = readStack(dir);
 
-          if (!stack.active_task_id) {
+          const tasks = replayEvents(dir);
+          const parentTitle = stack.active_task_id
+            ? getTask(tasks, stack.active_task_id)?.title ?? stack.active_task_id
+            : null;
+          const decision = decideSubStart(stack, title, parentTitle);
+          if (decision.kind === "no-active") {
             return "❌ No active main task; write some code to trigger auto-start first";
           }
 
-          const parentId = stack.active_task_id;
-          const id = `T${String(stack.next_id).padStart(3, "0")}`;
-
-          const tasks = replayEvents(dir);
-          const parentTitle = getTask(tasks, parentId)?.title ?? parentId;
-          const resumePrompt = `About to start subtask [${title}]; when done, continue the main task: ${parentTitle}.`;
-
           appendEvent(dir, {
             e: "resume_set",
-            id: parentId,
-            prompt: resumePrompt,
+            id: decision.parentId,
+            prompt: decision.resumePrompt,
             ts: Date.now(),
           });
-          appendEvent(dir, { e: "sub", id, parent: parentId, title, ts: Date.now() });
+          appendEvent(dir, { e: "sub", id: decision.newId, parent: decision.parentId, title, ts: Date.now() });
 
-          stack.active_stack.push(id);
-          stack.active_task_id = id;
+          stack.active_stack.push(decision.newId);
+          stack.active_task_id = decision.newId;
           stack.next_id++;
           writeStack(dir, stack);
 
-          return `✅ Subtask [${id}] started: ${title}\n\nAfter git commit it returns to the main line automatically`;
+          return `✅ Subtask [${decision.newId}] started: ${title}\n\nAfter git commit it returns to the main line automatically`;
         },
       }),
 
@@ -596,9 +594,10 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
           ensureDir(dir);
           const stack = readStack(dir);
 
-          if (!stack.active_task_id) return noActiveTask();
+          const decision = decidePivot(stack, new_task);
+          if (decision.kind === "no-active") return noActiveTask();
 
-          const pivotId = stack.active_task_id;
+          const pivotId = decision.pivotId;
           const tasks = replayEvents(dir);
           const pivotTask = getTask(tasks, pivotId);
 
@@ -618,15 +617,14 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
             lines.push(`   Cleared ${droppedQueue.length} queued task(s)`);
           }
 
-          if (new_task) {
+          if (decision.newId && new_task) {
             // Start new task immediately
-            const id = `T${String(stack.next_id).padStart(3, "0")}`;
-            appendEvent(dir, { e: "created", id, type: "main", title: new_task, ts: Date.now() });
-            stack.active_stack = [id];
-            stack.active_task_id = id;
+            appendEvent(dir, { e: "created", id: decision.newId, type: "main", title: new_task, ts: Date.now() });
+            stack.active_stack = [decision.newId];
+            stack.active_task_id = decision.newId;
             stack.next_id++;
             writeStack(dir, stack);
-            lines.push(``, `⏭️ New direction → [${id}] ${new_task}`);
+            lines.push(``, `⏭️ New direction → [${decision.newId}] ${new_task}`);
             if (stack.ready_tasks.length > 0) {
               lines.push(`   (${stack.ready_tasks.length} task(s) still queued)`);
             }
