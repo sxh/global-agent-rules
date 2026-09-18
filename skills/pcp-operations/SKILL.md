@@ -83,3 +83,36 @@ The PCP state lives under the session directory's `.opencode/pcp/`, which may be
 repo from the one being edited. When the commit's repo is not the state's repo, the state cannot
 be staged into that commit — leave it to ride into the next commit **in its own repo** (the
 PCP-State rule) rather than making a dedicated bookkeeping commit.
+
+## Task language and granularity
+
+- Reply in the user's communication language (Chinese for Chinese, English for English).
+- One Task = one concrete deliverable, doable in ≤2h, with a completion criterion. Never create
+  project-goal / sprint-container mega-tasks.
+- Use `pcp_sub` only for a temporary detour that returns immediately; never use it to execute a
+  queued Task.
+
+## Plan confirmation
+
+When the user gives a todolist or plan document: first scan the existing code and outputs so no
+task is created for work already done, then load the plan with `pcp_plan(tasks)`, show the list,
+and wait for confirmation before executing.
+
+## Completion review
+
+When a task finishes with output files, list them and ask "needs review?"; if yes, present by
+type — `.md` → convert to PDF with pandoc and give the path; `.json` → format key fields;
+`.txt` → paste short files or summarise long ones; code → `git diff` the key changes — then call
+`pcp_done`. If no review is needed, call `pcp_done` directly.
+
+## Capture and pivot triggers
+
+- "later / by the way / note X" → `pcp_capture` (record it; do not execute it now).
+- "originally / was going to … now / changed to / found something better" → confirm, then
+  `pcp_pivot` with the reason.
+
+## No active task, and after a pivot
+
+- No active task → guide the user to make a plan rather than inventing tasks.
+- After a pivot with no active task, use `pcp_start` to advance the queue head; never mint a
+  duplicate task id.
