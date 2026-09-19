@@ -49,6 +49,7 @@ These rules ensure code is testable:
 7. **Use mock HTTP responses for boundary-crossing tests** — Use `MockWebConnection` or equivalent to simulate HTTP responses for pagination, error handling, and multi-page flows. Do not construct domain objects directly and pass them to the method under test — this bypasses the parsing layer and hides integration bugs.
 8. **Tests must be hermetic** — Each test must clean up its own side effects. Use `vi.restoreAllMocks()` in `afterEach`, not `vi.clearAllMocks()` in `beforeEach`. A spy on `window.confirm` or other globals that leaks across test boundaries causes spurious failures and erodes trust in the test suite.
 9. **Use resilient selectors** — Target elements with `data-testid` attributes in tests. Never rely on CSS class names (especially CSS module hashes), DOM structure position, or text content that may change. If you need a CSS module class hash to locate an element, the test is too fragile to survive refactoring.
+10. **A simulator's green test does not enforce the real dependency's constraints** — An in-memory or mocked dependency that omits the real one's limits gives false confidence. When a change depends on a constraint the simulator does not model (e.g., H2 does not enforce Postgres's btree index-row cap, so a 2912-byte unique description inserted fine in tests but aborted the live load), add a run against the real system and anchor boundary tests to the real system's measured value, not the code's own constant.
 
 ### Enumerate Dependent Tests Before Changing Shared Behavior
 
