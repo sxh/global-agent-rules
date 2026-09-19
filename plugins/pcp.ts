@@ -362,7 +362,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
             for (const item of pending) {
               lines.push(`  ${item.id}: ${item.title}`);
             }
-            lines.push(``, `Use the \`pcp-sprint-review\` skill to decide whether to add them to this sprint, or just start working.`);
+            lines.push(``, `Use the \`pcp-plan-sprint\` skill to plan sprint work — decide whether to add them to this sprint, or just start working.`);
           }
 
           return lines.join("\n");
@@ -729,7 +729,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
         description:
           "Record a temporary idea or requirement to the backlog without executing it now. " +
           "Call immediately when the user says \"do X later\", \"also add X\", \"want to do X someday\", or \"note X\". " +
-          "Review them together at sprint end via the pcp-sprint-review skill.",
+          "Plan sprint work together at sprint end via the pcp-plan-sprint skill.",
         args: {
           title: tool.schema.string().describe("Requirement or idea title"),
           detail: tool.schema.string().optional().describe("Optional: additional notes"),
@@ -759,7 +759,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
       pcp_promote: tool({
         description:
           "Add a backlog item to the current sprint. It is appended to the ready queue and " +
-          "runs in FIFO order after the active task. Used during sprint review.",
+          "runs in FIFO order after the active task. Used during sprint planning.",
         args: {
           backlog_id: tool.schema.string().describe("Backlog item ID (e.g. B001)"),
           title: tool.schema.string().optional().describe("Optional: override the task title"),

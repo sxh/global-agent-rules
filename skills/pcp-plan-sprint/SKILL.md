@@ -1,6 +1,6 @@
 ---
-name: pcp-sprint-review
-description: Sprint 结束后的 backlog 回顾。逐条询问用户是否将 backlog 项加入下一个 sprint，通过 pcp_promote / pcp_dismiss 处理每项。每条消息只问一个问题。
+name: pcp-plan-sprint
+description: Sprint 结束后的 backlog 规划。逐条询问用户是否将 backlog 项加入下一个 sprint，通过 pcp_promote / pcp_dismiss 处理每项。每条消息只问一个问题。
 license: MIT
 compatibility: opencode
 ---
@@ -14,7 +14,7 @@ compatibility: opencode
 
 ## 目的
 
-Sprint 完成后，逐条回顾 backlog 中的待处理项，决定每项的命运：
+Sprint 完成后，逐条规划 backlog 中的待处理项，决定每项的去向：
 - **加入下一个 sprint** → `pcp_promote`
 - **留待以后** → 跳过，保留在 backlog
 - **永久忽略** → `pcp_dismiss`
@@ -24,7 +24,7 @@ Sprint 完成后，逐条回顾 backlog 中的待处理项，决定每项的命�
 ## 前置条件
 
 - 当前 sprint 已完成（`pcp_done` 或 git commit 触发）
-- 调用 `pcp_backlog` 确认有待回顾项
+- 调用 `pcp_backlog` 确认有待规划项
 
 ---
 
@@ -38,11 +38,11 @@ Sprint 完成后，逐条回顾 backlog 中的待处理项，决定每项的命�
 
 ---
 
-### Step 2：宣布回顾开始
+### Step 2：宣布规划开始
 
 输出：
 ```
-📋 Sprint 回顾开始，共 N 项待处理。逐条过一遍，每项你来决定。
+📋 Sprint 规划开始，共 N 项待处理。逐条过一遍，每项你来决定。
 ```
 
 ---
@@ -71,12 +71,12 @@ Sprint 完成后，逐条回顾 backlog 中的待处理项，决定每项的命�
 
 ---
 
-### Step 4：回顾结束，展示汇总
+### Step 4：规划结束，展示汇总
 
 所有项处理完后输出：
 
 ```
-✅ 回顾完成！
+✅ 规划完成！
 
 加入本次 sprint: N 项（T00X, T00Y...）
 留待以后:       N 项
@@ -97,7 +97,7 @@ Sprint 完成后，逐条回顾 backlog 中的待处理项，决定每项的命�
 |------|------|
 | 用户说「全部加入」 | 依次调用 `pcp_promote` 处理所有 pending 项 |
 | 用户说「全部忽略」 | 依次调用 `pcp_dismiss` 处理所有 pending 项 |
-| 用户说「先跳过」 | 停止回顾，保留所有未处理项在 backlog |
+| 用户说「先跳过」 | 停止规划，保留所有未处理项在 backlog |
 | `pcp_promote` 失败（无活跃 sprint）| 该工具要求活跃 sprint；改用 `pcp_plan` 加载该项标题（原子地创建 sprint 并按序排队，避免 `pcp_start`+`pcp_promote` 造成的嵌套/重复），随后清理对应 backlog 条目 |
 
 ---
@@ -105,7 +105,7 @@ Sprint 完成后，逐条回顾 backlog 中的待处理项，决定每项的命�
 ## 示例
 
 ```
-Agent: 📋 Sprint 回顾开始，共 3 项待处理。
+Agent: 📋 Sprint 规划开始，共 3 项待处理。
 
 [B001] 添加 OAuth 登录支持
 要怎么处理？A) 加入下一个 sprint  B) 留着  C) 忽略
@@ -128,7 +128,7 @@ User: C
 
 Agent: ❌ B003 已忽略。
 
-✅ 回顾完成！
+✅ 规划完成！
 加入本次 sprint: 1 项（T006）
 留待以后:       1 项
 已忽略:         1 项

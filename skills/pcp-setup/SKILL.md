@@ -10,7 +10,7 @@ compatibility: opencode
 将 PCP 所有组件下载并安装到正确位置：
 - `pcp.ts` 插件 → `~/.config/opencode/plugins/`
 - `pcp-intake` skill → `~/.config/opencode/skills/pcp-intake/`
-- `pcp-sprint-review` skill → `~/.config/opencode/skills/pcp-sprint-review/`
+- `pcp-plan-sprint` skill → `~/.config/opencode/skills/pcp-plan-sprint/`
 - `pcp-setup` skill → `~/.config/opencode/skills/pcp-setup/`
 
 > **无需单独配置 agent。** PCP 行为规则通过插件的 `system.transform` hook 自动注入所有 agent，无需手动切换。
@@ -34,7 +34,7 @@ compatibility: opencode
 ```bash
 mkdir -p ~/.config/opencode/plugins \
          ~/.config/opencode/skills/pcp-intake \
-         ~/.config/opencode/skills/pcp-sprint-review \
+         ~/.config/opencode/skills/pcp-plan-sprint \
          ~/.config/opencode/skills/pcp-setup
 ```
 
@@ -51,8 +51,8 @@ curl -fsSL "$BASE/plugin/pcp.ts" \
 curl -fsSL "$BASE/skills/pcp-intake/SKILL.md" \
   -o ~/.config/opencode/skills/pcp-intake/SKILL.md
 
-curl -fsSL "$BASE/skills/pcp-sprint-review/SKILL.md" \
-  -o ~/.config/opencode/skills/pcp-sprint-review/SKILL.md
+curl -fsSL "$BASE/skills/pcp-plan-sprint/SKILL.md" \
+  -o ~/.config/opencode/skills/pcp-plan-sprint/SKILL.md
 
 curl -fsSL "$BASE/skills/pcp-setup/SKILL.md" \
   -o ~/.config/opencode/skills/pcp-setup/SKILL.md
@@ -65,7 +65,7 @@ echo "=== 插件 ===" && ls ~/.config/opencode/plugins/pcp.ts
 echo "=== Skills ===" && ls ~/.config/opencode/skills/
 ```
 
-期望输出：插件路径存在，skills/ 下有 pcp-intake、pcp-sprint-review、pcp-setup。
+期望输出：插件路径存在，skills/ 下有 pcp-intake、pcp-plan-sprint、pcp-setup。
 
 ### Step 4：重启 OpenCode
 
@@ -84,7 +84,7 @@ echo "=== Skills ===" && ls ~/.config/opencode/skills/
 
 > **所有 agent 都自动具备 PCP 能力**，无需切换到特定 agent。
 
-详细工作流见 skill `pcp-sprint-review`。
+详细工作流见 skill `pcp-plan-sprint`。
 
 ---
 
@@ -93,7 +93,7 @@ echo "=== Skills ===" && ls ~/.config/opencode/skills/
 ```bash
 rm ~/.config/opencode/plugins/pcp.ts
 rm -rf ~/.config/opencode/skills/pcp-intake \
-        ~/.config/opencode/skills/pcp-sprint-review \
+        ~/.config/opencode/skills/pcp-plan-sprint \
         ~/.config/opencode/skills/pcp-setup
 ```
 
