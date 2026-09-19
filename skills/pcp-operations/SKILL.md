@@ -116,6 +116,9 @@ type — `.md` → convert to PDF with pandoc and give the path; `.json` → for
 - No active task → guide the user to make a plan rather than inventing tasks.
 - After a pivot with no active task, use `pcp_start` to advance the queue head; never mint a
   duplicate task id.
+- If `pcp_start` refuses because of an unrelated active task that is a session artifact
+  (auto-created from an earlier message, e.g. "Reorder tasks: T157 before T156"), do not
+  commit around it: `pcp_pivot` it with a reason and a `new_task` for the real work.
 
 ## Queue verbs
 

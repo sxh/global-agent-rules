@@ -55,3 +55,14 @@ for git history; do not run the upstream installer over this file, as it would d
 
 Re-point the tag (`git tag -f pcp-known-good-<date>`) and take a fresh backup after each stable
 milestone. Never point it at a commit whose gate has not passed.
+
+## Known issue: auto-created stale active task (2026-09-19)
+
+When a PCP write runs with no active task, the plugin can create a task named from the session's
+first message (e.g. `Reorder tasks: T157 before T156`). It then lingers as the active task and
+blocks `pcp_start` for unrelated work. Observed repeatedly: T137/T139/T141/T146 (2026-09-18) and
+T177/T179 (2026-09-19, T179 recreated immediately after T177 was pivoted).
+
+Recovery: `pcp_pivot` the stale task with a reason and (if starting real work) a `new_task` — see
+the `pcp-operations` skill. The underlying fix (stop auto-creating a task from the session title,
+or let `pcp_start` supersede/skip a task with no work) is not yet implemented.
