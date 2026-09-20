@@ -95,7 +95,10 @@ test('decideAutoCreate advances from the ready queue', () => {
   });
 });
 
-test('decideAutoCreate creates a new task when idle with an empty queue', () => {
+// A write tool with no active task must never invent a task from the session
+// title: that produced junk tasks (e.g. "Reorder tasks: T157 before T156") that
+// then blocked pcp_start. Idle with an empty queue is a no-op.
+test('decideAutoCreate does not invent a task when idle with an empty queue', () => {
   const stack = { active_task_id: null, ready_tasks: [], next_id: 5, last_done_ts: undefined };
-  assert.deepEqual(decideAutoCreate(stack, 10_000), { kind: 'create', newId: 'T005' });
+  assert.deepEqual(decideAutoCreate(stack, 10_000), { kind: 'skip-idle' });
 });

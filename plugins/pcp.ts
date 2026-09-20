@@ -147,52 +147,23 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
     }
   }
 
-  async function resolveTitle(sessionID: string): Promise<string> {
-    try {
-      const resp = await client.session.get({ path: { id: sessionID } });
-      const title: string = (resp.data as any)?.title?.trim() ?? "";
-      if (title) return title.slice(0, 60);
-
-      const msgsResp = await client.session.messages({ path: { id: sessionID } });
-      const messages: any[] = (msgsResp.data as any) ?? [];
-      const userMsgs = messages.filter((m: any) => m.info?.role === "user");
-      const last = userMsgs[userMsgs.length - 1];
-      if (last) {
-        const text = (last.parts ?? [])
-          .filter((p: any) => p.type === "text" && !p.synthetic)
-          .map((p: any) => p.text ?? "")
-          .join(" ")
-          .trim();
-        if (text) return text.slice(0, 60);
-      }
-    } catch {}
-    return "Untitled task";
-  }
-
   // ── Auto-lifecycle internals ─────────────────
 
-  function autoCreateTask(dir: string, title: string): void {
+  // PCP_NO_TITLE_TASK_FIX (forked locally; not re-downloaded):
+  // A write tool with no active task may activate the queued head, but must never invent a
+  // task from the session title — that produced junk tasks (e.g. "Reorder tasks: T157 before
+  // T156") that then blocked pcp_start.
+  function autoActivateQueuedTask(dir: string): void {
     ensureDir(dir);
     const stack = readStack(dir);
     const decision = decideAutoCreate(stack, Date.now());
-    if (decision.kind === "skip-active" || decision.kind === "skip-recent") return;
+    if (decision.kind !== "advance") return;
 
-    if (decision.kind === "advance") {
-      const next = stack.ready_tasks.shift()!;
-      stack.active_stack = [next.id];
-      stack.active_task_id = next.id;
-      writeStack(dir, stack);
-      console.log(`[PCP] auto-advanced to ${next.id}: ${next.title}`);
-      return;
-    }
-
-    const id = decision.newId;
-    appendEvent(dir, { e: "created", id, type: "main", title, ts: Date.now() });
-    stack.active_stack = [id];
-    stack.active_task_id = id;
-    stack.next_id++;
+    const next = stack.ready_tasks.shift()!;
+    stack.active_stack = [next.id];
+    stack.active_task_id = next.id;
     writeStack(dir, stack);
-    console.log(`[PCP] auto-started ${id}: ${title}`);
+    console.log(`[PCP] auto-advanced to ${next.id}: ${next.title}`);
   }
 
   function autoDoneTask(dir: string, expectedId?: string): void {
@@ -953,11 +924,9 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
         if (!isWriteTool(toolName)) return;
 
         const dir = await getSessionDir(sessionID);
-        const stack = readStack(dir);
-        if (stack.active_task_id) return;
+        if (readStack(dir).active_task_id) return;
 
-        const title = await resolveTitle(sessionID);
-        autoCreateTask(dir, title);
+        autoActivateQueuedTask(dir);
       } catch {
         // silent
       }

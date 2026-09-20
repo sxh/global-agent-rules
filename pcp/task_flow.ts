@@ -79,8 +79,8 @@ export function decidePivot(
 export type AutoCreate =
   | { kind: "skip-active" }
   | { kind: "skip-recent" }
-  | { kind: "advance"; next: ReadyTask }
-  | { kind: "create"; newId: string };
+  | { kind: "skip-idle" }
+  | { kind: "advance"; next: ReadyTask };
 
 export function decideAutoCreate(
   stack: Pick<Stack, "active_task_id" | "ready_tasks" | "next_id" | "last_done_ts">,
@@ -89,7 +89,9 @@ export function decideAutoCreate(
   if (stack.active_task_id) return { kind: "skip-active" };
   if (stack.last_done_ts && nowMs - stack.last_done_ts < 1000) return { kind: "skip-recent" };
   if (stack.ready_tasks.length > 0) return { kind: "advance", next: stack.ready_tasks[0] };
-  return { kind: "create", newId: formatId(stack.next_id) };
+  // Never invent a task from the session title: idle with an empty queue is a no-op so a
+  // write tool cannot create junk tasks (the session-title artifact bug).
+  return { kind: "skip-idle" };
 }
 
 // --- pcp_swap (B021) ---

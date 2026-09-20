@@ -63,6 +63,7 @@ first message (e.g. `Reorder tasks: T157 before T156`). It then lingers as the a
 blocks `pcp_start` for unrelated work. Observed repeatedly: T137/T139/T141/T146 (2026-09-18) and
 T177/T179 (2026-09-19, T179 recreated immediately after T177 was pivoted).
 
-Recovery: `pcp_pivot` the stale task with a reason and (if starting real work) a `new_task` — see
-the `pcp-operations` skill. The underlying fix (stop auto-creating a task from the session title,
-or let `pcp_start` supersede/skip a task with no work) is not yet implemented.
+Fixed 2026-09-20: the auto-create branch was removed — a write tool with no active task now only
+activates the queued head and never invents a task from the session title (`pcp/task_flow.ts`
+`decideAutoCreate` returns `skip-idle`; `plugins/pcp.ts` `autoActivateQueuedTask`; marker
+`PCP_NO_TITLE_TASK_FIX`). Recovery via `pcp_pivot` remains available for any stale task.
