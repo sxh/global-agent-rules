@@ -43,7 +43,7 @@ These rules ensure code is testable:
    - "Content from the file is sent by the server" — verify the endpoint returns the file data
    - "Content that is sent is rendered by the UI" — verify the view function renders the data correctly
    - Each segment tests a real contract, not a mock
-4. **Use real data, not fabricated data** — Read from actual data files (`simplifile.read("data/training_constraints.json")`) rather than constructing minimal test fixtures that hide integration bugs
+4. **Use real data, not fabricated data** — Read from actual data files (`simplifile.read("data/training_constraints.json")`) rather than constructing minimal test fixtures that hide integration bugs. When the source file is rewritten by the running application, gate the test against a frozen copy under the test tree instead — the input must be deterministic, and a live file is not.
 5. **A passing technical test does not mean the feature works** — If a user reports "no data on the page" and all tests pass, the tests are testing the wrong thing. Rewrite them.
 6. **Verify the result of the loop, not the loop condition** — A pagination test must assert that N items reached the repository, not that `hasNextPage()` returned a boolean. A test that passes by checking implementation details will not catch regressions when those details change.
 7. **Use mock HTTP responses for boundary-crossing tests** — Use `MockWebConnection` or equivalent to simulate HTTP responses for pagination, error handling, and multi-page flows. Do not construct domain objects directly and pass them to the method under test — this bypasses the parsing layer and hides integration bugs.
