@@ -21,10 +21,28 @@
  *   1  scan completed, duplication ratio >= --fail-on threshold
  *   2  usage error
  */
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-const DEFAULT_EXCLUDES = new Set(['node_modules', 'dist', 'build', '.git', '.next', 'coverage', '.sst']);
+const DEFAULT_EXCLUDES = new Set([
+    'node_modules',
+    'dist',
+    'build',
+    '.git',
+    '.next',
+    'coverage',
+    '.sst',
+    // Build/cache output that is not hand-written source.
+    'elm-stuff',
+    'target',
+    '.venv',
+    '__pycache__',
+]);
+// Committed bundles and minified vendor files are output, not source: scanning them
+// manufactures false "duplication" (an Elm project's two 1MB bundles read as ~96%
+// duplicated). Every skip is reported so the exclusion is visible, not a silent clean.
+const MAX_SOURCE_BYTES = 256 * 1024;
+const BUNDLE_NAME = /\.min\.[cm]?js$/i;
 const SRC_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.gleam', '.kt', '.java', '.py']);
 const TEST_MARKERS = [
     '.test.',
@@ -55,6 +73,7 @@ const EXTRACTORS = {
 export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSignatures = [] } = {}) {
     const declarations = [];
     const unsupported = new Map();
+    const skippedGenerated = [];
     const fileCount = walk(rootDir, (file) => {
         const ext = extOf(file);
         const extractor = EXTRACTORS[ext];
@@ -68,6 +87,11 @@ export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSign
             return;
         }
         if (excludeTestFiles && TEST_MARKERS.some((m) => file.includes(m))) return;
+        const generatedReason = generatedOutputReason(file);
+        if (generatedReason) {
+            skippedGenerated.push({ file, reason: generatedReason });
+            return;
+        }
         let src;
         try {
             src = readFileSync(file, 'utf8');
@@ -119,7 +143,15 @@ export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSign
     const ratio = total === 0 ? 0 : duplicatedCount / total;
     const unsupportedExtensions = [...unsupported.entries()].map(([ext, files]) => ({ ext, files }));
 
-    return { ratio, totalDeclarations: total, fileCount, candidates, downgraded, unsupportedExtensions };
+    return {
+        ratio,
+        totalDeclarations: total,
+        fileCount,
+        candidates,
+        downgraded,
+        unsupportedExtensions,
+        skippedGenerated,
+    };
 }
 
 function walk(dir, onFile) {
@@ -152,6 +184,22 @@ function extOf(file) {
 
 function normalize(s) {
     return s.replace(/\s+/g, ' ').trim();
+}
+
+// A file is generated/bundled output — not source — when it is minified or large
+// enough that it is almost certainly a committed bundle. Returns a reason, or null.
+function generatedOutputReason(file) {
+    if (BUNDLE_NAME.test(file)) return 'minified bundle (.min.*)';
+    let size;
+    try {
+        size = statSync(file).size;
+    } catch {
+        return null;
+    }
+    if (size > MAX_SOURCE_BYTES) {
+        return `file is ${size} bytes (> ${MAX_SOURCE_BYTES}) — treated as generated/bundled output`;
+    }
+    return null;
 }
 
 // Slice each declaration body from the end of its matched prefix to the next
@@ -317,6 +365,15 @@ function main(argv) {
                     `no ${u.ext} extractor is bundled, so this result may undercount.`
             );
             for (const f of u.files) console.log(`  - ${relative(process.cwd(), f)}`);
+        }
+        if (result.skippedGenerated.length > 0) {
+            console.log(
+                `\nWARNING: ${result.skippedGenerated.length} file(s) skipped as generated/bundled output ` +
+                    `(not scanned for duplication):`
+            );
+            for (const s of result.skippedGenerated) {
+                console.log(`  - ${relative(process.cwd(), s.file)} (${s.reason})`);
+            }
         }
     }
 

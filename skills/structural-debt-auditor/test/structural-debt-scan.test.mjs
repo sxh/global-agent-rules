@@ -471,3 +471,61 @@ test('does not report .kt or .java as unsupported once their extractor is bundle
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test('ignores elm-stuff build output by default', () => {
+    const dir = makeFixture({
+        'elm-stuff/generated-code/a.js': 'export const Dup = 1;',
+        'elm-stuff/generated-code/b.js': 'export const Dup = 1;',
+        'src/only.ts': 'export type OnlyOnce = string;',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'elm-stuff is generated output, not source');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('skips committed bundles by file size and reports them as skipped', () => {
+    const bundle = 'export const Dup = "' + 'x'.repeat(300 * 1024) + '";';
+    const dir = makeFixture({
+        'public/main.js': bundle,
+        'elm/main.js': bundle,
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'a committed bundle is not source');
+        assert.ok(Array.isArray(result.skippedGenerated), 'expected a skippedGenerated array');
+        assert.equal(result.skippedGenerated.length, 2, 'both bundles must be reported as skipped');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('skips minified bundles and reports them as skipped', () => {
+    const dir = makeFixture({
+        'app.min.js': 'export const Dup = 1;',
+        'vendor.min.js': 'export const Dup = 1;',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0);
+        assert.equal(result.skippedGenerated.length, 2);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('CLI warns about files skipped as generated/bundled output', () => {
+    const dir = makeFixture({
+        'public/main.js': 'export const Dup = "' + 'x'.repeat(300 * 1024) + '";',
+    });
+    try {
+        const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
+        const run = spawnSync('node', [script, dir], { encoding: 'utf8' });
+        assert.equal(run.status, 0);
+        assert.match(run.stdout, /WARNING: 1 file\(s\) skipped as generated\/bundled output/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
