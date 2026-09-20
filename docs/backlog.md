@@ -10,5 +10,6 @@ This repo has no PCP store, so items live here; see `docs/incidents.md` for the 
   Elm bundles. Needs file-level excludes (committed bundles aren't directories), plus a test.
 - **2026-09-20** Audit incident entries tagged `[ENFORCED]` that name no covering artefact
   (e.g. 102, 132) and either name the gate or downgrade to `[KNOWLEDGE]`.
-- **2026-09-20** Tag audit: add status tags (`[ENFORCED]`/`[OPEN]`/`[KNOWLEDGE]`) to rule-bearing
-  incident entries that carry only a category tag.
+
+(No tag-audit item: `scripts/check-contract.sh` already enforces tag compliance and reports
+"0 untagged rule-bearing entries", so that work is done — verified before capture.)
