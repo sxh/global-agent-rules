@@ -58,9 +58,11 @@ to add a single item to an existing sprint.
 
 ## Close a task before its commit (one commit per task)
 
-Call `pcp_done` to close the active task, then stage `.opencode/pcp` together with the code in
-that same commit: the state is written at `pcp_done` time, so it lands in the commit and no
-separate bookkeeping commit is needed.
+Call `pcp_done` to close the active task, then stage the **whole `.opencode/pcp/`
+directory** (`git add .opencode/pcp`) together with the code in that same commit: `pcp_done`
+writes `WORKLOG.md`, `events.jsonl`, and `stack.json` *together*, so staging them as
+individual files can silently leave `WORKLOG.md` behind (it happened on 2026-09-24, commit
+`64a60bc`). No separate bookkeeping commit is needed.
 
 As a fallback — when `pcp_done` was not called — a `git commit` auto-closes the active task
 **only** when the commit message carries an explicit trailer naming it:
