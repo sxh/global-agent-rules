@@ -61,19 +61,21 @@ for f in "$ROOT"/skills/*/SKILL.md; do
   head -5 "$f" | grep -q '^description:' || { echo "FAIL: $rel is missing 'description:' frontmatter"; fail=1; }
 done
 
-# --- 4. Incident entries that assert a rule must carry a status tag ---
+# --- 4. Incident entries that assert a rule must carry a status tag (zero-leak budget) ---
 # Heuristic: entries tagged [ENFORCED]/[OPEN]/[EXPIRED]/[KNOWLEDGE] are resolved; [Positive]
 # practice entries and everything in the archive section are exempt by design. Remaining entries
-# that use rule language ("Must", "Never", "Always") are candidate leaks for the next
-# retrospective to resolve. Reported, not failed — the backlog is the resolution path.
-# INCIDENTS_FILE is overridable so scripts/check-contract.test.sh can exercise the heuristic.
+# that use rule language ("Must", "Never", "Always") are leaks. The budget is 0 and enforced
+# (B102): a new untagged rule-bearing entry fails the gate; resolve it by tagging the entry
+# [ENFORCED]/[KNOWLEDGE]/[OPEN]/[EXPIRED]. The count is computed by scripts/incident-leaks.sh
+# (shared with check-contract.test.sh). INCIDENTS_FILE is overridable so the test can fixture it.
 INCIDENTS="${INCIDENTS_FILE:-$ROOT/docs/incidents.md}"
 if [ -f "$INCIDENTS" ]; then
-  leaks=$(awk '/^These entries have been archived/{exit} {print}' "$INCIDENTS" \
-    | grep '^- \*\*\[' \
-    | grep -Ev '\[(ENFORCED|OPEN|EXPIRED|KNOWLEDGE|Positive)\]' \
-    | grep -Eic '(must|never|always)' || true)
+  leaks="$(bash "$ROOT/scripts/incident-leaks.sh" "$INCIDENTS")"
   echo "incidents: $leaks untagged rule-bearing entr(ies) — see the Effectiveness Audit step"
+  if [ "${leaks:-0}" -gt 0 ]; then
+    echo "FAIL: $leaks untagged rule-bearing incident entr(ies); tag each [ENFORCED]/[KNOWLEDGE]/[OPEN]/[EXPIRED]"
+    fail=1
+  fi
 fi
 
 # --- 5. (retired) vendored-patch markers ---

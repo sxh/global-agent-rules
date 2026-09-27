@@ -34,6 +34,21 @@ if [ "$count" != "1" ]; then
 fi
 echo "PASS: leak heuristic counts only active untagged rule-bearing entries (got $count)"
 
+# The leak budget is enforced (B102): a leaky incidents file must fail the gate, and the
+# live docs/incidents.md must carry zero leaks.
+if INCIDENTS_FILE="$fixture" bash scripts/check-contract.sh AGENTS.md >/dev/null 2>&1; then
+  echo "FAIL: a leaky incidents file must fail the gate"
+  exit 1
+fi
+echo "PASS: a leaky incidents file fails the gate"
+
+live_leaks="$(bash scripts/incident-leaks.sh docs/incidents.md)"
+if [ "$live_leaks" != "0" ]; then
+  echo "FAIL: live docs/incidents.md has ${live_leaks:-?} untagged rule-bearing entr(ies); leak budget is 0"
+  exit 1
+fi
+echo "PASS: live incidents.md has 0 untagged rule-bearing entries"
+
 # --- Skill test suites must run in the gate ---
 skills="$(mktemp -d)"
 trap 'rm -f "$fixture"; rm -rf "$skills"' EXIT
