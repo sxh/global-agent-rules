@@ -486,6 +486,23 @@ test('ignores elm-stuff build output by default', () => {
     }
 });
 
+test('ignores a virtualenv under a non-standard name (pyvenv.cfg marker)', () => {
+    const dir = makeFixture({
+        'arch_env/pyvenv.cfg': 'home = /usr/local/bin\nversion = 3.12.0\n',
+        'arch_env/lib/python3.12/site-packages/pkg/mod.py': 'class Mod:\n    pass\n',
+        'arch_env/lib/python3.12/site-packages/pkg/other.py': 'class Other:\n    pass\n',
+        'src/only.ts': 'export type OnlyOnce = string;',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.fileCount, 1, 'only the real source file should be walked');
+        assert.equal(result.unsupportedExtensions.length, 0, 'venv .py files are not project source');
+        assert.equal(result.candidates.length, 0);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('skips committed bundles by file size and reports them as skipped', () => {
     const bundle = 'export const Dup = "' + 'x'.repeat(300 * 1024) + '";';
     const dir = makeFixture({

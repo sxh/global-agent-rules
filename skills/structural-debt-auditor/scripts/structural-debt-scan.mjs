@@ -166,8 +166,12 @@ function walk(dir, onFile) {
         for (const e of entries) {
             if (DEFAULT_EXCLUDES.has(e.name)) continue;
             const full = join(d, e.name);
-            if (e.isDirectory()) visit(full);
-            else if (e.isFile()) {
+            if (e.isDirectory()) {
+                // A virtualenv under ANY name (arch_env, venv, .env, …) is dependencies, not
+                // source, so identify it by its marker rather than by the `.venv` name.
+                if (looksLikeVirtualenv(full)) continue;
+                visit(full);
+            } else if (e.isFile()) {
                 count++;
                 onFile(full);
             }
@@ -180,6 +184,12 @@ function walk(dir, onFile) {
 function extOf(file) {
     const m = /\.([a-z0-9]+)$/i.exec(file);
     return m ? `.${m[1].toLowerCase()}` : '';
+}
+
+// A virtualenv carries a `pyvenv.cfg` at its root (PEP 405) whatever the directory is named,
+// so detect it by that marker — a venv called `arch_env` is not matched by the `.venv` name.
+function looksLikeVirtualenv(dir) {
+    return existsSync(join(dir, 'pyvenv.cfg'));
 }
 
 function normalize(s) {
