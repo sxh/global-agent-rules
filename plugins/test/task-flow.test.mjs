@@ -33,7 +33,7 @@ test('decidePlan reports an empty list', () => {
 });
 
 test('decidePlan starts the first and queues the rest when idle', () => {
-  assert.deepEqual(decidePlan({ active_task_id: null, next_id: 5 }, ['A', 'B']), {
+  assert.deepEqual(decidePlan({ active_task_id: null, next_id: 5 }, [{ title: 'A' }, { title: 'B' }]), {
     kind: 'start',
     first: { id: 'T005', title: 'A' },
     rest: [{ id: 'T006', title: 'B' }],
@@ -41,7 +41,7 @@ test('decidePlan starts the first and queues the rest when idle', () => {
 });
 
 test('decidePlan enqueues everything when a task is active', () => {
-  assert.deepEqual(decidePlan({ active_task_id: 'T150', next_id: 5 }, ['A', 'B']), {
+  assert.deepEqual(decidePlan({ active_task_id: 'T150', next_id: 5 }, [{ title: 'A' }, { title: 'B' }]), {
     kind: 'enqueue',
     created: [
       { id: 'T005', title: 'A' },
@@ -101,4 +101,23 @@ test('decideAutoCreate advances from the ready queue', () => {
 test('decideAutoCreate does not invent a task when idle with an empty queue', () => {
   const stack = { active_task_id: null, ready_tasks: [], next_id: 5, last_done_ts: undefined };
   assert.deepEqual(decideAutoCreate(stack, 10_000), { kind: 'skip-idle' });
+});
+
+// --- pcp_plan entry linkage (B100) ---
+// decidePlan takes resolved PlanEntry values (see resolvePlanEntries in backlog_state.test);
+// an entry that came from a backlog item carries its id so planEvents can emit backlog_promote.
+test('decidePlan carries a backlogId through to the created task', () => {
+  const d = decidePlan({ active_task_id: null, next_id: 5 }, [
+    { title: 'Feature', backlogId: 'B100' },
+  ]);
+  assert.deepEqual(d, {
+    kind: 'start',
+    first: { id: 'T005', title: 'Feature', backlogId: 'B100' },
+    rest: [],
+  });
+});
+
+test('decidePlan omits backlogId for a plain title entry', () => {
+  const d = decidePlan({ active_task_id: null, next_id: 5 }, [{ title: 'A' }]);
+  assert.deepEqual(d, { kind: 'start', first: { id: 'T005', title: 'A' }, rest: [] });
 });

@@ -6,7 +6,7 @@
 // directly, matching the pcp_start.ts / pcp_promote.ts decision modules;
 // state.ts's replayBacklog wires it to the event log.
 
-import type { BacklogItem, PcpEvent } from "./state.js";
+import type { BacklogItem, PcpEvent, PlanEntry } from "./state.js";
 
 export function applyBacklogEvents(events: PcpEvent[]): BacklogItem[] {
   const items = new Map<string, BacklogItem>();
@@ -59,4 +59,32 @@ export function decideBacklogAction(items: BacklogItem[], id: string): BacklogAc
   if (!item) return { kind: "unknown", id };
   if (item.status !== "pending") return { kind: "not-pending", id, status: item.status };
   return { kind: "ok", item };
+}
+
+// pcp_plan may take a backlog id (e.g. "B099") in place of a title (B100). Resolve each entry:
+// an exact backlog id becomes the pending item's title plus its id (so the handler emits
+// backlog_promote and the item stops being pending); anything else passes through as a title.
+// Reuses decideBacklogAction so the pending guard has one home.
+export type PlanResolution =
+  | { kind: "ok"; entries: PlanEntry[] }
+  | { kind: "unknown-backlog"; id: string }
+  | { kind: "not-pending-backlog"; id: string; status: BacklogItem["status"] };
+
+const BACKLOG_ID = /^B\d+$/;
+
+export function resolvePlanEntries(entries: string[], backlog: BacklogItem[]): PlanResolution {
+  const resolved: PlanEntry[] = [];
+  for (const entry of entries) {
+    if (!BACKLOG_ID.test(entry)) {
+      resolved.push({ title: entry });
+      continue;
+    }
+    const action = decideBacklogAction(backlog, entry);
+    if (action.kind === "unknown") return { kind: "unknown-backlog", id: entry };
+    if (action.kind === "not-pending") {
+      return { kind: "not-pending-backlog", id: entry, status: action.status };
+    }
+    resolved.push({ title: action.item.title, backlogId: entry });
+  }
+  return { kind: "ok", entries: resolved };
 }

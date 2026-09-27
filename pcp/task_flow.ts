@@ -4,7 +4,7 @@
 // allocation inline. They move here — pure and node-testable — while the handlers keep their
 // own events, messages and mutations. `import type` only, so node can load this module.
 
-import type { ReadyTask, Stack } from "./state.js";
+import type { PcpEvent, PlanEntry, ReadyTask, Stack } from "./state.js";
 
 function formatId(n: number): string {
   return `T${String(n).padStart(3, "0")}`;
@@ -33,22 +33,49 @@ export function decideSubStart(
 
 // --- pcp_plan ---
 
+export interface PlannedTask extends ReadyTask {
+  backlogId?: string;
+}
+
 export type PlanAllocation =
   | { kind: "empty" }
-  | { kind: "enqueue"; created: ReadyTask[] }
-  | { kind: "start"; first: ReadyTask; rest: ReadyTask[] };
+  | { kind: "enqueue"; created: PlannedTask[] }
+  | { kind: "start"; first: PlannedTask; rest: PlannedTask[] };
 
 export function decidePlan(
   stack: Pick<Stack, "active_task_id" | "next_id">,
-  titles: string[],
+  entries: PlanEntry[],
 ): PlanAllocation {
-  if (titles.length === 0) return { kind: "empty" };
+  if (entries.length === 0) return { kind: "empty" };
 
-  const created = titles.map((title, i) => ({ id: formatId(stack.next_id + i), title }));
+  const created: PlannedTask[] = entries.map((entry, i) => {
+    const task: PlannedTask = { id: formatId(stack.next_id + i), title: entry.title };
+    if (entry.backlogId) task.backlogId = entry.backlogId;
+    return task;
+  });
   if (stack.active_task_id) return { kind: "enqueue", created };
 
   const [first, ...rest] = created;
   return { kind: "start", first, rest };
+}
+
+// The event list the pcp_plan handler appends: every created task, then a backlog_promote for
+// each task that resolved from a backlog item — so a planned item does not linger as pending
+// (B100). Pure, so the emission is unit-tested without importing the plugin.
+export function planEvents(created: PlannedTask[], now: number): PcpEvent[] {
+  const events: PcpEvent[] = created.map((task) => ({
+    e: "created",
+    id: task.id,
+    type: "main",
+    title: task.title,
+    ts: now,
+  }));
+  for (const task of created) {
+    if (task.backlogId) {
+      events.push({ e: "backlog_promote", backlog_id: task.backlogId, task_id: task.id, ts: now });
+    }
+  }
+  return events;
 }
 
 // --- pcp_pivot ---

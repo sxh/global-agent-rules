@@ -27,7 +27,7 @@ import { decideStart } from "../pcp/pcp_start.js";
 import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
 import { runReorder } from "../pcp/pcp_reorder.js";
-import { decideBacklogAction } from "../pcp/backlog_state.js";
+import { decideBacklogAction, resolvePlanEntries } from "../pcp/backlog_state.js";
 import { noActiveSprint, noActiveTask, noReadyTask } from "../pcp/guidance.js";
 import { decideTaskDone } from "../pcp/pcp_done.js";
 import {
@@ -37,6 +37,7 @@ import {
   decidePlan,
   decideSubStart,
   decideSwap,
+  planEvents,
 } from "../pcp/task_flow.js";
 import { lastEventSummary } from "../pcp/task_state.js";
 import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
@@ -347,20 +348,29 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
         description:
           "Load a list of planned tasks. The first task starts immediately (doing); the rest queue in order (ready). " +
           "If a task is already active, new tasks append to the end of the queue. " +
+          "An entry may be a backlog id (e.g. 'B049') instead of a title: the pending item's title is used and the item is linked to the created task, so it stops being pending (passing the id inside a longer title does NOT link it — pass the id as its own entry). " +
           "When the user gives a todolist or plan document, parse it into an ordered task list before calling this tool. " +
           "[Task quality] Each task title must be concrete and verifiable: state the files/goal, expected result, or acceptance condition; avoid vague descriptions. " +
           "Example: 'src/fetcher.py: restrict china_ai sources + keyword allowlist (emit 3 matching samples)' beats 'improve source filtering'.",
         args: {
           tasks: tool.schema
             .array(tool.schema.string())
-            .describe("Ordered list of task titles, e.g. ['implement login page', 'add form validation', 'wire up API']"),
+            .describe("Ordered list of task titles or backlog ids, e.g. ['implement login page', 'B049', 'wire up API']"),
         },
         async execute({ tasks }, context) {
           const dir = context.directory;
           ensureDir(dir);
           const stack = readStack(dir);
 
-          const allocation = decidePlan(stack, tasks);
+          const resolution = resolvePlanEntries(tasks, replayBacklog(dir));
+          if (resolution.kind === "unknown-backlog") {
+            return `❌ Backlog item ${resolution.id} not found`;
+          }
+          if (resolution.kind === "not-pending-backlog") {
+            return `❌ ${resolution.id} is ${resolution.status} and cannot be planned`;
+          }
+
+          const allocation = decidePlan(stack, resolution.entries);
           if (allocation.kind === "empty") return "❌ Task list is empty";
 
           const created =
@@ -368,8 +378,10 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
               ? allocation.created
               : [allocation.first, ...allocation.rest];
 
-          for (const t of created) {
-            appendEvent(dir, { e: "created", id: t.id, type: "main", title: t.title, ts: Date.now() });
+          // planEvents also emits backlog_promote for entries that came from a backlog id, so
+          // those items stop being pending (B100).
+          for (const event of planEvents(created, Date.now())) {
+            appendEvent(dir, event);
           }
           stack.next_id += created.length;
 

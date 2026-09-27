@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideBacklogAction, applyBacklogEvents } from '../../pcp/backlog_state.ts';
+import {
+  decideBacklogAction,
+  applyBacklogEvents,
+  resolvePlanEntries,
+} from '../../pcp/backlog_state.ts';
 
 // pcp_promote / pcp_dismiss / pcp_backlog_done each duplicated the same backlog lookup and
 // status guard. decideBacklogAction is the single pure implementation; each verb keeps its
@@ -56,4 +60,50 @@ test('operates on a replayed backlog', () => {
     id: 'B010',
     status: 'done',
   });
+});
+
+// --- resolvePlanEntries (B100) ---
+// pcp_plan accepts a backlog id (e.g. "B099") in its task list. resolvePlanEntries turns that
+// into the pending item's title plus its id, so the handler can emit backlog_promote; a plain
+// title passes through unlinked. Reusing decideBacklogAction keeps one status guard.
+test('resolves a pending backlog id to its title and id', () => {
+  assert.deepEqual(resolvePlanEntries(['B001'], items), {
+    kind: 'ok',
+    entries: [{ title: 'Pending idea', backlogId: 'B001' }],
+  });
+});
+
+test('passes plain titles through unlinked', () => {
+  assert.deepEqual(resolvePlanEntries(['do a thing'], items), {
+    kind: 'ok',
+    entries: [{ title: 'do a thing' }],
+  });
+});
+
+test('resolves a mix of titles and backlog ids in order', () => {
+  assert.deepEqual(resolvePlanEntries(['A', 'B001'], items), {
+    kind: 'ok',
+    entries: [{ title: 'A' }, { title: 'Pending idea', backlogId: 'B001' }],
+  });
+});
+
+test('rejects an unknown backlog id', () => {
+  assert.deepEqual(resolvePlanEntries(['B999'], items), {
+    kind: 'unknown-backlog',
+    id: 'B999',
+  });
+});
+
+test('rejects a non-pending backlog id with its status', () => {
+  assert.deepEqual(resolvePlanEntries(['B003'], items), {
+    kind: 'not-pending-backlog',
+    id: 'B003',
+    status: 'promoted',
+  });
+});
+
+test('does not mutate the backlog it is given', () => {
+  const snapshot = structuredClone(items);
+  resolvePlanEntries(['B001'], items);
+  assert.deepEqual(items, snapshot);
 });

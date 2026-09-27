@@ -10,6 +10,13 @@ export interface ReadyTask {
   title: string;
 }
 
+// One entry of a pcp_plan call after resolution: a title, plus the backlog id it came from when
+// the caller passed a backlog id instead of a title (B100).
+export interface PlanEntry {
+  title: string;
+  backlogId?: string;
+}
+
 export interface Stack {
   next_id: number;
   backlog_next_id: number;
