@@ -5,12 +5,17 @@ import { applyBacklogEvents, pendingBacklog } from "./backlog_state.js";
 import { applyTaskEvents, formatEventSummary } from "./task_state.js";
 import { parseStackStrict, recoverStackFromEvents } from "./stack_state.js";
 
+export interface ReadyTask {
+  id: string;
+  title: string;
+}
+
 export interface Stack {
   next_id: number;
   backlog_next_id: number;
   active_stack: string[];
   active_task_id: string | null;
-  ready_tasks: { id: string; title: string }[];
+  ready_tasks: ReadyTask[];
   last_done_ts?: number;
 }
 

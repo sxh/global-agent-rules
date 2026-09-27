@@ -4,12 +4,7 @@
 // allocation inline. They move here — pure and node-testable — while the handlers keep their
 // own events, messages and mutations. `import type` only, so node can load this module.
 
-import type { Stack } from "./state.js";
-
-export interface ReadyTask {
-  id: string;
-  title: string;
-}
+import type { ReadyTask, Stack } from "./state.js";
 
 function formatId(n: number): string {
   return `T${String(n).padStart(3, "0")}`;

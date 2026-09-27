@@ -9,12 +9,7 @@
 // ready_tasks order lives in stack.json (event replay reconstructs task identity, not
 // order), so no event is appended — a WORKLOG line is the audit trail.
 
-import type { Stack } from "./state.js";
-
-export interface ReadyTask {
-  id: string;
-  title: string;
-}
+import type { ReadyTask, Stack } from "./state.js";
 
 export type ReorderAnchor =
   | { kind: "top" }
