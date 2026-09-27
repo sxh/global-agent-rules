@@ -41,6 +41,7 @@ import {
 import { lastEventSummary } from "../pcp/task_state.js";
 import { renderBacklog, renderHistory, renderTasks } from "../pcp/status_view.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
+import { misplacedMessagePart } from "../pcp/misplaced_state.js";
 
 // Tool classification and commit-trailer parsing live in pcp/ — a top-level plugins/*.ts may
 // export only plugin factories, because opencode invokes every export as a plugin factory
@@ -133,6 +134,8 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
   // ── Session helpers (cached to avoid repeated API calls) ────
 
   const sessionDirCache = new Map<string, string>();
+  // Sessions already warned about running one level above their PCP state.
+  const misplacedWarned = new Set<string>();
 
   async function getSessionDir(sessionID: string): Promise<string> {
     const cached = sessionDirCache.get(sessionID);
@@ -966,6 +969,27 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
         }
 
         autoDoneTask(dir, taskRef.id);
+      } catch {
+        // silent
+      }
+    },
+
+    // Warn immediately (once per session) when opencode is running one level above its PCP state
+    // — e.g. in the repo root instead of the project dir — so a divergent state is not created
+    // silently. Injected as a synthetic message part: the dynamic channel, since the system array
+    // is cached and must stay constant (see PCP_CACHE_FIX).
+    "chat.message": async (input, output) => {
+      try {
+        const { sessionID } = input;
+        if (misplacedWarned.has(sessionID)) return;
+
+        const dir = await getSessionDir(sessionID);
+        const part = misplacedMessagePart(dir, sessionID, output.message.id);
+        if (!part) return;
+
+        misplacedWarned.add(sessionID);
+        console.warn(part.text);
+        output.parts.push(part);
       } catch {
         // silent
       }
