@@ -120,6 +120,20 @@ else
   echo "tests: no test files found"
 fi
 
+# --- 7b. Test files must not import a plugins/ module at runtime ---
+# node --test cannot resolve a plugins/*.ts module's .js specifiers, so a test that imports one
+# fails with ERR_MODULE_NOT_FOUND (or drags the plugin runtime into the suite). Testable logic
+# lives in pcp/ and is imported with `import type` only. Matches a module specifier that reaches
+# a /plugins/ path with a .ts/.js extension; anchored on `from`/`import` so string reads such as
+# read('plugins/pcp.ts') are not flagged.
+bad_imports="$(grep -rlE "(from|import)[[:space:]]*\(?[[:space:]]*['\"][^'\"]*/plugins/[^'\"]*\.(ts|js)['\"]" \
+  --include='*.test.mjs' "$SKILLS_DIR" "$PLUGINS_DIR" 2>/dev/null | grep '/test/' || true)"
+if [ -n "$bad_imports" ]; then
+  echo "FAIL: test file(s) import a plugins/ module; testable logic must live in pcp/ with 'import type' only:"
+  printf '%s\n' "$bad_imports" | sed 's/^/      /'
+  fail=1
+fi
+
 # --- 8. Top-level plugins/ modules may export only plugin factories ---
 # opencode auto-discovers plugins/*.{ts,js} and, on the legacy path, invokes EVERY export of a
 # module as a plugin factory. A pure helper parked in this directory is therefore called with a

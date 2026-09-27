@@ -147,3 +147,35 @@ if ! printf '%s\n' "$smoke_out" | grep -qi 'smoke'; then
   exit 1
 fi
 echo "PASS: a failing smoke check fails the gate"
+
+# --- Unit-tested modules must not import a plugins/ module at runtime (B101) ---
+# node --test cannot resolve a plugins/*.ts module's .js specifiers (ERR_MODULE_NOT_FOUND), so
+# testable logic lives in pcp/ with `import type` only. A test that imports plugins/ must fail
+# the gate with the guard's message. The imported module here is trivial, so under node the test
+# PASSES — pre-guard the gate passes for the wrong reason, which is what makes this test bite.
+leak_dir="$(mktemp -d)"
+trap 'rm -f "$fixture" "$smoke_stub"; rm -rf "$skills" "$skills_ok" "$plug_bad" "$plug_ok" "$leak_dir"' EXIT
+mkdir -p "$leak_dir/nested/test" "$leak_dir/nested/plugins"
+cat > "$leak_dir/nested/test/leaky.test.mjs" <<'JS'
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { marker } from '../plugins/pcp.ts';
+test('the imported plugin module resolves', () => assert.equal(marker, 1));
+JS
+cat > "$leak_dir/nested/plugins/pcp.ts" <<'TS'
+export const marker = 1;
+TS
+
+leak_out="$(PLUGINS_DIR="$leak_dir" SKILLS_DIR="$leak_dir" bash scripts/check-contract.sh AGENTS.md 2>&1)"
+leak_rc=$?
+if [ "$leak_rc" -eq 0 ]; then
+  echo "FAIL: a test importing a plugins/ module must fail the gate"
+  printf '%s\n' "$leak_out" | tail -20
+  exit 1
+fi
+if ! printf '%s\n' "$leak_out" | grep -q 'import a plugins/ module'; then
+  echo "FAIL: the plugins/ import guard should name the offending test file"
+  printf '%s\n' "$leak_out" | tail -20
+  exit 1
+fi
+echo "PASS: a test importing a plugins/ module fails the gate"
