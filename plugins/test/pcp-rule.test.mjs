@@ -43,3 +43,11 @@ test('the pcp-operations skill carries the moved policy', () => {
   assert.match(skill, /pcp_pivot/, 'pivot triggers');
   assert.match(skill, /no active task/i);
 });
+
+test('queue-ordering guidance lives in the skill, not the injected rule (B059)', () => {
+  // The ordered-batch guidance (pcp_plan over repeated pcp_promote) belongs in the skill;
+  // a request to stuff it back into the always-injected PCP_RULE is a false positive.
+  assert.match(skill, /pcp_plan/, 'ordered-batch guidance stays in the skill');
+  assert.match(skill, /pcp_promote/, 'the repeated-promotion trap is named in the skill');
+  assert.doesNotMatch(PCP_RULE, /pcp_plan/, 'tool-level detail must not be re-added to the injected rule');
+});
