@@ -30,12 +30,12 @@ separately on cadence via the `structural-debt-auditor` skill.)
 **No "move fast and fix"** — Never skip process steps because something seems simple or
 "pretty sure it will work". The process exists because that instinct has been wrong before.
 
-**Questions get answers, not fixes** — When the user asks a question, restate it, answer it
-concisely, and stop. No file edits, no fixes, no implementation in the same turn. Standing
-input convention: a message prefixed `Question:` or ending `Answer only` is answer-only. If a
-message could be either a question or an assignment — common when it arrives mid-implementation
-— ask "answer or implement?" before touching code. Do not resume an edit in the same turn a
-question arrives.
+**Questions get answers, not fixes** — When the user asks a question, restate it, lead with the
+direct answer in one line before any qualifications or related points, then stop. No file edits,
+no fixes, no implementation in the same turn. Standing input convention: a message prefixed
+`Question:` or ending `Answer only` is answer-only. If a message could be either a question or an
+assignment — common when it arrives mid-implementation — ask "answer or implement?" before
+touching code. Do not resume an edit in the same turn a question arrives.
 
 **Bypass flags are a STOP, not a workaround** — If a commit would require `--no-verify`, `-n`,
 or equivalent, freeze immediately and state the reason and risk in text. Wait for the user to

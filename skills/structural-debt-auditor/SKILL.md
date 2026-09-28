@@ -30,10 +30,10 @@ node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-s
 
 - Scans for repeated **top-level named declarations** (same `type`/`interface`/`const`/`function`/`class`, same name, same body) across files — the primary, language-agnostic signal of a missing abstraction.
 - Excludes `node_modules`, `dist`, `build`, `.git`, coverage, and test/benchmark files (`.test.`, `.spec.`, `.bench.`) by default.
-- **Virtualenv caution:** the default directory exclusion matches `.venv` *by name*, so a venv under
-  any other name (e.g. `arch_env`) is scanned and its sources surface under `unsupportedExtensions`;
-  check the root for such a directory before trusting the ratio, and detect venvs by their
-  `pyvenv.cfg`/`site-packages` marker rather than by name.
+- **Virtualenv handling:** the scanner excludes any directory carrying a `pyvenv.cfg` marker
+  (PEP 405), so a virtualenv is skipped whatever it is named (verified with a venv named
+  `arch_env`). As a backstop, any scanned-but-unsupported extension is surfaced under
+  `unsupportedExtensions` rather than silently ignored.
 - Reports a **duplication ratio** (duplicated declarations / total) and a per-candidate list with `pattern_signature`, files, and reason.
 - `--fail-on N` exits 1 when ratio ≥ N — the gate.
 
