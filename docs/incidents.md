@@ -286,6 +286,10 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-09-27] [Coverage] [KNOWLEDGE] A Coverage Report Artifact Is Not the Live Measurement** — A stored coverage report can be stale even after the gate passes, because the verify task may not regenerate it; read the live command's output instead. Kover's `koverVerify` left `build/reports/kover/report.xml` from an earlier run (a long-deleted `LayoutAnalyzer.kt` still listed, 91.5% of lines) while `./gradlew koverLog` reported the true 96.52%.
 
+- **[2026-09-28] [Process] [KNOWLEDGE] State a Rule's Evidence Base Before Applying It** — An inference drawn from a few unverified examples is a hypothesis, and acting on it as a rule costs a full round trip when it fails. A rule that "for a film in its own folder only the folder name matters" was inferred from two folders whose inner file names were unusable anyway — and whose "working" siblings were never checked — so two further films stayed misclassified until the file names were corrected and given a `{tmdb-id}` tag as well.
+
+- **[2026-09-28] [Process] [KNOWLEDGE] A Description of an Artefact Is Not the Artefact** — Inspect the object itself, destructively above all, before acting on a description of it, because a description carries the category and not the contents. A media folder described as "just a trailer and can be deleted" also held the 4.7 GB feature film, which a recursive listing with per-file sizes showed before anything was removed.
+
 These entries have been archived as of their respective retrospectives. They document specific platform/tool gotchas or superseded entries preserved for reference.
 - **[2026-08-14] [Process] Bypass Flags Are a Stop, Not a Workaround** — Archived 2026-09-04: superseded by the Process Rule "A commit that would need `--no-verify` is a STOP" (which carries the identical positive-script fix).
 - **[2026-07-13] [Coverage] Coverage Tooling Enables Improvement** — Removed 2026-07-31: entry had incomplete body text (title only, no principle statement or example).
