@@ -39,6 +39,10 @@ static-OO → dynamic → untyped-BEAM) and push each contract as far toward
 
 #### Gleam + Lustre + Electron Stack
 
+**Do NOT use Gleam/Lustre/Erlang (BEAM) for applications with persistent data** — We do not recommend Lustre/Erlang when the application must persist data (a database, multi-user state). The in-house Gleam/Lustre foundations (`scale-alerts-app`, `speakeasy`) persist to local files or not at all, and there is **no demonstrated Gleam→AWS path** in `~/projects` (no DynamoDB, Cognito, or deploy reference). Choosing BEAM for a persistent app means building the database, auth, and deployment layers from scratch — the cost/risk is too high. Lustre remains a good, house-preferred choice for **stateless or local-only** apps.
+- **Mechanism:** default persistent, multi-user applications to the TypeScript/SST stack; using BEAM for a persistent app requires an explicit, user-approved exception.
+- **Expiry / review:** revisit this rule if a proven Gleam + AWS (DynamoDB + Cognito + deploy) pattern is established.
+
 **Gleam over JS on BEAM** — When targeting BEAM, all logic must be implemented in Gleam. Using JavaScript is a last resort, permitted only when we have *proved* that the task cannot be done in Gleam (e.g., browser-only APIs, Electron IPC that require native Node.js modules). "It feels simpler to write this in JS" is not a valid reason — that is how JS becomes a dumping ground. Every FFI function must be justified by a comment explaining why Gleam cannot do it.
 **Always use native Gleam idioms, especially for JSON parsing** — Do NOT write manual string manipulation to parse JSON. Use `gleam/json` with proper decoder types:
 - Import `gleam/json` and define decoder functions with `json.decode`
