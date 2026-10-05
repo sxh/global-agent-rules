@@ -1,4 +1,4 @@
-# Local Setup — OpenCode Server, Local Models, Machine Notes
+# Local Setup — OpenCode Server, Machine Notes
 
 Relocated and corrected from `AGENTS.md` (branch `refactor/agent-layers`, 2026-09-09).
 This is a human-facing machine document, not agent instructions.
@@ -23,21 +23,21 @@ This is a human-facing machine document, not agent instructions.
 - Verify the running process actually has the key:
   `ps eww -p $(pgrep -f "opencode.*14096" | head -1) | tr ' ' '\n' | grep DEEPSEEK`
 
-### Local models (llama.cpp)
-- Runtime: Homebrew **llama.cpp 0.4.0** (ARM prefix `/opt/homebrew`), ggml 0.23.0.
-  Backends (incl. Metal) load as `.so` plugins from ggml's `libexec/` at runtime —
-  so `otool -L` will NOT show Metal even though it is active. Confirm with `-lv 5` and look
-  for `ggml_metal_library_compile_pipeline` lines.
-- MiniCPM5-2B (Q8_0, ~2.7GB) at `~/models/minicpm5-2b/MiniCPM5-2B-Q8_0.gguf`. Serve:
-  `llama-server -m ~/models/minicpm5-2b/MiniCPM5-2B-Q8_0.gguf --port 1234 -c 65536 --parallel 1 -ngl 99`
-  (`--parallel 1` matters: the default is 4 slots, which splits the context into 4×16k.)
-- Provider in `~/.config/opencode/opencode.json`: `minicpm5` → `http://localhost:1234/v1`.
-  A dormant `local-model` provider also points at :1234.
-- LM Studio is **no longer installed**; `~/.lmstudio` does not exist.
-- Qwen3.5-9B template-patch backup lives at `~/models/qwen3.5-9b/` (see the incident entries
-  on the strict system-message template check).
-- Guidance: OpenCode's global rules file makes requests ~30k tokens; any local model must be
-  served with `-c 65536` or larger or it will reject the request outright.
+### Local models — ABANDONED (decision, 2026-10-05)
+- **Decision:** local inference is abandoned on this machine. User's words: "Local does not
+  work on this machine, I have given up."
+- **Consequence — do not do this again:** do not propose, configure, benchmark, or
+  troubleshoot a local model provider. Use a hosted model instead; the cheap hosted options
+  are materially better than anything that ran locally.
+- **Removed 2026-10-05:** the `qwen36` and `local-model` provider blocks in
+  `~/.config/opencode/opencode.json` (both pointed at `http://localhost:1234/v1`).
+- **Left in place, unreferenced:** Homebrew `llama.cpp` (`/opt/homebrew`), the GGUF files
+  under `~/models/` (`qwen3.6-35b-a3b`, `minicpm5-2b`, `qwen3.5-9b`), and
+  `~/models/qwen3.6-35b-a3b/serve.sh`. Nothing in the config points at them any more.
+- **Why it failed (for the record):** OpenCode's global rules file makes every request
+  ~30k tokens, so a local model needs `-c 65536` or it rejects the request outright; on a
+  32GB M1 Pro that context is wired memory and cannot page, which left no headroom.
+  Measured decode was also unusably slow at long context.
 
 ---
 
