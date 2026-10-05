@@ -39,6 +39,57 @@ This is a human-facing machine document, not agent instructions.
   32GB M1 Pro that context is wired memory and cannot page, which left no headroom.
   Measured decode was also unusably slow at long context.
 
+### Hermes — what actually gates a command (verified 2026-10-05)
+
+Context: on 2026-10-05 an agent session ran `uv pip install` into the Hermes venv without
+asking. The rule that covers it ("System changes need permission") was scoped to OpenCode
+sessions and had no enforcement in Hermes, so this records what Hermes can actually enforce.
+
+- **`approvals.mode` (manual/smart/off) does NOT gate package installs.** An approval prompt
+  only happens for commands matching the ~107 patterns in `tools/approval_detection.py`
+  (`rm -rf`, pipe-remote-to-shell, …). `tools/approval.py` returns early on anything
+  unflagged — `if not is_dangerous: return _approved()` — so `pip install`, `brew install`
+  and `npm install` were auto-approved with no prompt in **every** mode, including manual.
+  Adding `approvals.smart_policy` text would not help either: the smart reviewer only ever
+  sees already-flagged commands. **There is no native "ask before this command" gate for
+  unflagged commands.**
+- **The only unconditional, user-editable lever is `approvals.deny`**
+  (`tools/approval_floors.py`): a list of fnmatch globs, case-insensitive, matched against
+  the same normalised/deobfuscated command variants the danger detector uses, and it fires
+  *before* yolo / `mode: off`. Semantics are **BLOCK, not ask** — it can never be approved
+  through the agent.
+- **Set 2026-10-05** so Hermes cannot change the environment without the user doing it:
+  globs for `brew install|upgrade|uninstall`, `pip|pip3 install`,
+  `uv pip|tool|python install`, `npm install`, `npm i -g`, `yarn global add`,
+  `pnpm add -g`, `gem|cargo|go install`, and the apt/dnf/pacman/apk forms.
+  Scope: the Hermes terminal tool only — OpenCode sessions are unaffected.
+  Inspect with `hermes config get approvals.deny`; lift or narrow with
+  `hermes config set approvals.deny '[...]'`.
+- **Expected consequence:** a legitimate project-local install now fails with
+  "BLOCKED: this command matches the user-defined deny rule …". The user runs it themselves,
+  or the pattern is narrowed. That trade is intended — under-blocking is what failed.
+- **Verified the gate fires** (both paths): `echo "pip install nothing-here"` and the
+  compound `cd /tmp && echo "uv pip install probe"` both BLOCK; `echo gate-control-ok` runs.
+  Probes that are harmless if the gate *doesn't* fire are deliberate — never probe a
+  deny rule with a command that would actually install something.
+- **Not yet filed upstream:** user-configurable *require-approval* globs (the ask-counterpart
+  of `approvals.deny`) would replace the blunt block. `approvals.deny` is the workaround.
+
+### Hermes — web search backend health check (2026-10-05)
+
+For 13 days the configured search backend was missing from the runtime venv. Every
+`web_search` call failed, was silently served by the keyless rescue ring, and returned an
+empty list that read as "no results" — see the search-rescue response issue filed upstream
+(`NousResearch/hermes-agent#133473`) and the root cause (`#125556`).
+
+- Script: `~/.hermes/scripts/search_backend_health.sh` — asserts `ddgs` imports in the
+  runtime venv and that a live control query returns ≥1 result.
+- Cron: **Web search backend health check** (`bccf672a2731`), daily 08:00, `no_agent`,
+  delivers to WhatsApp. Watchdog pattern: silent stdout sends nothing, so it speaks only
+  when broken.
+- Test the alert path without breaking anything:
+  `HERMES_HEALTH_PY=/opt/homebrew/bin/python3.11 bash ~/.hermes/scripts/search_backend_health.sh`
+
 ---
 
 ## Legacy documentation (launchd era — superseded, kept for the diagnosis notes)
