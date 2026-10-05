@@ -87,6 +87,13 @@ empty list that read as "no results" — see the search-rescue response issue fi
 - Cron: **Web search backend health check** (`bccf672a2731`), daily 08:00, `no_agent`,
   delivers to WhatsApp. Watchdog pattern: silent stdout sends nothing, so it speaks only
   when broken.
+- **Delivery leg verified end-to-end, 2026-10-05** — not assumed from the weekly liveness
+  job. A throwaway `no_agent` probe job printed one labelled line, fired manually, and the
+  send was confirmed both in the scheduler log
+  (`cron.scheduler: Job '<id>': delivered to whatsapp:447799188238@s.whatsapp.net`) and by
+  the message appearing on the user's phone. The probe job and script were then deleted.
+  A watchdog whose alert cannot reach the user is worse than none, so re-run this probe if
+  the WhatsApp bridge is ever re-paired.
 - Test the alert path without breaking anything:
   `HERMES_HEALTH_PY=/opt/homebrew/bin/python3.11 bash ~/.hermes/scripts/search_backend_health.sh`
 
