@@ -90,7 +90,8 @@ Every project must have a precommit hook (at `hooks/pre-commit` or `.git/hooks/p
 1. **Linting** - Check code style/formatting
 2. **Tests** - Run the full test suite
 3. **Coverage** - Verify code coverage is at least **95%**
-4. **Smoke test** (for desktop/web apps) - Verify the app builds and launches without errors
+4. **Integration tests** - Exercise the real collaborators (datastore, IdP, HTTP), not mocks; unit tests with mocks are not evidence that a slice works. Where a real dependency is needed, run a local emulator (e.g. DynamoDB Local) or a test stage in the hook/CI.
+5. **Smoke test** (for desktop/web apps) - Verify the app builds and launches without errors
 For desktop apps (Electron, Tauri, etc.) and web apps, unit tests alone are not sufficient. The smoke test must verify:
 - The build pipeline compiles without errors
 - All referenced files exist (no dangling references in config files)
@@ -103,6 +104,7 @@ If any of these checks fail, the commit must be rejected.
 All projects must have GitHub Actions configured:
 - **Lint check** - Run linter in CI
 - **Test suite** - Run all tests in CI
+- **Integration tests** - Run the real-collaborator tests (a local emulator such as DynamoDB Local, or a test stage) in CI
 - **Coverage check** - Verify 95%+ coverage in CI
 - **Build** - Verify project builds successfully
 - **Production gating** - Only deploy to production on main branch or tagged releases
