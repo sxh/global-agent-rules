@@ -109,6 +109,7 @@ All projects must have GitHub Actions configured:
 - **Integration tests** - Run the real-collaborator tests (a local emulator such as DynamoDB Local, or a test stage) in CI
 - **Coverage check** - Verify 95%+ coverage in CI
 - **Build** - Verify project builds successfully
+- **Pin the toolchain** - Pin the SDK/tool versions the gates run under (e.g., `flutter-version` for `flutter-action`, the Node version for `setup-node`) to the version the project targets; a floating channel (`channel: stable`, `@latest`) drifts ahead of the dev machine, so format/analyze gates pass locally and fail only in CI. Declare any host tool a gate shells out to (e.g., `lsof`) in the CI image, or remove the dependency.
 - **Production gating** - Only deploy to production on main branch or tagged releases
 
 ### Code Review
