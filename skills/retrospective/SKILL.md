@@ -86,7 +86,7 @@ If a finding does not generalize to a principle that would prevent a different c
   - **INCIDENT** — everything else. This is the default destination: `docs/incidents.md`.
 - Then check coverage *within that destination*: search for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
   - Already covered: **do not add a new entry.** Propose a refinement that clarifies scope (a sentence, or this session's example).
-  - Not covered: propose a new entry (or a contract/skill line, per the destination), carrying a status tag — `[ENFORCED]` (name the covering gate), `[OPEN]` (raise the mechanism backlog item in the same retrospective), `[EXPIRED]`, or `[KNOWLEDGE]` (a gotcha/principle with no enforceable mechanism by design). An entry that asserts a rule without a tag is a leak and must be resolved before the summary is presented.
+  - Not covered: propose a new entry (or a contract/skill line, per the destination), carrying a status tag — `[ENFORCED]` (name the covering gate), `[EXPIRED]`, or `[KNOWLEDGE]` (a gotcha/principle with no enforceable mechanism by design). If a mechanism is identified but not built, the open work is a PCP backlog item, not a prose tag: capture it and note `Backlog: B###` in the entry. An entry that asserts a rule without a tag is a leak and must be resolved before the summary is presented.
   - Contradicted: mark the old entry for removal or amendment.
 - **Compression scan:** If 3+ incident entries from different sessions express the same principle, propose merging them into one and archiving the surplus.
 - **Recurrence check:** If an incident's failure class recurs despite being documented, the gap is enforcement, not documentation — emit a mechanism backlog item rather than another entry.
@@ -95,7 +95,7 @@ If a finding does not generalize to a principle that would prevent a different c
 
 Before presenting the summary, audit the previous retrospective's outputs. This is what makes the process a loop rather than a document generator:
 
-- **Report every `[OPEN]` entry** in `docs/incidents.md` with its age in retrospectives. An enforcement item still open after several retrospectives is itself the finding — escalate it or drop it with a stated reason.
+- **Report every incident entry that references a backlog item (`Backlog: B###`)**, with the item's age: verify the item still exists and is pending, and that the entry's rule is not actually enforced. A dangling reference (item closed or dismissed) is itself the finding — resolve or drop the entry. PCP is the single tracker of open work; an incident entry must not park unbuilt enforcement as prose.
 - **Verify every `[ENFORCED]` claim** by reading the covering artefact: the hook exists and is not stubbed, the lint rule is configured, the CI job triggers, the test is present. A gate that has been disabled or removed since the claim is a finding.
 - **Check recurrence** — for each documented failure class, state whether it occurred again since the entry's date. Recurrence means the documentation did not change behaviour: require the mechanism (backlog item), do not write another entry.
 - **Flag leaks** — any entry asserting a rule with no mechanism and no status tag. Resolve each as enforcement, `[EXPIRED]`, or a justified knowledge entry.
@@ -114,7 +114,7 @@ Show the user a summary BEFORE confirming. The summary must include:
 [Duplication ratio, list of verified candidates with pattern_signature, candidates downgraded as intentional, ratio vs previous baseline]
 
 ### Effectiveness Audit
-[Previous retrospective's outputs: which mechanisms landed, which [OPEN] items remain (with age), which failure classes recurred since, and any rule-bearing entry with no mechanism and no tag (a leak)]
+[Previous retrospective's outputs: which mechanisms landed, which referenced backlog items remain (with age), which failure classes recurred since, and any rule-bearing entry with no mechanism and no tag (a leak)]
 
 ### What Went Well
 1. [Positive practice or good outcome]
@@ -297,12 +297,11 @@ Every entry must express a general principle, not a specific observation. The ti
 
 **Status tags — required for any entry that asserts a rule to follow:**
 - `[ENFORCED]` — a gate covers it. Name the covering artefact (hook, lint rule, CI job, test) so the next audit can verify it still exists and still gates.
-- `[OPEN]` — enforcement identified but not built. A mechanism backlog item must be raised in the same retrospective; the entry is re-reported at every subsequent retrospective until it closes.
 - `[EXPIRED]` — retired: no recurrence observed and no mechanism warranted. Keep it for one more retrospective before archiving.
-- `[KNOWLEDGE]` — a gotcha, design principle, or advice with no enforceable mechanism by design. Use the explicit tag (the checker accepts it) so the entry is not re-reported as a leak; state the illustrative example in the body.
+- `[KNOWLEDGE]` — a gotcha, design principle, or advice with no enforceable mechanism by design. Use the explicit tag (the checker accepts it) so the entry is not re-reported as a leak; state the illustrative example in the body. If a mechanism IS identified but not yet built, do not park it here as prose — capture it as a PCP backlog item and add `Backlog: B###` to the entry, so the backlog is the single tracker of open work.
 - A pure knowledge entry (a gotcha with no rule to enforce) must carry `[KNOWLEDGE]` rather than no tag, so the Effectiveness Audit and `check-contract.sh` can distinguish it from an unresolved leak. An entry that asserts a rule and carries neither tag nor mechanism is a leak.
 
-Example: `- **[2026-09-09] [Process] [OPEN] Hooks Must Resolve the Repo Root via Git** — ...`
+Example: `- **[2026-09-09] [Process] [ENFORCED] Hooks Must Resolve the Repo Root via Git** — ...`
 
 **Before (narrow, tool-specific):**
 ```

@@ -3,7 +3,7 @@
 # status tag. Shared by check-contract.sh (§4, which enforces a zero-leak budget) and
 # check-contract.test.sh (fixture + live assertions), so the heuristic has one home.
 #
-# Exempt by design: [ENFORCED] / [OPEN] / [EXPIRED] / [KNOWLEDGE] tagged entries,
+# Exempt by design: [ENFORCED] / [EXPIRED] / [KNOWLEDGE] tagged entries,
 # [Positive] practice entries, and everything in the archive section.
 #
 # Usage: scripts/incident-leaks.sh [incidents-file]   (prints the integer count)
@@ -17,5 +17,5 @@ fi
 
 awk '/^These entries have been archived/{exit} {print}' "$INCIDENTS" \
   | grep '^- \*\*\[' \
-  | grep -Ev '\[(ENFORCED|OPEN|EXPIRED|KNOWLEDGE|Positive)\]' \
+  | grep -Ev '\[(ENFORCED|EXPIRED|KNOWLEDGE|Positive)\]' \
   | grep -Eic '(must|never|always)' || true
