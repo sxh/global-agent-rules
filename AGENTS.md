@@ -32,7 +32,8 @@ separately on cadence via the `structural-debt-auditor` skill.)
 
 **Questions get answers, not fixes** — When the user asks a question, restate it, lead with the
 direct answer in one line before any qualifications or related points, then stop. No file edits,
-no fixes, no implementation in the same turn. Standing input convention: a message prefixed
+no fixes, no implementation, and no investigative tool calls in the same turn — answer from what
+you already have. Standing input convention: a message prefixed
 `Question:` or ending `Answer only` is answer-only. If a message could be either a question or an
 assignment — common when it arrives mid-implementation — ask "answer or implement?" before
 touching code. Do not resume an edit in the same turn a question arrives.
