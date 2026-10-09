@@ -38,6 +38,10 @@ you already have. Standing input convention: a message prefixed
 assignment — common when it arrives mid-implementation — ask "answer or implement?" before
 touching code. Do not resume an edit in the same turn a question arrives.
 
+**Report signal, not noise** — A status report names only what changes the reader's next action.
+Expected or benign output (an anticipated log line, a known warning) is not a caveat: presenting
+it as one manufactures a problem that does not exist.
+
 **Bypass flags are a STOP, not a workaround** — If a commit would require `--no-verify`, `-n`,
 or equivalent, freeze immediately and state the reason and risk in text. Wait for the user to
 volunteer permission. A prior yes does not carry forward.
