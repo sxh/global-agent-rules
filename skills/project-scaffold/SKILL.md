@@ -20,6 +20,8 @@ template, CI workflow YAML, or config — not prose the agent has to remember.
 | `templates/start.sh` | `start.sh` (project root, executable) | Dev entry point with process-tree teardown, so Ctrl-C cannot orphan a dev server |
 | `templates/ci.yml` | `.github/workflows/gate.yml` | The canonical gate in a pristine checkout; deploys gated to main/tags |
 
+The static-analysis row is stack-specific: name the tool that actually exists. For Dart/Flutter that is `flutter analyze`, not `tsc` — an ungated analyzer lets its findings accumulate and be dismissed as "pre-existing". Wire it into both the hook and CI, and assert parity (see the gate-parity test pattern).
+
 ### Checking conformance
 
 Audit a project's gates mechanically instead of by eye:
