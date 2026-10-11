@@ -51,6 +51,16 @@ These rules ensure code is testable:
 9. **Use resilient selectors** — Target elements with `data-testid` attributes in tests. Never rely on CSS class names (especially CSS module hashes), DOM structure position, or text content that may change. If you need a CSS module class hash to locate an element, the test is too fragile to survive refactoring.
 10. **A simulator's green test does not enforce the real dependency's constraints** — An in-memory or mocked dependency that omits the real one's limits gives false confidence, and a mock can never falsify an *assumption* about the collaborator it replaces — so give every boundary (datastore, IdP, HTTP) at least one test that exercises the real dependency. When a change depends on a constraint the simulator does not model (e.g., H2 does not enforce Postgres's btree index-row cap, so a 2912-byte unique description inserted fine in tests but aborted the live load; a mocked repository returned every row while the real DynamoDB Query caps at 1 MB; a fake token never expired while the real Cognito ID token did after an hour), add a run against the real system and anchor boundary tests to the real system's measured value, not the code's own constant.
 
+### Synchronize on the Event, Not on Wall-Clock Timing
+
+A test that waits for an asynchronous outcome must synchronize on the outcome itself — a bounded poll to a deadline, or an explicit gate/fake the test releases — never sample once after a fixed delay (`sleep 0.3`, a fixed `setTimeout`). Process teardown, signal delivery, and scheduler pacing are asynchronous, so a fixed delay races a loaded CI runner and turns correct behaviour into an intermittent failure.
+
+- **Never assert a fixed sleep's worth of progress.** If the test needs the world to advance, gate on a signal the system emits, not on elapsed time.
+- **A bounded wait is not retrying a broken test.** The deadline must be generous enough to absorb scheduling jitter, and the assertion must still fail when the behaviour is genuinely wrong (a process that never dies, an event that never arrives).
+- Reproduce the failure deterministically before fixing it — where a flake is environmental, model the slow path explicitly (e.g. a process that exits only after a TERM-triggered delay) so the case is red-by-construction, not red-by-luck.
+
+Example: `scheduler4`'s `tests/process-teardown-test.sh` asserted a killed process tree was gone after `sleep 0.3` and flaked in CI (`survived: 419`); it now polls to a 5s deadline, so a slow-but-correct teardown passes and a genuinely un-killed tree still fails.
+
 ### Enumerate Dependent Tests Before Changing Shared Behavior
 
 Before changing behavior at a shared seam (a command type, an error message, a default value, a response shape), grep the test suite for assertions on the old literal, command, or message and fold those updates into the same change. A 2026-09-11 PR switched `PutCommand`→`UpdateCommand` and sanitized 5xx response bodies; each broke a dependent test the targeted run did not cover, surfacing only at the full gate.
