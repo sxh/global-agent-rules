@@ -102,6 +102,14 @@ hooks, or rules prevents recurrence. Use Five Whys (see the `retrospective` skil
 Strongly typed languages are preferred over dynamic ones. Platform order: **BEAM** (Gleam,
 Lustre), then **JVM** (Java, Kotlin, Scala).
 
+## Tech Stack Preference
+
+The default stack for persistent applications is TypeScript + SST on AWS (Lambda, DynamoDB).
+DynamoDB persistence goes through **`@sxh62/dynamo`** — the `dynamodb-toolbox` wrapper published
+from the `dynamo_persistence` repo — rather than per-app repository code. Layer: this file holds
+only the preference; the conventions and the full guide live in
+`skills/engineering-standards/SKILL.md` (package guide: `dynamo_persistence/toolbox/README.md`).
+
 ## Skills
 
 **XP is the default mode** — For any task involving software implementation, code generation,
