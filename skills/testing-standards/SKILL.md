@@ -59,7 +59,14 @@ A test that waits for an asynchronous outcome must synchronize on the outcome it
 - **A bounded wait is not retrying a broken test.** The deadline must be generous enough to absorb scheduling jitter, and the assertion must still fail when the behaviour is genuinely wrong (a process that never dies, an event that never arrives).
 - Reproduce the failure deterministically before fixing it — where a flake is environmental, model the slow path explicitly (e.g. a process that exits only after a TERM-triggered delay) so the case is red-by-construction, not red-by-luck.
 
-Example: `scheduler4`'s `tests/process-teardown-test.sh` asserted a killed process tree was gone after `sleep 0.3` and flaked in CI (`survived: 419`); it now polls to a 5s deadline, so a slow-but-correct teardown passes and a genuinely un-killed tree still fails.
+Example: `scheduler4`'s `tests/process-teardown-test.sh` sampled a killed tree once after `sleep 0.3` and flaked in CI (`survived: 419`). Polling to a deadline is necessary but was not sufficient there: the tree read as alive because the check treated a *zombie* as alive (see the next section).
+
+### Liveness Is Process State, Not Existence
+
+A process's PID entry existing is not the same as the process running: `kill -0` (and `process.kill(pid, 0)`) succeeds for a **zombie** — a dead process its parent has not reaped — so a poll-until-dead assertion can hang wherever nothing reaps orphans, notably a container whose PID 1 is not an init. Read the process state and treat `Z` as dead (`ps -o stat= -p <pid>`; both macOS and Linux report `Z`).
+
+- **A test that depends on its environment's reaping behaviour is not hermetic.** The identical assertion passed on macOS (launchd reaps orphans) and on a bare runner (the VM init reaps) but failed in a `container:` CI job whose PID 1 never reaped.
+- **2026-10-11:** `scheduler4`'s `tests/process-teardown-test.sh` used `kill -0` for liveness and false-failed three straight CI pushes; the container's non-reaping PID 1 left the killed tree's orphans defunct. Treating state `Z` as dead fixed it; sharing the helper is tracked as B140.
 
 ### Enumerate Dependent Tests Before Changing Shared Behavior
 
