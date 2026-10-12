@@ -134,6 +134,24 @@ if [ -n "$bad_imports" ]; then
   fail=1
 fi
 
+# --- 7c. Bash regression suites (skills + this checker's own test) ---
+# Section 7 runs the Node (.test.mjs) suites; the bash suites were invoked by nothing, so a
+# rotted checker passed silently (B013). Run the skill bash suites and this checker's own test.
+# CONTRACT_SUITES guards re-entry: check-contract.test.sh spawns this checker repeatedly, and a
+# nested run must not re-enter the suites (nor the test spawn itself again).
+if [ "${CONTRACT_SUITES:-0}" -eq 0 ]; then
+  for t in "$SKILLS_DIR"/*/scripts/*.test.sh "$ROOT"/scripts/check-contract.test.sh; do
+    [ -f "$t" ] || continue
+    if out="$(CONTRACT_SUITES=1 bash "$t" 2>&1)"; then
+      echo "bash-suite: ${t#"$ROOT"/} passed"
+    else
+      echo "FAIL: bash suite failed: ${t#"$ROOT"/}"
+      printf '%s\n' "$out" | tail -20
+      fail=1
+    fi
+  done
+fi
+
 # --- 8. Top-level plugins/ modules may export only plugin factories ---
 # opencode auto-discovers plugins/*.{ts,js} and, on the legacy path, invokes EVERY export of a
 # module as a plugin factory. A pure helper parked in this directory is therefore called with a
