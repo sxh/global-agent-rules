@@ -63,6 +63,8 @@ coverage  | docs-only repository               | steve       | 2026-09-09
 Never add an exclusion on your own initiative — propose it and wait for approval. The review
 skill's Quality-Gate Integrity axis reads the same file.
 
+**Scaffolding is not complete until `check-gates.sh` reports no STUB or ABSENT gate** (every other gate is ACTIVE, or its absence recorded in `.gates-exclusions`). Projects scaffolded from the commented-out template ship stubs that silently reintroduce the disabled-gate and mock-only-test classes; run the conformance check before the first commit and in CI, so a new project cannot start green with a gate switched off.
+
 Every gate in `templates/pre-commit` is commented out: uncommenting one is a decision, and an
 absent gate must be an explicit, user-approved exclusion. The review skill's Quality-Gate
 Integrity axis checks exactly this. Never leave a gate stubbed as `echo 'disabled'` — a
