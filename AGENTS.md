@@ -76,7 +76,7 @@ actual error. When output does not work, the gap is almost always tool-specific 
 working example instead of deriving from first principles. State your understanding of the problem
 in one sentence before changing any code, and ask "is this correct?" if unsure.
 
-**Verify actual state, never assumed state** — After any shell or git operation, inspect the real
+**Verify actual state, never assumed state** — After any shell, git, or tool operation (including the task/queue state a tool reports), inspect the real
 outcome: capture exit codes before piping, re-check `git status` and `git diff --cached` after
 index-mutating commands, and run the canonical gate command in full rather than a filtered version.
 A pipe masks exit codes; a stash silently unstages; a filtered grep hides errors. An edit made after

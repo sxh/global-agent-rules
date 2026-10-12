@@ -34,6 +34,11 @@ node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-s
   (PEP 405), so a virtualenv is skipped whatever it is named (verified with a venv named
   `arch_env`). As a backstop, any scanned-but-unsupported extension is surfaced under
   `unsupportedExtensions` rather than silently ignored.
+- **Language coverage:** `.ts/.tsx/.js/.jsx/.mjs/.cjs/.gleam/.kt/.java/.py` are the scanned
+  source extensions. **`.dart` is not among them**, so a Flutter/Dart package is neither scanned
+  nor reported — a Flutter project's ratio is TypeScript-only and must be read as covering only
+  the TS portion. Add a Dart extractor (or list `.dart` so it surfaces as unsupported) before
+  trusting a scan of a Flutter repo.
 - Reports a **duplication ratio** (duplicated declarations / total) and a per-candidate list with `pattern_signature`, files, and reason.
 - `--fail-on N` exits 1 when ratio ≥ N — the gate.
 
