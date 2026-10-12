@@ -37,18 +37,24 @@ const DEFAULT_EXCLUDES = new Set([
     'target',
     '.venv',
     '__pycache__',
+    '.dart_tool',
 ]);
 // Committed bundles and minified vendor files are output, not source: scanning them
 // manufactures false "duplication" (an Elm project's two 1MB bundles read as ~96%
 // duplicated). Every skip is reported so the exclusion is visible, not a silent clean.
 const MAX_SOURCE_BYTES = 256 * 1024;
 const BUNDLE_NAME = /\.min\.[cm]?js$/i;
-const SRC_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.gleam', '.kt', '.java', '.py']);
+// Dart code-generation output is not hand-written source: json_serializable/freezed
+// (.g.dart, .freezed.dart, .gr.dart, .mocks.dart) and the Flutter plugin registrant.
+const GENERATED_DART_NAME = /(\.(g|freezed|gr|mocks)\.dart|generated_plugin_registrant\.dart)$/i;
+const SRC_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.gleam', '.kt', '.java', '.py', '.dart']);
 const TEST_MARKERS = [
     '.test.',
     '.spec.',
     '.bench.',
     '_test.gleam',
+    '_test.dart',
+    '/test/',
     '/src/test/',
     '/src/androidTest/',
     '/src/testFixtures/',
@@ -68,6 +74,7 @@ const EXTRACTORS = {
     '.gleam': extractGleam,
     '.kt': extractKotlin,
     '.java': extractKotlin,
+    '.dart': extractDart,
 };
 
 export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSignatures = [] } = {}) {
@@ -200,6 +207,7 @@ function normalize(s) {
 // enough that it is almost certainly a committed bundle. Returns a reason, or null.
 function generatedOutputReason(file) {
     if (BUNDLE_NAME.test(file)) return 'minified bundle (.min.*)';
+    if (GENERATED_DART_NAME.test(file)) return 'generated Dart (codegen, not hand-written source)';
     let size;
     try {
         size = statSync(file).size;
@@ -309,6 +317,50 @@ function extractKotlin(src) {
         if (keyword === 'val' || keyword === 'var') return 'property';
         if (keyword === 'typealias') return 'type';
         return keyword;
+    });
+}
+
+// Extract Dart top-level named declarations. Handles:
+//   class X { ... }   abstract/base/interface/sealed/final class X   mixin class X
+//   mixin X { ... }   enum X { ... }   extension X on Y { ... }   extension type X(...)
+//   typedef X = ...;  const/final/var x = ...;   ReturnType fn(...) { } | => ...
+// A declaration is "top-level" only when it starts at column 0 — Dart has no
+// top-level statements, so column 0 is the declaration level; an indented member
+// lives inside a class/function body and must not be grouped. A "function" whose
+// apparent return type is really a control-flow keyword (`return foo()`,
+// `if (...)`) is skipped. `signature` is the body from the name to the next
+// top-level declaration (or end of file) — the shared convention, so identical
+// bodies group and differing bodies stay apart.
+const DART_FN_KEYWORDS = new Set([
+    'if', 'for', 'while', 'switch', 'return', 'case', 'catch', 'else', 'do',
+    'try', 'assert', 'await', 'yield', 'throw', 'new', 'const', 'final', 'var',
+    'late', 'rethrow', 'break', 'continue',
+]);
+
+function extractDart(src) {
+    const starts = [];
+    let m;
+    const declRe =
+        /^(?:@\w+(?:\([^)]*\))?\s*)*(?:(?:abstract|base|final|interface|sealed|mixin|augment|external|extension)\s+)*(class|mixin|enum|extension|typedef|type|const|final|var)\s+([A-Za-z_$][\w$]*)/gm;
+    while ((m = declRe.exec(src)) !== null) {
+        starts.push({ index: m.index, name: m[2], prefix: m[0].trim() });
+    }
+    const fnRe =
+        /^([A-Za-z_$][\w$<>?,.\s]*?)\s+([a-z_$][\w$]*)\s*\([^;{]*\)\s*(?:async\s*)?(?:=>|\{)/gm;
+    while ((m = fnRe.exec(src)) !== null) {
+        if (DART_FN_KEYWORDS.has(m[1].trim())) continue;
+        starts.push({ index: m.index, name: m[2], prefix: m[0].trim() });
+    }
+    starts.sort((a, b) => a.index - b.index);
+    return sliceDeclBodies(src, starts, (start) => {
+        const head = start.prefix.replace(/\s*[A-Za-z_$][\w$]*$/, '');
+        const keyword = head.trim().split(/\s+/).pop();
+        if (keyword === 'enum') return 'enum';
+        if (keyword === 'extension') return 'extension';
+        if (keyword === 'typedef') return 'type';
+        if (keyword === 'const' || keyword === 'final' || keyword === 'var') return 'property';
+        if (keyword === 'class' || keyword === 'mixin' || keyword === 'type') return 'class';
+        return 'function';
     });
 }
 

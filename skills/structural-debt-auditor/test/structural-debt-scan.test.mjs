@@ -546,3 +546,142 @@ test('CLI warns about files skipped as generated/bundled output', () => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test('detects an identical named Dart class declared in two files', () => {
+    const dir = makeFixture({
+        'lib/a/Repo.dart': 'class Repo {\n  int find() => 1;\n}\n',
+        'lib/b/Repo.dart': 'class Repo {\n  int find() => 1;\n}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        const c = result.candidates.find((c) => c.pattern_signature === 'class_Repo');
+        assert.ok(c, 'expected a class_Repo candidate');
+        assert.equal(c.files.length, 2);
+        assert.equal(c.kind, 'duplicate-declaration');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('extracts Dart enums, mixins, typedefs, consts and functions', () => {
+    const source = [
+        'enum Colour { red, blue }',
+        'mixin Flyer {}',
+        'typedef Handler = void Function();',
+        'const maxLevel = 20;',
+        'int doubleIt(int x) => x * 2;',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/a/Kinds.dart': source,
+        'lib/b/Kinds.dart': source,
+    });
+    try {
+        const result = scanDuplication(dir);
+        for (const sig of [
+            'enum_Colour',
+            'class_Flyer',
+            'type_Handler',
+            'property_maxLevel',
+            'function_doubleIt',
+        ]) {
+            assert.ok(
+                result.candidates.some((c) => c.pattern_signature === sig),
+                `expected a ${sig} candidate`
+            );
+        }
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not report .dart as unsupported once its extractor is bundled', () => {
+    const dir = makeFixture({
+        'lib/only.dart': 'class Only {}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.unsupportedExtensions.some((e) => e.ext === '.dart'), false);
+        assert.ok(result.totalDeclarations >= 1, 'expected the Dart declaration to be parsed');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not treat indented Dart members as top-level declarations', () => {
+    const dir = makeFixture({
+        'lib/a/Repo.dart': 'class Repo {\n  final value = 1;\n}\n',
+        'lib/b/Repo.dart': 'class Repo {\n  final value = 1;\n}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(
+            result.candidates.some((c) => c.pattern_signature === 'property_value'),
+            false,
+            'indented members are not top-level declarations'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not group same-named Dart declarations with different bodies', () => {
+    const dir = makeFixture({
+        'lib/a/Repo.dart': 'class Repo {\n  int find() => 1;\n}\n',
+        'lib/b/Repo.dart': 'class Repo {\n  String find() => "x";\n}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'same name, different body is not duplication');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('ignores Dart test files by _test.dart suffix and the test/ directory', () => {
+    const dir = makeFixture({
+        'lib/a/Shared.dart': 'class Shared {}\n',
+        'lib/b/Shared.dart': 'class Shared {}\n',
+        'test/a/shared_test.dart': 'class Shared {}\n',
+        'test/b/shared_test.dart': 'class Shared {}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        const c = result.candidates.find((c) => c.pattern_signature === 'class_Shared');
+        assert.ok(c, 'expected the production class to be detected');
+        assert.equal(c.files.length, 2, 'Dart test files must not be scanned');
+        assert.ok(
+            c.files.every((f) => f.includes('lib/')),
+            'no test files may appear in the candidate'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('ignores Dart .dart_tool build output by default', () => {
+    const dir = makeFixture({
+        '.dart_tool/flutter_build/a/web_plugin_registrant.dart': 'class Dup {}\n',
+        '.dart_tool/flutter_build/b/web_plugin_registrant.dart': 'class Dup {}\n',
+        'lib/only.dart': 'class OnlyOnce {}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, '.dart_tool is generated output, not source');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('skips generated Dart (codegen) files and reports them as skipped', () => {
+    const dir = makeFixture({
+        'lib/a/model.g.dart': 'class Model {}\n',
+        'lib/b/model.g.dart': 'class Model {}\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'generated Dart is not hand-written source');
+        assert.equal(result.skippedGenerated.length, 2, 'both generated files must be reported');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
