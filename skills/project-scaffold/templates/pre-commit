@@ -73,4 +73,14 @@ fi
 # Unit tests verify logic; a smoke test verifies integration. Poll for readiness, don't sleep.
 # npm run smoke
 
+# --- 9. Gate conformance: a stub must not ship ---
+# A project scaffolded from this template starts with gates commented out; running the checker
+# here makes a stubbed or absent gate fail the very first commit (scaffolding is not complete
+# until it exits 0, or each absence is recorded in .gates-exclusions). Skipped where the checker
+# isn't installed (CI, another developer's machine).
+CHECK_GATES="$HOME/.config/opencode/skills/project-scaffold/scripts/check-gates.sh"
+if [ -x "$CHECK_GATES" ]; then
+  bash "$CHECK_GATES" . || exit 1
+fi
+
 echo "pre-commit gate passed"

@@ -1,10 +1,11 @@
 #!/bin/bash
 # Full regression for check-gates.sh — no `set -e`: the checker is supposed to exit 1 on gaps.
 S="$HOME/.config/opencode/skills/project-scaffold/scripts/check-gates.sh"
+FAILED=0
 run() { # label, dir, expected-exit
   out=$(bash "$S" "$2" 2>&1); code=$?
   verdict=$(printf '%s\n' "$out" | tail -1)
-  if [ "$code" = "$3" ]; then mark="PASS"; else mark="FAIL"; fi
+  if [ "$code" = "$3" ]; then mark="PASS"; else mark="FAIL"; FAILED=1; fi
   printf '[%s] %-28s exit=%s (want %s)\n        %s\n' "$mark" "$1" "$code" "$3" "$verdict"
   printf '%s\n' "$out" | sed -n '/^  GATE/,/^$/p' | sed 's/^/        /'
   echo
@@ -83,6 +84,8 @@ run "F docs repo no gate" "$F" 1
 printf 'repo-gate | throwaway demo | steve | 2026-09-09\n' > $F/.gates-exclusions
 run "G docs repo excluded" "$F" 0
 
-# --- H: this repo, and the real project -------------------------------------
-run "H config repo (own gate)" "$HOME/.config/opencode" 0
-run "I scheduler4" "$HOME/projects/scheduler4" 1
+# --- H: this repo, and a real project (skipped where absent) ----------------
+[ -d "$HOME/.config/opencode" ] && run "H config repo (own gate)" "$HOME/.config/opencode" 0
+[ -d "$HOME/projects/scheduler4" ] && run "I scheduler4" "$HOME/projects/scheduler4" 0
+
+exit "$FAILED"

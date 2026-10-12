@@ -361,11 +361,17 @@ check_gate ffi-guard  '@external'                                               
 # --- Coverage threshold must live in the tool config, not in prose or in the hook ---
 echo
 thresh=""
-for cfg in .c8rc.json .c8rc vitest.config.ts vitest.config.js vitest.config.mjs jest.config.js jest.config.ts jest.config.cjs package.json; do
-  if [ -f "$cfg" ] && grep -qE 'thresholds|check-coverage|coverageThreshold' "$cfg" 2>/dev/null; then
-    thresh="$cfg"
-    break
-  fi
+# Thresholds may live in a workspace package (packages/*/vitest.config.ts), not the root, so scan
+# the root and every workspace directory — otherwise a monorepo reads as having no threshold.
+thresh_names=(.c8rc .c8rc.json .nycrc .nycrc.json vitest.config.ts vitest.config.js vitest.config.mjs jest.config.js jest.config.ts jest.config.cjs package.json)
+for d in . packages/* apps/* libs/* services/*; do
+  [ -d "$d" ] || continue
+  for name in "${thresh_names[@]}"; do
+    cfg="$d/$name"; [ "$d" = "." ] && cfg="$name"
+    if [ -f "$cfg" ] && grep -qE 'thresholds|check-coverage|coverageThreshold' "$cfg" 2>/dev/null; then
+      thresh="$cfg"; break 2
+    fi
+  done
 done
 [ -f pom.xml ] && grep -q 'jacoco' pom.xml 2>/dev/null && thresh="pom.xml (jacoco)"
 if [ -n "$thresh" ]; then
