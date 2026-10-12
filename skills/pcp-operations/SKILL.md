@@ -23,6 +23,8 @@ rather than redoing it.
 between sessions, so they are project content, not scratch output.
 
 - Default to committing them alongside the code change they describe.
+- Any `pcp_*` call (including `pcp_capture`, which records a backlog item mid-task) leaves
+  `.opencode/pcp/` dirty; restage the whole directory in the next commit, not only at task close.
 - Batch them into the final commit at session end if the user prefers that cadence.
 - Do not leave them unstaged at session end: state that is not committed does not exist for
   the next session.
