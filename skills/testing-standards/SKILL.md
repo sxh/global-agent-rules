@@ -94,7 +94,7 @@ A test written against already-correct behaviour — a regression guard, a migra
 
 ### Full-Flow Integrity Tests
 
-For any create/edit/save workflow, add a test that drives the complete cycle — submit, process, persist, navigate back — and asserts the payload is identical and in the same order. Step-local tests pass while the round-trip silently reorders or mutates data.
+For any create/edit/save workflow, add a test that drives the complete cycle — submit, process, persist, navigate back — and asserts the payload is identical and in the same order. Step-local tests pass while the round-trip silently reorders or mutates data. When the persisted record carries **derived** data (a computed sheet, a projection, a rendered value), re-derive it at read rather than freezing the snapshot, and have the round-trip test change the **source** between the first persist and the reload so the re-derivation is actually exercised — a hand-built fixture with the derived value already present proves nothing, and a manual field-by-field refresh silently omits fields added later.
 
 ### Verify Algorithm Scenarios Before Implementing
 
