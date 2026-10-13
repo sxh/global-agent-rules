@@ -76,6 +76,10 @@ Before changing behavior at a shared seam (a command type, an error message, a d
 
 When an action mutates a data structure, assert the specific field that changed — not merely that the action returned successfully. A test proving a delete removes from the intended collection (and not a sibling collection) is the difference between a guard and a formality.
 
+### A Multi-Dimensional Constraint Needs a Boundary Test Per Dimension
+
+When a rule constrains several inputs at once — a per-level cap alongside a total, a per-item limit plus an aggregate, a per-category maximum with an overall maximum — test each dimension at its boundary independently, not only the combined outcome. A total-only test stays green while one dimension's limit is wrong: the prepared-spell limit is both a total (six spells) and a per-level cap (four of any one level), so only a per-level boundary case — a fifth spell crowded onto an already-full level — actually exercises the second constraint.
+
 ### Assert the Rendered Outcome, Not the Property Meant to Produce It
 
 A test that asserts the property set to achieve an effect (a `textAlign`, a colour, a flag) can pass while the effect is absent, so assert the observable outcome itself — for layout, the rendered geometry (centres, sizes, ordering). In 2026-10-11 a heading carried `textAlign: center` inside a `Flexible` that shrank to its content width, so the flag's test passed while the heading sat visibly left of centre; a geometry test asserting the cell centre equalled the column centre was what actually held it.
