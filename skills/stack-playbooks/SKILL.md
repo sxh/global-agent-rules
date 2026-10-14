@@ -1,6 +1,6 @@
 ---
 name: stack-playbooks
-description: "Per-stack engineering playbooks relocated from AGENTS.md — Gleam + Lustre + Electron, Birdie snapshot testing, React/TypeScript, JVM. Load when working in the named stack."
+description: "Per-stack engineering playbooks relocated from AGENTS.md — Gleam + Lustre + Electron, Birdie snapshot testing, React/TypeScript, Flutter/Dart, JVM. Load when working in the named stack."
 ---
 
 # Stack Playbooks
@@ -32,6 +32,12 @@ per-stack encoding, tightest first:
   clauses and parameter validation (`Objects.requireNonNull`, JSR-380);
   postconditions via return-type invariants and property tests (jqwik). Overrides
   are the LSP risk — re-check the variance rule on every `@Override`.
+- **Flutter / Dart** — invariants via non-null types plus a validating
+  `fromJson`/factory at the boundary (decoding supplies defaults for missing keys);
+  preconditions via `required` named parameters and constructor `assert`s;
+  postconditions via widget and property tests. Dart's null-safety fixes
+  nullability, not the shape of decoded data, so the decode boundary carries the
+  invariant.
 
 For any other language, use the ladder in `design-by-contract` (pure-static →
 static-OO → dynamic → untyped-BEAM) and push each contract as far toward
@@ -200,6 +206,15 @@ fi
 - **SpotBugs Heap for Large Projects** — The SpotBugs Maven plugin may run out of memory on projects with 400+ classes and many dependencies. Configure `<maxHeap>4096</maxHeap>` or higher in the plugin configuration to prevent OOM during analysis.
 
 - **[2026-07-05] [Exposed] Domain Operations Require Transaction Context** — Exposed lazy entity properties (e.g., `entity.reducedProductDescription`) can only be accessed within an active transaction. Domain classes that access these properties must be called inside `withTransaction { }` or `transaction { }`.
+
+#### Flutter / Dart Stack
+
+- **Widget tests with injected fakes** — Run each screen through `testWidgets` and the real widget tree, with a `ProviderScope` whose service ports are overridden by fakes (e.g. `FakePlayerCharacterLookup`, `FakeMonsterLookup`, `FakeAuthService`) and no platform storage (`InMemorySessionStore`) — no network. Assert observable outcomes via stable keys (`find.byKey`, `find.text`), never internal fields.
+- **Accessible names for icon-only controls** — A `tooltip` is a hint, not an accessible *name*. Wrap an icon-only `IconButton` in `Semantics(label: ..., button: true)` beside its tooltip, and name inputs via `InputDecoration(labelText: ...)`. Assert with `tester.ensureSemantics()` + `find.bySemanticsLabel(...)`.
+- **[2026-10-14] [Flutter] `Semantics(label:)` does not name a `TextField` that only has a `hintText`** — Wrapping `Semantics(label: 'Search')` around a `TextField` whose decoration sets only `hintText` leaves the field with no readable label (`find.bySemanticsLabel` finds nothing — the editable's own semantics win). Set `InputDecoration(labelText: ...)` (the clean path) or pass `container: true`; prefer `labelText`.
+- **Riverpod provider testing** — Override providers with `ProviderScope(overrides: [...])` in widget tests and `ProviderContainer(overrides: [...])` for pure provider tests. Fake the service *ports*, not the providers, so the provider logic under test stays real.
+- **Client-seam `integration_test`** — `flutter test integration_test/` needs a device, a signed simulator, or chromedriver, none of which run in CI here. Exercise the real client instead from `test_integration/` on the Dart VM with a real `http.Client` against the local API (`--dart-define=API_URL=...`), driven by the e2e script (DynamoDB Local + the real Hono app). Keep it a separate gate (`npm run test:e2e`), not part of `flutter test`.
+- **`dart format` and `flutter analyze` are gates** — Format with `dart format lib test test_integration` (gated with `--set-exit-if-changed`), and treat `flutter analyze` warnings as failures (zero-tolerance). A production build (web) plus a smoke check are required for the app gate.
 
 #### Other
 
