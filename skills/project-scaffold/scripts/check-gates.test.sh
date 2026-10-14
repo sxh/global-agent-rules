@@ -20,12 +20,13 @@ npm run format:check
 npm run lint
 npm run type-check
 npm test
+npm run test:integration
 npm run coverage
 npm run build
 npm run smoke
 EOF
 cat > package.json <<'EOF'
-{"name":"a","scripts":{"dev":"vite","format:check":"prettier --check .","lint":"eslint .","type-check":"tsc --noEmit","test":"vitest run","coverage":"vitest run --coverage","build":"vite build","smoke":"node smoke.mjs"}}
+{"name":"a","scripts":{"dev":"vite","format:check":"prettier --check .","lint":"eslint .","type-check":"tsc --noEmit","test":"vitest run","test:integration":"vitest run --config vitest.integration.config.ts","coverage":"vitest run --coverage","build":"vite build","smoke":"node smoke.mjs"}}
 EOF
 echo 'export default { test: { coverage: { thresholds: { lines: 95 } } } }' > vitest.config.ts
 printf 'name: gate\non: [push]\njobs:\n  g:\n    steps:\n      - run: npm run lint\n      - run: npm run coverage\n      - run: npm run build\n' > .github/workflows/gate.yml
@@ -66,15 +67,40 @@ run "E husky -> stubbed verify" "$D" 1
 J=/tmp/gc-j; rm -rf $J; mkdir -p $J/.husky $J/packages/core $J/.github/workflows; cd $J; git init -q
 git config core.hooksPath .husky/_
 printf './runTests.sh\n' > .husky/pre-commit
-printf 'npm run test:all\nnpm run build\n' > runTests.sh
+printf 'npm run test:all\nnpm run test:integration\nnpm run build\n' > runTests.sh
 cat > package.json <<'EOF'
-{"name":"j","private":true,"workspaces":["packages/*"],"scripts":{"test":"echo \"Error: no test specified\" && exit 1","test:all":"npm run lint && npm run type-check && npm test --workspaces --if-present","lint":"prettier --check . && eslint .","type-check":"tsc --noEmit","build":"vite build"}}
+{"name":"j","private":true,"workspaces":["packages/*"],"scripts":{"test":"echo \"Error: no test specified\" && exit 1","test:all":"npm run lint && npm run type-check && npm test --workspaces --if-present","test:integration":"vitest run --config vitest.integration.config.ts","lint":"prettier --check . && eslint .","type-check":"tsc --noEmit","build":"vite build"}}
 EOF
 printf '{"name":"@j/core","scripts":{"test":"vitest run --coverage --bail 1"}}\n' > packages/core/package.json
 echo 'export default { test: { coverage: { thresholds: { lines: 95 } } } }' > vitest.config.ts
 printf 'name: gate\non: [push]\njobs:\n  g:\n    steps:\n      - run: npm run test:all\n' > .github/workflows/gate.yml
 printf '#!/usr/bin/env bash\necho start\n' > start.sh; chmod +x start.sh
 run "J workspace: coverage in packages" "$J" 0
+
+# --- K: integration gate absent (else identical to A) ------------------------
+K=/tmp/gc-k; rm -rf $K; mkdir -p $K/hooks $K/.github/workflows; cd $K; git init -q
+cat > hooks/pre-commit <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+npm run format:check
+npm run lint
+npm run type-check
+npm test
+npm run coverage
+npm run build
+npm run smoke
+EOF
+cat > package.json <<'EOF'
+{"name":"k","scripts":{"dev":"vite","format:check":"prettier --check .","lint":"eslint .","type-check":"tsc --noEmit","test":"vitest run","coverage":"vitest run --coverage","build":"vite build","smoke":"node smoke.mjs"}}
+EOF
+echo 'export default { test: { coverage: { thresholds: { lines: 95 } } } }' > vitest.config.ts
+printf 'name: gate\non: [push]\njobs:\n  g:\n    steps:\n      - run: npm run lint\n      - run: npm run coverage\n      - run: npm run build\n' > .github/workflows/gate.yml
+printf '#!/usr/bin/env bash\necho dev\n' > start.sh; chmod +x start.sh
+run "K integration absent" "$K" 1
+
+# --- L: integration excluded (the K fixture, now recorded) -------------------
+printf 'integration | no real collaborators yet | steve | 2026-10-14\n' > $K/.gates-exclusions
+run "L integration excluded" "$K" 0
 
 # --- F: docs repo, no gate ---------------------------------------------------
 F=/tmp/gc-f; rm -rf $F; mkdir -p $F; cd $F; git init -q; echo "# docs" > README.md

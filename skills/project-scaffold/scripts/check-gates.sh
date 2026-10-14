@@ -353,6 +353,7 @@ check_gate format     'prettier|format:check|gleam format|dart format|--check-fo
 check_gate lint       'eslint|npm run lint|ktlint|clippy|npm run dep-check'            "linter"
 check_gate type-check 'type-check|typecheck|tsc|dart analyze|mypy'                     "type checker (never stubbed)"
 check_gate tests      'vitest|jest|npm test|npm run test|gleam test|mvn test|pytest'   "full test suite"
+check_gate integration 'integration'                                                   "integration tests against real collaborators (datastore/IdP/HTTP)"
 check_gate coverage   'coverage|c8 |kover|jacoco|--check-coverage'                     "coverage at the configured threshold"
 check_gate build      'npm run build|gleam build|mvn |gradle|vite build|tsc --build'   "production build"
 check_gate smoke      'smoke'                                                          "app builds, launches, renders"
