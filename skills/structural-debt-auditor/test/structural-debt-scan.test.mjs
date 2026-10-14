@@ -685,3 +685,91 @@ test('skips generated Dart (codegen) files and reports them as skipped', () => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test('does not flag per-module bindings of a shared call (the handler/app/tableName shape)', () => {
+    const dir = makeFixture({
+        'src/a.ts': 'const app = createStandardApp();\nexport const handler = handle(app);',
+        'src/b.ts': 'const app = createStandardApp();\nexport const handler = handle(app);',
+        'scripts/x.ts': 'const tableName = devTableName();',
+        'scripts/y.ts': 'const tableName = devTableName();',
+    });
+    try {
+        const result = scanDuplication(dir);
+        for (const sig of ['const_app', 'const_handler', 'const_tableName']) {
+            assert.equal(
+                result.candidates.some((c) => c.pattern_signature === sig),
+                false,
+                `${sig} binds a shared call, not a missing abstraction`
+            );
+            assert.ok(
+                result.downgraded.some((c) => c.pattern_signature === sig),
+                `${sig} must be reported as downgraded, not silently dropped`
+            );
+        }
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not flag a bare identifier alias of a shared value', () => {
+    const dir = makeFixture({
+        'a/x.ts': 'const table = mainTable;',
+        'b/y.ts': 'const table = mainTable;',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'aliasing a shared value is not a missing abstraction');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('still flags a duplicated literal constant (not a bare-call binding)', () => {
+    const dir = makeFixture({
+        'src/a.ts': 'export const LIMIT = 10;',
+        'src/b.ts': 'export const LIMIT = 10;',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.ok(
+            result.candidates.some((c) => c.pattern_signature === 'const_LIMIT'),
+            'a duplicated literal is a real missing constant'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not flag a property whose value is inline logic (an arrow body)', () => {
+    const dir = makeFixture({
+        'src/a.ts': 'export const handler = (e) => e;',
+        'src/b.ts': 'export const handler = (e) => e;',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.ok(
+            result.candidates.some((c) => c.pattern_signature === 'const_handler'),
+            'an inline arrow body is logic, not a shared-call binding'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('ignores Flutter iOS ephemeral build output', () => {
+    const dir = makeFixture({
+        'packages/app/ios/Flutter/ephemeral/flutter_lldb_helper.py': 'class X:\n    pass\n',
+        'src/only.ts': 'export type OnlyOnce = string;',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(
+            result.unsupportedExtensions.length,
+            0,
+            'ephemeral build output is not project source'
+        );
+        assert.equal(result.fileCount, 1);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

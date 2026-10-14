@@ -48,6 +48,12 @@ const BUNDLE_NAME = /\.min\.[cm]?js$/i;
 // (.g.dart, .freezed.dart, .gr.dart, .mocks.dart) and the Flutter plugin registrant.
 const GENERATED_DART_NAME = /(\.(g|freezed|gr|mocks)\.dart|generated_plugin_registrant\.dart)$/i;
 const SRC_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.gleam', '.kt', '.java', '.py', '.dart']);
+// A const/property whose initializer is a bare call (`= createApp()`) or a bare
+// identifier (`= mainTable`) only duplicates the *binding*; the shared logic
+// already lives in the called helper, so this is not a missing abstraction.
+// An inline literal or arrow body (`= 10`, `= (e) => e`) is different: it does
+// duplicate standalone logic and must still be flagged.
+const BARE_BINDING = /^(?::[^=]*)?=\s*[A-Za-z_$][\w$.]*(\s*\([^;]*\))?\s*;?$/;
 const TEST_MARKERS = [
     '.test.',
     '.spec.',
@@ -137,6 +143,15 @@ export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSign
             });
             continue;
         }
+        if (isPerModuleBinding(kind, group[0].signature)) {
+            downgraded.push({
+                pattern_signature: patternSignature,
+                kind: 'downgraded',
+                files,
+                reason: `'${name}' is a per-module binding of a shared call/identifier, not a missing abstraction`,
+            });
+            continue;
+        }
         duplicatedCount += group.length;
         candidates.push({
             pattern_signature: patternSignature,
@@ -177,6 +192,7 @@ function walk(dir, onFile) {
                 // A virtualenv under ANY name (arch_env, venv, .env, …) is dependencies, not
                 // source, so identify it by its marker rather than by the `.venv` name.
                 if (looksLikeVirtualenv(full)) continue;
+                if (isGeneratedDir(full)) continue;
                 visit(full);
             } else if (e.isFile()) {
                 count++;
@@ -201,6 +217,20 @@ function looksLikeVirtualenv(dir) {
 
 function normalize(s) {
     return s.replace(/\s+/g, ' ').trim();
+}
+
+// True when a const/property declaration's initializer is only a call to a
+// shared helper or an alias of a shared value — the "same binding in every
+// module" shape, which duplicates no logic (handler = handle(app), etc.).
+function isPerModuleBinding(kind, body) {
+    if (kind !== 'const' && kind !== 'property') return false;
+    return BARE_BINDING.test(normalize(body));
+}
+
+// Flutter's iOS/macOS platform build output lives under `<platform>/Flutter/ephemeral`
+// (it bundles a generated `flutter_lldb_helper.py`); it is build output, not source.
+function isGeneratedDir(full) {
+    return /[\\/]Flutter[\\/]ephemeral$/.test(full);
 }
 
 // A file is generated/bundled output — not source — when it is minified or large
