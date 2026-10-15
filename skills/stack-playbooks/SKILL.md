@@ -215,6 +215,7 @@ fi
 - **Riverpod provider testing** — Override providers with `ProviderScope(overrides: [...])` in widget tests and `ProviderContainer(overrides: [...])` for pure provider tests. Fake the service *ports*, not the providers, so the provider logic under test stays real.
 - **Client-seam `integration_test`** — `flutter test integration_test/` needs a device, a signed simulator, or chromedriver, none of which run in CI here. Exercise the real client instead from `test_integration/` on the Dart VM with a real `http.Client` against the local API (`--dart-define=API_URL=...`), driven by the e2e script (DynamoDB Local + the real Hono app). Keep it a separate gate (`npm run test:e2e`), not part of `flutter test`.
 - **`dart format` and `flutter analyze` are gates** — Format with `dart format lib test test_integration` (gated with `--set-exit-if-changed`), and treat `flutter analyze` warnings as failures (zero-tolerance). A production build (web) plus a smoke check are required for the app gate.
+- **Bundled data assets are stable-named and cache-pinnable** — A Flutter-web asset (e.g. `assets/foo.json`) is served at a fixed URL under `assets/assets/…`, and a CDN or browser can cache it `immutable`, so a returning client keeps stale data even when the bytes or cache headers change. Compile data that must track the app into Dart source (a generated `.g.dart`, part of the revalidated `main.dart.js`), or load it with a cache-busting query (`?v=<appVersion>`); never rely on editing the file or its cache-control to reach a client that already cached it.
 
 #### Other
 
