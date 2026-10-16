@@ -82,6 +82,11 @@ The fallback path writes `.opencode/pcp/` state *after* `git commit` returns, so
 run in the same command can still show a clean tree even though the task was auto-closed. Re-check
 `git status` (and `pcp_status`) a moment later before concluding that no state change occurred.
 
+A **subtask** is subject to the same rule and pops back to its parent only when closed: call
+`pcp_done` before its commit. A subtask commit carries no `PCP-Task` trailer, so nothing pops it and
+it lingers on the stack as the current task (2026-10-16) — recover by calling `pcp_done`, which
+pops it, then commit the state.
+
 ## Cross-repo work commits its state in the state's repo
 
 The PCP state lives under the session directory's `.opencode/pcp/`, which may be a different git
