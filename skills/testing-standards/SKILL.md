@@ -72,6 +72,10 @@ A process's PID entry existing is not the same as the process running: `kill -0`
 
 Before changing behavior at a shared seam (a command type, an error message, a default value, a response shape), grep the test suite for assertions on the old literal, command, or message and fold those updates into the same change. A 2026-09-11 PR switched `PutCommand`→`UpdateCommand` and sanitized 5xx response bodies; each broke a dependent test the targeted run did not cover, surfacing only at the full gate.
 
+### A Rendered Model Needs a Test Per Collection
+
+A view for an entity that carries several optional collections (actions, bonusActions, reactions, traits, …) must handle each one and have a test per collection — a parallel branch written field-by-field silently omits one. The combat actions cell's monster branch rendered attacks/actions/traits/legendary but not bonusActions/reactions, so a Frost Giant's bonus action never appeared although the PC branch rendered it; a populated-collection test per field is the guard.
+
 ### State-Changing Actions Need Field-Level Assertions
 
 When an action mutates a data structure, assert the specific field that changed — not merely that the action returned successfully. A test proving a delete removes from the intended collection (and not a sibling collection) is the difference between a guard and a formality.

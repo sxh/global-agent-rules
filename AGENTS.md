@@ -23,9 +23,11 @@ experimenting. Commit only verified work whose gates pass.
 
 **Review before proposing a commit** — Before proposing any commit, run the eight-axis
 `skills/code-review-and-quality/SKILL.md` review on the staged diff and state the result in
-the proposal: which axes passed, which findings were addressed, which were deliberately
-deferred and why. Every commit, including a one-line typo fix. (The structural-debt scan runs
-separately on cadence via the `structural-debt-auditor` skill.)
+the proposal: which axes passed and which findings were addressed. A finding against the
+change you are committing is a blocker — fix it before the commit; it is never deferred (only
+a finding about pre-existing code outside the change may be deferred, with a reason). Every
+commit, including a one-line typo fix. (The structural-debt scan runs separately on cadence
+via the `structural-debt-auditor` skill.)
 
 **No "move fast and fix"** — Never skip process steps because something seems simple or
 "pretty sure it will work". The process exists because that instinct has been wrong before.
