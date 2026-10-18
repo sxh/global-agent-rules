@@ -298,7 +298,7 @@ Every entry must express a general principle, not a specific observation. The ti
 **Status tags — required for any entry that asserts a rule to follow:**
 - `[ENFORCED]` — a gate covers it. Name the covering artefact (hook, lint rule, CI job, test) so the next audit can verify it still exists and still gates.
 - `[EXPIRED]` — retired: no recurrence observed and no mechanism warranted. Keep it for one more retrospective before archiving.
-- `[KNOWLEDGE]` — a gotcha, design principle, or advice with no enforceable mechanism by design. Use the explicit tag (the checker accepts it) so the entry is not re-reported as a leak; state the illustrative example in the body. If a mechanism IS identified but not yet built, do not park it here as prose — capture it as a PCP backlog item and add `Backlog: B###` to the entry, so the backlog is the single tracker of open work.
+- `[KNOWLEDGE]` — a gotcha, design principle, or advice with no enforceable mechanism by design. Use the explicit tag (the checker accepts it) so the entry is not re-reported as a leak; state the illustrative example in the body. If a mechanism IS identified but not yet built, do not park it here as prose — capture it as a PCP backlog item and add `Backlog: <project>/B###` to the entry (PCP ids are per-project while this incidents store is global), so the backlog is the single tracker of open work.
 - A pure knowledge entry (a gotcha with no rule to enforce) must carry `[KNOWLEDGE]` rather than no tag, so the Effectiveness Audit and `check-contract.sh` can distinguish it from an unresolved leak. An entry that asserts a rule and carries neither tag nor mechanism is a leak.
 
 Example: `- **[2026-09-09] [Process] [ENFORCED] Hooks Must Resolve the Repo Root via Git** — ...`

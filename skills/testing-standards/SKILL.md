@@ -86,7 +86,7 @@ When a rule constrains several inputs at once — a per-level cap alongside a to
 
 ### Assert the Rendered Outcome, Not the Property Meant to Produce It
 
-A test that asserts the property set to achieve an effect (a `textAlign`, a colour, a flag) can pass while the effect is absent, so assert the observable outcome itself — for layout, the rendered geometry (centres, sizes, ordering). In 2026-10-11 a heading carried `textAlign: center` inside a `Flexible` that shrank to its content width, so the flag's test passed while the heading sat visibly left of centre; a geometry test asserting the cell centre equalled the column centre was what actually held it.
+A test that asserts the property set to achieve an effect (a `textAlign`, a colour, a flag) can pass while the effect is absent, so assert the observable outcome itself — for layout, the rendered geometry (centres, sizes, ordering). In 2026-10-11 a heading carried `textAlign: center` inside a `Flexible` that shrank to its content width, so the flag's test passed while the heading sat visibly left of centre; a geometry test asserting the cell centre equalled the column centre was what actually held it. Reinforced 2026-10-18: `ExpansionTile`'s default centre alignment centred every row when section cards became collapsible, and a header-height change produced no visible difference because the card's top padding dominated the composed gap — assert left alignment and the measured gap, not the property you adjusted.
 
 ### Prove a Mechanical Move Is Lossless
 
@@ -103,6 +103,10 @@ A test written against already-correct behaviour — a regression guard, a migra
 ### Full-Flow Integrity Tests
 
 For any create/edit/save workflow, add a test that drives the complete cycle — submit, process, persist, navigate back — and asserts the payload is identical and in the same order. Step-local tests pass while the round-trip silently reorders or mutates data. When the persisted record carries **derived** data (a computed sheet, a projection, a rendered value), re-derive it at read rather than freezing the snapshot, and have the round-trip test change the **source** between the first persist and the reload so the re-derivation is actually exercised — a hand-built fixture with the derived value already present proves nothing, and a manual field-by-field refresh silently omits fields added later. Round-trip **every** state-bearing field, not a hand-picked subset: a field added to the model but omitted from the serializer resets silently on reload, so build the round-trip from a fully-populated instance — a test with its own fixed fixture list will not include a field added later.
+
+### A Cross-Boundary Identifier Set Is Part of the Contract
+
+When the same identifier set is maintained on both sides of a boundary — a client card enum and a server validation schema, a request enum and a database check — the boundary is a contract: derive one side from the other or add a conformance test comparing the complete current set, and exercise the write path with that set rather than a fixture recalled from an earlier version. The player-view layout server still listed the removed `resources` card and omitted `turnSequence`/`skills`/`abilityScores`, so every save containing the new cards was rejected while the route tests stayed green on stale fixtures; the app looked like it had lost the layout on refresh. The conformance test must compare the whole set, because a fixture that omits the new value confirms the stale contract rather than the production payload.
 
 ### Verify Algorithm Scenarios Before Implementing
 
