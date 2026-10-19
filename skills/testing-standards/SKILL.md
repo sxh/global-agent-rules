@@ -72,9 +72,9 @@ A process's PID entry existing is not the same as the process running: `kill -0`
 
 Before changing behavior at a shared seam (a command type, an error message, a default value, a response shape), grep the test suite for assertions on the old literal, command, or message and fold those updates into the same change. A 2026-09-11 PR switched `PutCommand`→`UpdateCommand` and sanitized 5xx response bodies; each broke a dependent test the targeted run did not cover, surfacing only at the full gate.
 
-### A Rendered Model Needs a Test Per Collection
+### A Rendered Model Needs a Test Per Collection and Per Surface
 
-A view for an entity that carries several optional collections (actions, bonusActions, reactions, traits, …) must handle each one and have a test per collection — a parallel branch written field-by-field silently omits one. The combat actions cell's monster branch rendered attacks/actions/traits/legendary but not bonusActions/reactions, so a Frost Giant's bonus action never appeared although the PC branch rendered it; a populated-collection test per field is the guard.
+A view for an entity that carries several optional collections (actions, bonusActions, reactions, traits, …) must handle each one and have a test per collection — a parallel branch written field-by-field silently omits one. A shared set rendered by more than one surface (a sheet editor, a selection card, an actions cell, a details dialog) must derive from one canonical projection and be asserted on each surface. The combat actions cell's monster branch rendered attacks/actions/traits/legendary but not bonusActions/reactions, so a Frost Giant's bonus action never appeared; later a character's granted spells were missing from the prepared list, then from Spell Actions, then from the info text because each surface read a different source.
 
 ### State-Changing Actions Need Field-Level Assertions
 
@@ -103,6 +103,10 @@ A test written against already-correct behaviour — a regression guard, a migra
 ### Full-Flow Integrity Tests
 
 For any create/edit/save workflow, add a test that drives the complete cycle — submit, process, persist, navigate back — and asserts the payload is identical and in the same order. Step-local tests pass while the round-trip silently reorders or mutates data. When the persisted record carries **derived** data (a computed sheet, a projection, a rendered value), re-derive it at read rather than freezing the snapshot, and have the round-trip test change the **source** between the first persist and the reload so the re-derivation is actually exercised — a hand-built fixture with the derived value already present proves nothing, and a manual field-by-field refresh silently omits fields added later. Round-trip **every** state-bearing field, not a hand-picked subset: a field added to the model but omitted from the serializer resets silently on reload, so build the round-trip from a fully-populated instance — a test with its own fixed fixture list will not include a field added later.
+
+### Fixtures Must Mirror How Production Produces Derived Data
+
+A fixture for derived or server-computed data must be produced the way production produces it, not hand-built in the shape the assertion expects, or the suite proves the wrong model and actively hides the defect. A Fey Touched test stored server-computed grants in the character's `preparedSpells`, so green tests confirmed a state the server never sends while the real prepared list omitted the spells; drive the fixture through the same derivation path (or use the real service) and assert the user-visible surface.
 
 ### A Cross-Boundary Identifier Set Is Part of the Contract
 

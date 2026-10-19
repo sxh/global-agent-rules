@@ -12,10 +12,16 @@ Day-to-day hygiene for the Progress Control Plane. Relocated from `AGENTS.md`
 
 Before starting any task taken from the backlog or queue, check `git log --oneline -20` for
 recent related work. A prior commit may have already completed the item, or changed the
-premises it was written under. A stale item wastes a whole session.
+premises it was written under. A stale item wastes a whole session. Also grep
+`docs/incidents.md` for the item's domain — the same failure class may already be documented,
+including the surface that is about to be missed.
 
 If the work appears done, verify it against the current code and dismiss or close the item
-rather than redoing it.
+rather than redoing it. For user-visible behavior, "verify" means reproduce the outcome on
+every named surface (screen, card, dialog), not just confirm the call exists and the unit
+suite is green: a fixture that models the domain differently from production can make a
+wrong closure look proven. When an item spans surfaces, name them in the closure note and
+check each one.
 
 ## PCP state files are part of the project
 
