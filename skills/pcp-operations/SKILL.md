@@ -84,6 +84,10 @@ Without a matching trailer the queue is left unchanged (the plugin logs this); a
 not implement the active task simply omits it and leaves the task open. (Mechanism:
 `plugins/pcp.ts` `parsePcpTaskRef` + `autoDoneTask`, patch marker `PCP_TASK_BINDING_FIX`.)
 
+If a project provides a commit helper that closes the task itself (for example
+`scripts/commit.sh`), use it instead of `pcp_done` — or make it accept a task that `pcp_done` has
+already closed; do not run one and then expect the other to close the same task.
+
 The fallback path writes `.opencode/pcp/` state *after* `git commit` returns, so a `git status`
 run in the same command can still show a clean tree even though the task was auto-closed. Re-check
 `git status` (and `pcp_status`) a moment later before concluding that no state change occurred.
