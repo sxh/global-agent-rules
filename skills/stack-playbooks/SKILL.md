@@ -187,6 +187,8 @@ fi
 
 #### React / TypeScript Stack
 
+- **[2026-10-19] [React/Testing] A Global Provider Belongs in the Shared Test Renderer** — When adding a React context/provider at the app root (e.g. TanStack `QueryClientProvider`), add it once to the shared test renderer and make the shared `render` provider-aware, rather than wrapping individual tests, so every test mounts with the production-like provider stack. In travel-app-1, adding TanStack Query broke every `render(<App />)` test until the shared test-utils supplied the client, after which all App tests passed without per-file edits.
+
 - **[2026-06-27] [React/Architecture] Parent Key Prop Replaces ID-Change Effects** — When a component resets local state on prop ID changes, check if the parent already passes `key={id}`. If so, the component remounts on ID change and no `useEffect` + `useRef` pattern is needed, eliminating `set-state-in-effect` lint violations entirely. The simplest solution is discoverable by checking usage context first.
 
 - **[2026-07-31] [React] Render-Phase State Adjustment for Prop-Driven Resets** — When a prop change must reset local state but the parent does not guarantee `key={id}`, track the previous id in state and adjust state during render instead of using a `useEffect`. PaintRangeNotes compared `prevRangeId !== paintRange.id` during render to sync notes and exit edit mode on range switches while preserving the user's in-progress draft on same-id updates.

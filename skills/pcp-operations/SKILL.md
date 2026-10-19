@@ -105,6 +105,9 @@ PCP-State rule) rather than making a dedicated bookkeeping commit.
 - Reply in the user's communication language (Chinese for Chinese, English for English).
 - One Task = one concrete deliverable, doable in ≤2h, with a completion criterion. Never create
   project-goal / sprint-container mega-tasks.
+- If a backlog id's title is an umbrella/project goal, do not load it as one task: rename the
+  planned task to its first concrete slice and capture the remaining slices as backlog items
+  before executing.
 - Use `pcp_sub` only for a temporary detour that returns immediately; never use it to execute a
   queued Task.
 
@@ -133,8 +136,8 @@ type — `.md` → convert to PDF with pandoc and give the path; `.json` → for
 - No active sprint → `pcp_promote` is refused by design. Begin one by loading the work with
   `pcp_plan`, passing backlog ids as entries (`pcp_plan(["B002", "B003"])`) so each task links its
   item and the item stops being pending; use `pcp_start` only for a single brand-new task.
-  Completing the task does **not** close the linked item — call `pcp_backlog_done` when the work
-  lands.
+  A promoted item leaves the pending backlog, so `pcp_backlog_done` reports "already promoted" —
+  the task lifecycle records delivery; call it only for an item completed outside a promotion.
 - After a pivot with no active task, use `pcp_start` to advance the queue head; never mint a
   duplicate task id.
 - If `pcp_start` refuses because of an unrelated active task that is a session artifact
