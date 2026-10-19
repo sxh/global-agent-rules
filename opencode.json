@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "my-deepseek/deepseek-v4-flash",
+  "model": "opencode-go/deepseek-v4.1-flash",
   "default_agent": "stepwise",
   "provider": {
     "my-deepseek": {
