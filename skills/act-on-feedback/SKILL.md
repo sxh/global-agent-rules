@@ -67,6 +67,10 @@ before touching code.
   the reviewer's point, watch it fail, then fix it. A valid improvement that changes behavior gets
   the same treatment; a pure structure/clarity change may not need a new test but must not break
   the suite.
+- **Validate the remedy, not just the claim.** A reviewer's suggested mechanism is not binding —
+  check that it actually removes the cost before adopting it, and choose the mechanism that does.
+  B104 correctly identified `flatMap` allocation but proposed a `Sequence`, which every caller
+  materialises anyway; a pre-sized `LinkedHashSet` removed the copies instead.
 - **Keep the reproduction test.** If the reviewer supplied a repro test, do not delete it — fold it
   into the permanent suite (the regression rule). A defect that recurs because its test was thrown
   away is a process failure.
