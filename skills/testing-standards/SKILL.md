@@ -88,6 +88,10 @@ When a rule constrains several inputs at once — a per-level cap alongside a to
 
 A test that asserts the property set to achieve an effect (a `textAlign`, a colour, a flag) can pass while the effect is absent, so assert the observable outcome itself — for layout, the rendered geometry (centres, sizes, ordering). In 2026-10-11 a heading carried `textAlign: center` inside a `Flexible` that shrank to its content width, so the flag's test passed while the heading sat visibly left of centre; a geometry test asserting the cell centre equalled the column centre was what actually held it. Reinforced 2026-10-18: `ExpansionTile`'s default centre alignment centred every row when section cards became collapsible, and a header-height change produced no visible difference because the card's top padding dominated the composed gap — assert left alignment and the measured gap, not the property you adjusted.
 
+### Count-Labelled Lists Must Prove Reachability
+
+When a UI shows a count and a list, assert that every item is reachable, not merely present in the widget tree — a nested constrained scroll can clip rows while the count and widget-presence assertions stay green. On 2026-10-20 the PF2e actions card said 105 actions but an inner 360px scroll clipped the list; the fix removed the bound, and the guard is a scroll-to-the-last-row reachability test.
+
 ### Prove a Mechanical Move Is Lossless
 
 When moving code between files (extracting a module, splitting a test file, relocating helpers), prove the move by equality before trusting the suite: assert the moved block is byte-identical to its source and that the set of declared names is preserved (no additions, removals, or duplicates). A green suite alone can hide a silently dropped case or a stale import; the compiler's warnings, not textual occurrence counts, identify unused imports. In the 2026-09-18 B017 split, seven moves each passed a byte-identity assertion plus a test-name multiset check (126 = 126) before the gates ran.

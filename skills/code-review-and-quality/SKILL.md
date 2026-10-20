@@ -59,6 +59,7 @@ Does the change fit the system's design?
 - Is the abstraction level appropriate (not over-engineered, not too coupled)?
 - **Does this refactor reduce complexity or just relocate it?** Count the concepts a reader must hold to follow the change. If a "cleaner" version leaves that count unchanged, it isn't cleaner — prefer the restructuring that makes whole branches, modes, or layers disappear over one that re-centralizes the same logic. Prefer deleting an abstraction to polishing it.
 - **Is feature-specific logic leaking into a shared or general-purpose module?** Keep logic in its owning layer, reuse the existing canonical helper instead of a near-duplicate, and don't normalize architectural drift.
+- **Is this a second-surface analog?** If a sibling surface already implements the behavior, require one shared strategy (or a recorded justification for divergence); do not accept a copy.
 - **Are type boundaries explicit?** Question gratuitous `any`/`unknown`/optional/casts and silent fallbacks that paper over an unclear invariant — making the boundary explicit often makes the surrounding control flow simpler.
 - **Are the contracts of the types and ports it touches still honoured?** For every override or adapter implementing a port, apply the variance rule — preconditions weakened, postconditions strengthened, invariants preserved, never the reverse. A boundary that silently accepts or returns a value outside its contract is a finding. See `design-by-contract`.
 
@@ -381,6 +382,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - [ ] Appropriate abstraction level
 - [ ] Refactors reduce complexity rather than relocate it
 - [ ] No feature logic in shared modules; file stays within a healthy size
+- [ ] Second-surface behavior reuses one strategy rather than a parallel analog
 - [ ] Port/type contracts honoured (preconditions weakened, postconditions strengthened, invariants preserved)
 
 ### Security
