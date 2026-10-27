@@ -103,6 +103,25 @@ For desktop apps (Electron, Tauri, etc.) and web apps, unit tests alone are not 
 - The renderer can load the app (no `ERR_FILE_NOT_FOUND` or equivalent)
 If any of these checks fail, the commit must be rejected.
 
+### Definition of Done — proof belongs to the feature
+
+A feature that crosses an external boundary (an API response, an imported document, a datastore,
+an IdP) is not done until a test drives a **captured real payload** through the production parsing
+boundary to the user-visible surface. Per-layer mocks, synthetic fixtures and hand-built domain
+objects prove only the assumptions encoded in the fixture; they cannot falsify the wire shape.
+
+- Capture the real payload (redact secrets) as a committed fixture; assert the production parse
+  path reaches the feature surface, not just that a helper returns a value.
+- If the only such test is tracked in the backlog, the feature is **not done**: move the test into
+  the feature. Backlog holds optional hardening and extra variants, never the only verification.
+- At completion and commit review, name the real-capture test and the surface it covers. A feature
+  whose proof is a backlog item is a blocker, not an acceptable follow-up.
+
+Failure class this guards: a WG class-feature import stripped its selection operations in the
+schema, so the resolver tests (fed hand-built blocks) and the app tests (fed a hand-built snapshot)
+stayed green while the sheet showed only the class feature. The real captured document would have
+failed at the first parse.
+
 ### CI/CD
 
 All projects must have GitHub Actions configured:

@@ -59,6 +59,12 @@ Never use `.skip()`, `eslint-disable`, `@Suppress`, or an equivalent to get past
 Fix the root cause; if a tool genuinely cannot be satisfied, document why explicitly. "Pre-existing"
 is never a valid reason to dismiss an error.
 
+**Essential proof belongs to the feature** — If a backlog item holds the only test that a
+shipped path works (a real-capture/wire conformance test), it is not backlog: fold it into the
+feature and do not close the feature or propose its commit without it. Backlog is only for
+optional hardening or extra variants. Mechanism: the Definition of Done in
+`skills/project-scaffold/SKILL.md` is checked at completion and commit review.
+
 **System changes need permission** — Installing packages, modifying PATH, or changing
 configuration outside the project must be proposed with options and explicitly approved first,
 however obvious or safe the fix appears.

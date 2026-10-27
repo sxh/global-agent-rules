@@ -128,6 +128,11 @@ type — `.md` → convert to PDF with pandoc and give the path; `.json` → for
 `.txt` → paste short files or summarise long ones; code → `git diff` the key changes — then call
 `pcp_done`. If no review is needed, call `pcp_done` directly.
 
+**Essential proof is not backlog** — Before `pcp_done`, check whether a pending backlog item is
+the only real-capture/wire test for the feature just finished. If it is, the feature is not
+complete: fold that test into the feature and make it pass first. Backlog is for optional
+hardening and extra variants, never the only verification of a shipped path.
+
 ## Capture and pivot triggers
 
 - "later / by the way / note X" → `pcp_capture` (record it; do not execute it now).
