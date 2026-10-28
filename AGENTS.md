@@ -74,6 +74,11 @@ has no side effects. Read source or `package.json` rather than executing a binar
 version. Isolate anything that must run (docker, temp dir, `--dry-run`). `.git/` is immutable
 during investigations.
 
+**One path base per command** — When a command sets a subdirectory working directory, every
+path in it is relative to that directory; never mix a package `workdir` with repo-root-relative
+paths, and choose the base before writing the command, including package test/lint tools and
+root-only scripts (`npm run format`).
+
 **Human context is not observable** — You cannot see the user's terminal, screen, or filesystem.
 When they describe their environment, workflow, or what they ran, ask for the exact path, command,
 or output rather than assuming. Guessing which script the user ran has burned multiple turns.

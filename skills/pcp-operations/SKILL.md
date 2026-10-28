@@ -23,6 +23,12 @@ suite is green: a fixture that models the domain differently from production can
 wrong closure look proven. When an item spans surfaces, name them in the closure note and
 check each one.
 
+## Start the task before the first edit
+
+A task must be active before the first code edit, not minted alongside the closing commit. If
+work arrives without a plan, load it first with `pcp_plan` (or `pcp_start` for a single task);
+an unplanned edit leaves the work outside the task history and forces retroactive state repair.
+
 ## PCP state files are part of the project
 
 `.opencode/pcp/` files track task state across sessions — omitting them breaks continuity
