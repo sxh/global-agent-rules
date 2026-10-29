@@ -273,7 +273,7 @@ Not every observation earns an entry. Apply these filters (and the destination t
 ### Cross-Skill Feedback
 If a lesson reveals a gap or improvement opportunity in another skill file:
 - The retrospective summary must include a `Cross-Skill Impact` section identifying which skills need updates.
-- Apply the same Red-Green-Refactor protocol to skill file edits: propose the change, wait for confirmation, then write.
+- Apply the same Red-Green-Refactor protocol to skill file edits: propose the change, wait for confirmation, then write — unless the edit is itself a task inside an authorised sprint, in which case the sprint confirmation covers it.
 - Do not edit skill files silently — the user must approve changes to their tooling configuration.
 - The **structural-debt-auditor** skill runs as part of this skill (Step 2) on software projects. If the scan produces a pattern that repeats across retrospectives (the same class of missing abstraction reappearing), that is a signal the structural-debt-auditor skill itself needs improvement (new extraction pattern, new exclusion, better signature), not just another backlog item.
 

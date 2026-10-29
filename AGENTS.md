@@ -12,18 +12,23 @@ own AGENTS.md explicitly overrides them.
 
 ## Working Protocol
 
-**Permission to act** — No code change and no commit without an explicit instruction from
-the user in a separate turn. The two-turn protocol (propose, then execute) applies to every
-commit without exception. Passing tests, perceived urgency, and the question "what's the
-plan?" are not permission. A question about plans is a request for information: state the
-plan in text and wait.
+**Permission to act** — Outside an authorised sprint, no code change and no commit without an
+explicit instruction from the user in a separate turn; the two-turn protocol (propose, then
+execute) applies to each commit. A sprint is authorised when its plan is confirmed after every
+blocking question is answered. From that confirmation until the last task closes, execute every
+task to completion without further permission prompts — including each task's commit, provided
+every gate passes. A task started outside a sprint is a one-task sprint and follows the same
+rule. Ask every blocking question before execution; stop and ask if new scope or a blocker
+appears mid-sprint. Passing tests, perceived urgency, and the question "what's the plan?" are
+not permission.
 
 **Commits are for working code** — Never commit during an investigation or while
 experimenting. Commit only verified work whose gates pass.
 
-**Review before proposing a commit** — Before proposing any commit, run the eight-axis
-`skills/code-review-and-quality/SKILL.md` review on the staged diff and state the result in
-the proposal: which axes passed and which findings were addressed. A finding against the
+**Review before every commit** — Before every commit (or every commit proposal, outside a
+sprint), run the eight-axis `skills/code-review-and-quality/SKILL.md` review on the change and
+state the result in the task report or proposal: which axes passed and which findings were
+addressed. A finding against the
 change you are committing is a blocker — fix it before the commit; it is never deferred (only
 a finding about pre-existing code outside the change may be deferred, with a reason). Every
 commit, including a one-line typo fix. (The structural-debt scan runs separately on cadence

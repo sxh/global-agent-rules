@@ -3,7 +3,8 @@
 #   cp hooks/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit
 #
 # WHY THIS EXISTS
-# The two-turn commit protocol ("no commit without explicit instruction from the user") cannot
+# The commit-permission protocol (outside an authorised sprint: no commit without explicit
+# instruction from the user; inside a sprint: the confirmed plan is standing approval) cannot
 # be enforced by a hook: git has no way to know whether the human approved. What a hook CAN do
 # is make every commit auditable. This records each commit, and flags commits where the gate did
 # not appear to run — `--no-verify` skips pre-commit but NOT post-commit, so a bypass is

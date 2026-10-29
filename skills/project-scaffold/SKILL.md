@@ -74,7 +74,8 @@ disabled gate is the root enabler of silent defect accumulation.
 install target. Re-install after cloning.
 
 **The honest limit of mechanising the commit protocol:** git cannot know whether the human
-approved a commit, so the two-turn permission protocol cannot be a hard gate. What is
+approved a commit, so the commit-permission protocol (two-turn outside an authorised sprint,
+standing approval inside one) cannot be a hard gate. What is
 mechanisable is friction plus an audit trail: `templates/post-commit` records every commit, and
 because `--no-verify` skips the pre-commit hook but *not* post-commit, a bypass is logged as
 `GATE-BYPASSED` instead of being invisible. Review `.git/commit-audit.log` to check the

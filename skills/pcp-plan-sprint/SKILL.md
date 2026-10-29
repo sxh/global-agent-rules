@@ -49,6 +49,8 @@ Sprint 完成后，逐条规划 backlog 中的待处理项，决定每项的去�
 
 ### Step 3：逐条询问（每条消息只问一个问题）
 
+规划阶段要把所有阻塞问题问完：范围、验收标准、不可逆选择和互相冲突的项。用户确认计划之前不要开始执行。
+
 对每个 pending backlog 项，格式如下：
 
 ```
@@ -84,10 +86,11 @@ Sprint 完成后，逐条规划 backlog 中的待处理项，决定每项的去�
 ```
 
 若有 promoted 项（加入 sprint 的）：
-- 提示用户「已加入 sprint 作为子任务，可以开始工作了。」
+- 提示用户「Sprint 已就绪；确认后我会直接执行到完成，不再逐任务请求许可。」
+- 用户确认计划即为整个 sprint 的授权：按顺序执行所有任务到完成（TDD、门禁、`pcp_done`、提交），执行细节见 `pcp-operations` 的 **Sprint start and execution**。
 
 若没有 promoted 项：
-- 提示用户「可以调用 pcp_start 开始下一个 sprint 了。」
+- 提示用户「可以调用 pcp_start 开始下一个 sprint 了；单个任务就是一个只含该任务的新 sprint。」
 
 ---
 

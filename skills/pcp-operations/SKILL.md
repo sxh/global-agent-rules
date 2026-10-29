@@ -28,6 +28,8 @@ check each one.
 A task must be active before the first code edit, not minted alongside the closing commit. If
 work arrives without a plan, load it first with `pcp_plan` (or `pcp_start` for a single task);
 an unplanned edit leaves the work outside the task history and forces retroactive state repair.
+`pcp_start` for a single task is a **one-task sprint**: the task is the entire contents of a new
+sprint and follows the same sprint-start question gate and execute-to-completion rule below.
 
 ## PCP state files are part of the project
 
@@ -50,9 +52,10 @@ framing verbatim (do not echo "sprint" terminology to a user who does not use sp
 
 Never call a PCP tool silently and assume the user saw the result.
 
-## Commit proposals carry task state
+## Commit reports carry task state
 
-Every commit proposal must reference the current PCP task (run `pcp_status` before proposing).
+Every commit proposal (outside a sprint) or commit report (inside one) must reference the current
+PCP task (run `pcp_status` before committing or proposing).
 This keeps commits traceable to the work item that produced them. A commit auto-advances the
 active task even when it is not that task's deliverable — after any commit, verify the queue
 state and reconcile before continuing.
@@ -74,8 +77,10 @@ existing sprint's queue (FIFO); it refuses when there is no active sprint (see b
 ## Close a task before its commit (one commit per task)
 
 Call `pcp_done` to close the active task, then stage the **whole `.opencode/pcp/`
-directory** (`git add .opencode/pcp`) together with the code in that same commit: `pcp_done`
-writes `WORKLOG.md`, `events.jsonl`, and `stack.json` *together*, so staging them as
+directory** (`git add .opencode/pcp`) together with the code in that same commit. Inside an
+authorised sprint this commit happens without a further permission prompt; the sprint
+confirmation is the standing approval. `pcp_done` writes `WORKLOG.md`, `events.jsonl`, and
+`stack.json` *together*, so staging them as
 individual files can silently leave `WORKLOG.md` behind (it happened on 2026-09-24, commit
 `64a60bc`). No separate bookkeeping commit is needed.
 
@@ -121,18 +126,32 @@ PCP-State rule) rather than making a dedicated bookkeeping commit.
 - Use `pcp_sub` only for a temporary detour that returns immediately; never use it to execute a
   queued Task.
 
-## Plan confirmation
+## Sprint start and execution
 
-When the user gives a todolist or plan document: first scan the existing code and outputs so no
-task is created for work already done, then load the plan with `pcp_plan(tasks)`, show the list,
-and wait for confirmation before executing.
+When the user gives a todolist, a plan document, or starts a sprint:
+
+1. Scan the existing code and outputs so no task is created for work already done.
+2. Load the ordered plan with `pcp_plan(tasks)`, passing backlog ids as their own entries.
+3. Ask every blocking question now — scope, acceptance criteria, irreversible choices, and
+   conflicting items. Do not start executing until they are answered.
+4. Show the plan and get one confirmation. That confirmation authorises the whole sprint.
+5. Execute every task in order to completion without further prompts: pre-RED, RED, GREEN,
+   REFACTOR, gates, `pcp_done`, and the task's commit with `.opencode/pcp`. Advance to the next
+   task automatically.
+6. Stop and ask only if new scope or a decision appears, a gate cannot be made green without a
+   choice, or a plan premise turns out wrong.
+
+A task started with `pcp_start` outside a sprint is the entire contents of a new sprint: run the
+same question gate, get the same single confirmation, then execute it to completion.
 
 ## Completion review
 
-When a task finishes with output files, list them and ask "needs review?"; if yes, present by
-type — `.md` → convert to PDF with pandoc and give the path; `.json` → format key fields;
-`.txt` → paste short files or summarise long ones; code → `git diff` the key changes — then call
-`pcp_done`. If no review is needed, call `pcp_done` directly.
+When a task finishes with output files, list them and (outside a sprint) ask "needs review?"; if
+yes, present by type — `.md` → convert to PDF with pandoc and give the path; `.json` → format key
+fields; `.txt` → paste short files or summarise long ones; code → `git diff` the key changes —
+then call `pcp_done`. Inside an authorised sprint, include the same output list in the task
+boundary report and continue; do not stop for a review prompt. If no review is needed, call
+`pcp_done` directly.
 
 **Essential proof is not backlog** — Before `pcp_done`, check whether a pending backlog item is
 the only real-capture/wire test for the feature just finished. If it is, the feature is not
