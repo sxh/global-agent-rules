@@ -83,6 +83,10 @@ protocol held.
 
 ---
 
+### Scope Before Scaffolding
+
+Scaffolding is a decision, not a default. Before creating a build, hooks, CI, an entry-point script, a CLI surface, or a wrapper, confirm with the user whether the request is for a project or for a self-contained example; a request for a small program does not authorise project infrastructure. When gates are removed on purpose, record the absence in `.gates-exclusions` (or the project AGENTS.md) with the approver and date, so the stripped gates are a decision rather than an omission.
+
 ### Required Per-Project Files
 
 - **`start.sh`** - A shell script in the project root that starts the application.

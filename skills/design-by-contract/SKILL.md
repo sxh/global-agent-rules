@@ -39,6 +39,10 @@ postconditions for examples; it does not state the precondition, and it cannot
 show an invariant holds for inputs nobody wrote down. Property-based tests over
 generated inputs are what close that gap.
 
+## Predicates and Categories: Fix the Denotation First
+
+A predicate over a collection has two contracts the type system will not supply: its **denotation** (does it mean "contains", "is exactly", or "the best match is"?) and its **overlap policy** (are sibling predicates independent, or a partition where the highest match wins?). Write the truth table of overlapping examples and choose the policy before implementing, because the readings produce different results for the same input — a hand with a pair and a straight is a pair under "contains a pair", a straight under "straight outranks pair", and both under independent predicates. Express the chosen projection explicitly (each category excludes every higher raw pattern, not just the next-exclusive predicate) and pin aggregate counts, since names alone cannot distinguish the readings.
+
 ## The Encoding Ladder
 
 For every contract, ask how far it can be pushed toward *unrepresentable*
