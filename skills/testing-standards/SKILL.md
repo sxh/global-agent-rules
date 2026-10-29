@@ -81,6 +81,10 @@ A view for an entity that carries several optional collections (actions, bonusAc
 
 When an action mutates a data structure, assert the specific field that changed — not merely that the action returned successfully. A test proving a delete removes from the intended collection (and not a sibling collection) is the difference between a guard and a formality.
 
+### A Comparison Field Needs an Equal Case Through the Shared Fixture
+
+When a field is added to a comparison, seed it in the fixture builder used by the identical-sources test so the equality path exercises it, and add a second case where it differs; covering only the difference leaves the "no differences" path unproven. The PF2e focus-spell comparison extended `_wgFromBuild` with the Devotion Spells feature so the existing identical-sources test covered equality, then excluded it to assert the `pbOnly` row.
+
 ### A Multi-Dimensional Constraint Needs a Boundary Test Per Dimension
 
 When a rule constrains several inputs at once — a per-level cap alongside a total, a per-item limit plus an aggregate, a per-category maximum with an overall maximum — test each dimension at its boundary independently, not only the combined outcome. A total-only test stays green while one dimension's limit is wrong: the prepared-spell limit is both a total (six spells) and a per-level cap (four of any one level), so only a per-level boundary case — a fifth spell crowded onto an already-full level — actually exercises the second constraint.
