@@ -108,6 +108,20 @@ A **subtask** is subject to the same rule and pops back to its parent only when 
 it lingers on the stack as the current task (2026-10-16) — recover by calling `pcp_done`, which
 pops it, then commit the state.
 
+## When the commit gate fails after pcp_done
+
+The close-then-commit order means the only full gate runs *after* the task is closed, so a red hook
+leaves a completed task with uncommitted work. Do not reopen the task or mint a new one: fix the
+failure, restore any files the failed hook mutated (for example a version bump) so the change lands
+once, and commit the work with the closed task id in the subject but **no `PCP-Task` trailer** — the
+next task is already active and a trailer would close it. Finish this delayed commit before starting
+the next task (2026-10-29: T715 failed the lint ratchet and T717 the structural-debt scan after
+close).
+
+Before calling `pcp_done`, run the fast gates the hook will judge — format check, lint ratchet,
+structural-debt scan, analyzer/type-check. They, not the full suite, are what fail after close; the
+full suite, integration, e2e and build can stay with the commit.
+
 ## Cross-repo work commits its state in the state's repo
 
 The PCP state lives under the session directory's `.opencode/pcp/`, which may be a different git
