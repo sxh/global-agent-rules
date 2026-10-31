@@ -125,6 +125,14 @@ A fixture for derived or server-computed data must be produced the way productio
 
 When the same identifier set is maintained on both sides of a boundary — a client card enum and a server validation schema, a request enum and a database check — the boundary is a contract: derive one side from the other or add a conformance test comparing the complete current set, and exercise the write path with that set rather than a fixture recalled from an earlier version. The player-view layout server still listed the removed `resources` card and omitted `turnSequence`/`skills`/`abilityScores`, so every save containing the new cards was rejected while the route tests stayed green on stale fixtures; the app looked like it had lost the layout on refresh. The conformance test must compare the whole set, because a fixture that omits the new value confirms the stale contract rather than the production payload.
 
+### A Source-Neutral Field Needs a Per-Origin Identity Test
+
+A field on a source-neutral model must be asserted for every origin the model accepts, because a parser that reads one source's flat shape silently defaults the others. The PC roster showed Level 1 for every PF2e character until `playerCharacterFromJson` mapped level, species and class from the snapshot or build; the test now uses a level-2 PF2e origin. A repeated row must also be tested with the same label at two source indexes (the same prepared spell in two slots), because a key built from the label collides in the widget tree.
+
+### Pin the Visual Target Before Tuning Spacing
+
+A style request without a target is unbounded; measure a reference gap, token or screenshot before adjusting spacing, then assert the measured geometry. Equipment row spacing changed four times in one session before a measured gap and a 0.8 checkbox scale settled it.
+
 ### Verify Algorithm Scenarios Before Implementing
 
 Before implementing a sorting, ranking, or volume-sensitive algorithm, restate the expected output for realistic scenarios (small change, large jump, multiple moves) and confirm before coding. Otherwise the implementation encodes the wrong definition of the goal.

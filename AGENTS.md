@@ -92,7 +92,9 @@ or output rather than assuming. Guessing which script the user ran has burned mu
 live tables, real requests) rather than hypothesising. For runtime errors, reproduce and read the
 actual error. When output does not work, the gap is almost always tool-specific syntax — find a
 working example instead of deriving from first principles. State your understanding of the problem
-in one sentence before changing any code, and ask "is this correct?" if unsure.
+in one sentence before changing any code, and ask "is this correct?" if unsure. For external-system
+behaviour (Wanderer's Guide, databases, live APIs), reproduce with a live read before choosing a
+fix; a second iteration caused by assuming that behaviour is a process failure, not a normal cost.
 
 **Verify actual state, never assumed state** — After any shell, git, or tool operation (including the task/queue state a tool reports), inspect the real
 outcome: capture exit codes before piping, re-check `git status` and `git diff --cached` after

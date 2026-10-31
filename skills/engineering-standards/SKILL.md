@@ -25,6 +25,10 @@ All applications must implement **Hexagonal Architecture** (Ports and Adapters):
 
 **One repeated UI surface, one component contract** — Cards, section headers and other visually repeated UI surfaces must share one implementation and one heading component; parallel wrappers drift in font, collapsibility and alignment. When reusing a framework primitive that has alignment defaults (e.g. `ExpansionTile`), set the alignment explicitly and test the rendered layout, not just the property. The player cards diverged across three wrappers until they were unified on `SectionHeading` + a collapsible section, with one test enumerating every card's heading/collapsibility/alignment.
 
+**Model the ruleset's resource semantics before the UI** — Verify the domain rule's actual resource model before choosing a familiar UI analog, because a different game's model encodes different constraints. PF2e prepared casters commit a spell to each slot (cantrips at will) and keep a separate spellbook, so the sheet needed per-prepared checkboxes and a second card, not D&D-style slot counters and one list.
+
+**Map source-neutral fields from every origin** — A field on a source-neutral model must be populated from every origin the model accepts; defaulting it makes one source silently wrong. The PC roster's level, species and class now come from the D&D sheet, PF2e snapshot or build, with a per-origin test.
+
 ### Naming & Organization
 
 **Names reveal intent** — Module/file names must clearly describe the domain concept they represent. A file named `opencode.gleam` is too vague; prefer names like `opencode_session.gleam`, `obsidian_vault.gleam`, `electron_preload.gleam`. If a name describes what the code *is* rather than what it *does*, it is wrong. Every developer should be able to guess the file's contents from its name alone.
