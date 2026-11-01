@@ -147,7 +147,9 @@ When the user gives a todolist, a plan document, or starts a sprint:
 1. Scan the existing code and outputs so no task is created for work already done.
 2. Load the ordered plan with `pcp_plan(tasks)`, passing backlog ids as their own entries.
 3. Ask every blocking question now — scope, acceptance criteria, irreversible choices, and
-   conflicting items. Do not start executing until they are answered.
+   conflicting items. Batch independent questions (two or three per message) so scoping does
+   not cost a turn per question; keep backlog planning in the `pcp-plan-sprint` skill one item
+   per message. Do not start executing until they are answered.
 4. Show the plan and get one confirmation. That confirmation authorises the whole sprint.
 5. Execute every task in order to completion without further prompts: pre-RED, RED, GREEN,
    REFACTOR, gates, `pcp_done`, and the task's commit with `.opencode/pcp`. Advance to the next
