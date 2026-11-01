@@ -29,6 +29,8 @@ All applications must implement **Hexagonal Architecture** (Ports and Adapters):
 
 **Map source-neutral fields from every origin** — A field on a source-neutral model must be populated from every origin the model accepts; defaulting it makes one source silently wrong. The PC roster's level, species and class now come from the D&D sheet, PF2e snapshot or build, with a per-origin test.
 
+**Depend on the surface a module needs, not the object that has it** — A `import type` erased at runtime is still a module edge for a dependency analyser, so a class and a module that derives from it read as cyclically coupled even though only types cross. Break it structurally: give the derivation a narrow input interface the class satisfies structurally, and let the class import the derivation one-way. Configure the analyser (`tsPreCompilationDeps: false`) only after that, never as the first move — the interface makes the contract explicit, the config only hides the symptom.
+
 ### Naming & Organization
 
 **Names reveal intent** — Module/file names must clearly describe the domain concept they represent. A file named `opencode.gleam` is too vague; prefer names like `opencode_session.gleam`, `obsidian_vault.gleam`, `electron_preload.gleam`. If a name describes what the code *is* rather than what it *does*, it is wrong. Every developer should be able to guess the file's contents from its name alone.

@@ -82,7 +82,8 @@ during investigations.
 **One path base per command** — When a command sets a subdirectory working directory, every
 path in it is relative to that directory; never mix a package `workdir` with repo-root-relative
 paths, and choose the base before writing the command, including package test/lint tools and
-root-only scripts (`npm run format`).
+root-only scripts (`npm run format`). Never prefix the command with `cd`, which silently
+overrides the `workdir` parameter and defeats the base you chose.
 
 **Human context is not observable** — You cannot see the user's terminal, screen, or filesystem.
 When they describe their environment, workflow, or what they ran, ask for the exact path, command,
@@ -111,7 +112,9 @@ they work. A green pre-commit does not cover shell scripts or infrastructure con
 
 **Done means the gate passes** — A change is complete when the pre-commit hook passes: lint,
 tests, coverage at the project threshold, and a smoke test for apps with a build pipeline or
-desktop shell. This applies even if the change is not committed.
+desktop shell. This applies even if the change is not committed. A gate result is a
+measurement of the tree it ran against: a result obtained before your last edit is not
+evidence about the change, so re-run the covering gate (or let the commit hook be that run).
 
 **Defects are process failures** — Any reported defect means a test was missing and a process
 step failed. Investigate which test was missing, which step failed, and what change to tooling,

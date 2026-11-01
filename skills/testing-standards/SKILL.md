@@ -197,6 +197,8 @@ translation.
 
 **Focus on line coverage only** — Branch, function, and statement coverage are secondary metrics. Line coverage is the primary measurable target.
 
+**Coverage obligation follows the import graph, so a test belongs with the code it rules on** — A coverage tool measures every file a test's module graph reaches, attributing them to the project that ran the test. A conformance test placed outside the package (a repo-level `scripts/` suite) that imports package source therefore pulls that source into the outer project's denominator with only partial coverage, and the threshold fails for a reason unrelated to the code. Keep a rule's test in the package that owns the rule; where a repo-level suite must compare across packages, read the other package's sources as text rather than importing them.
+
 **Multi-package average, not per-package minimum** — When a project has multiple packages, the 95% target applies to the **average line coverage across all packages**, not to each package individually. This allows strategic allocation of effort.
 
 **Maximize easy wins first** — When improving coverage across multiple packages:
