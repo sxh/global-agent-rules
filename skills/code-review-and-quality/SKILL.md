@@ -232,6 +232,18 @@ For each file changed:
 8. Quality Gates: Do the project's gates exist, run, and actually fail when they should — or is the absence explicitly excluded?
 ```
 
+### Step 3b: Project-Wide Simplification Sweep (mandatory)
+
+The eight axes review the change; this step reviews the codebase the change sits in. A diff-scoped review cannot see that the fifth copy of a handler, or a sibling screen, already implements the same thing — so look outside the diff.
+
+- Read every changed file **in full**, not just the hunks. Duplication is a property of the whole file.
+- Run the project's structural-debt scan (if it has one).
+- For each touched module, look for: repeated blocks that differ only by field/name substitution, parallel implementations of the same behaviour on two surfaces, near-duplicate helpers, and over-abstraction that a simpler shape would remove.
+- Record every finding as a backlog item with `pcp_capture` (or the project's equivalent), giving file:line evidence and the expected saving. **Out-of-scope findings are captured, never fixed in the same commit.**
+- Include the captured ids in the commit report/proposal. "No findings" is a valid result, but it must follow the sweep, not replace it.
+
+The sweep is only as good as its tooling. A scanner that cannot parse a language, or that only compares declarations, will miss structural duplicates — when that gap causes a miss, capture the scanner improvement as a backlog item too.
+
 ### Step 4: Categorize Findings
 
 Label every comment with its severity so the author knows what's required vs optional:
@@ -385,6 +397,12 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - [ ] Second-surface behavior reuses one strategy rather than a parallel analog
 - [ ] Port/type contracts honoured (preconditions weakened, postconditions strengthened, invariants preserved)
 
+### Simplification sweep (Step 3b)
+- [ ] Every changed file read in full, not just the diff
+- [ ] Project structural-debt scan run
+- [ ] Duplication/over-abstraction findings captured as backlog items with file:line and expected saving
+- [ ] Captured ids listed in the commit report
+
 ### Security
 - [ ] No secrets in code
 - [ ] Input validated at boundaries
@@ -436,7 +454,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 
 - For detailed security review guidance, see `references/security-checklist.md`
 - For performance review checks, see `references/performance-checklist.md`
-- **structural-debt-auditor** — this skill reviews the *diff* (eight axes on the change); structural-debt-auditor reviews the *structure between diffs* (missing abstractions across files). Run both: this one per change, structural-debt on cadence/layer-touch. This skill's Architecture axis ratifies the existing baseline; structural-debt-auditor measures the baseline itself.
+- **structural-debt-auditor** — this skill reviews the *diff* (eight axes on the change) plus Step 3b's per-change simplification sweep; structural-debt-auditor is the deeper *structure between diffs* pass (missing abstractions across the whole codebase). Run both: Step 3b per change, structural-debt-auditor on cadence/layer-touch. This skill's Architecture axis ratifies the existing baseline; structural-debt-auditor measures the baseline itself.
 - **project-scaffold** — defines the required gates (start.sh, pre-commit hook, CI) that the Quality-Gate Integrity axis verifies.
 - **design-by-contract** — the contract discipline (preconditions, postconditions, invariants, and the LSP variance rule) applied in the Architecture and Test Quality axes.
 
@@ -452,6 +470,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 | "It's not accessible but we'll fix it later" | Focus traps, ARIA ids, and keyboard paths don't fix themselves. A dialog with an escape-able focus trap or hardcoded duplicate ids is broken for keyboard/AT users at merge time — review it on this change, not later. |
 | "The refactor makes it cleaner" | Relocating complexity isn't reducing it. If the reader still holds the same number of concepts, the structure didn't improve — look for the version where branches disappear. |
 | "It's only a small addition to this file" | Small diffs still push files past a healthy size and bolt branches onto unrelated flows. Judge the resulting structure, not the diff size. |
+| "The diff is clean, so there's no duplication" | Duplication is a property of the whole file and its sibling surfaces, not of the diff. A clean diff can still be the fifth copy — run Step 3b. |
 | "It's just a version bump" | A bump is a behavior change you didn't write. Read the changelog; semver doesn't guarantee no breakage. |
 | "I'll upgrade everything in one PR to save time" | A bulk bump that breaks the build hides which package did it. One dependency per change keeps the cause and the revert clean. |
 | "The gate is disabled for now to avoid noise" | A disabled gate is the root enabler of silent defect accumulation — the fix is re-enabling with proper scoping, not documenting intent. |
@@ -469,6 +488,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - Accepting "I'll fix it later" — it never happens
 - A refactor that moves code around without reducing the number of concepts a reader must hold
 - A change that grows an already-large file instead of decomposing it
+- A review that never looks outside the diff for duplication or simplification (Step 3b skipped)
 - New conditionals scattered into unrelated code paths (a missing abstraction)
 - A bespoke helper that duplicates an existing canonical one, or feature logic placed in a shared module
 - A bulk "bump dependencies" PR with no changelog review and no per-package isolation
