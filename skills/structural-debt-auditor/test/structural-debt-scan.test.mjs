@@ -936,3 +936,63 @@ test('normalises comments and strings inside a structural block', () => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test('drops an enclosing class body when its method is the duplicate', () => {
+    const method = (helper) => [
+        'class A {',
+        '  void run() {',
+        '    setState(() {',
+        '      final tabs = [..._tabs];',
+        '      tabs[_activeTab] = playerTabToggle(_active, card, visible, defaults: _defaults);',
+        '      _tabs = tabs;',
+        '    });',
+        `    unawaited(${helper}());`,
+        '  }',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/a.dart': method('_persist'),
+        'lib/b.dart': method('_persistLayout'),
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.ok(result.structuralCandidates.length > 0, 'expected the methods to be grouped');
+        assert.ok(
+            result.structuralCandidates.every((c) => !c.sample?.startsWith('class ')),
+            'the enclosing class body must not be reported alongside its method'
+        );
+        assert.ok(result.structuralCandidates.every((c) => c.sample), 'every candidate carries a triage sample');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('honours a sample_pattern exclusion from the registry', () => {
+    const method = (helper) => [
+        'class A {',
+        '  void run() {',
+        '    setState(() {',
+        '      final tabs = [..._tabs];',
+        '      tabs[_activeTab] = playerTabToggle(_active, card, visible, defaults: _defaults);',
+        '      _tabs = tabs;',
+        '    });',
+        `    unawaited(${helper}());`,
+        '  }',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/a.dart': method('_persist'),
+        'lib/b.dart': method('_persistLayout'),
+    });
+    try {
+        const result = scanDuplication(dir, {
+            includeStructural: true,
+            excludedSignatures: [{ sample_pattern: '^void run', reason: 'intentional' }],
+        });
+        assert.equal(result.structuralCandidates.length, 0);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

@@ -179,7 +179,9 @@ export function scanDuplication(
         downgraded,
         unsupportedExtensions,
         skippedGenerated,
-        ...(includeStructural ? { structuralCandidates: scanStructural(rootDir, { excludeTestFiles }) } : {}),
+        ...(includeStructural
+            ? { structuralCandidates: scanStructural(rootDir, { excludeTestFiles, excludedSignatures }) }
+            : {}),
     };
 }
 
@@ -538,7 +540,13 @@ function extractStructuralBlocks(src, file) {
     const push = (start, end) => {
         const header = src.slice(headerStart(src, start), start).trim().slice(-120);
         const tokens = normalizeBlock(`${header} ${src.slice(start, end)}`);
-        if (tokens.length >= MIN_STRUCTURAL_TOKENS) blocks.push({ file, tokens });
+        if (tokens.length >= MIN_STRUCTURAL_TOKENS) {
+            blocks.push({
+                file,
+                sample: header.replace(/\s+/g, ' ').slice(0, 120),
+                tokens,
+            });
+        }
     };
 
     for (let i = 0; i < src.length; i += 1) {
@@ -558,7 +566,25 @@ function extractStructuralBlocks(src, file) {
             i = end - 1;
         }
     }
-    return blocks;
+    return dropEnclosingBlocks(blocks);
+}
+
+/**
+ * A class body or outer function that merely wraps a smaller block is not a
+ * separate finding: keep the innermost blocks so one duplicate is not reported
+ * twice (the class and its method, or a function and its callback).
+ */
+function dropEnclosingBlocks(blocks) {
+    const texts = blocks.map((block) => ` ${block.tokens.join(' ')} `);
+    return blocks.filter((block, index) => {
+        const outer = texts[index];
+        return !blocks.some(
+            (other, otherIndex) =>
+                otherIndex !== index &&
+                other.tokens.length < block.tokens.length &&
+                outer.includes(texts[otherIndex]),
+        );
+    });
 }
 
 function simpleHash(text) {
@@ -571,7 +597,7 @@ function simpleHash(text) {
 }
 
 /** Structurally identical blocks, grouped; report-only (never in the ratio). */
-export function scanStructural(rootDir, { excludeTestFiles = true } = {}) {
+export function scanStructural(rootDir, { excludeTestFiles = true, excludedSignatures = [] } = {}) {
     const blocks = [];
     walk(rootDir, (file) => {
         const ext = extOf(file);
@@ -594,14 +620,25 @@ export function scanStructural(rootDir, { excludeTestFiles = true } = {}) {
         byKey.get(key).push(block);
     }
 
+    const excluded = new Set(
+        excludedSignatures.map((entry) => entry.pattern_signature).filter((signature) => signature !== undefined),
+    );
+    const excludedPatterns = excludedSignatures
+        .filter((entry) => typeof entry.sample_pattern === 'string')
+        .map((entry) => new RegExp(entry.sample_pattern));
     const candidates = [];
     for (const group of byKey.values()) {
         if (group.length < 2) continue;
         const signature = group[0].tokens.join(' ');
+        const patternSignature = `structural_${group[0].tokens.length}_${simpleHash(signature)}`;
+        const sample = group[0].sample ?? '';
+        if (excluded.has(patternSignature)) continue;
+        if (excludedPatterns.some((pattern) => pattern.test(sample))) continue;
         candidates.push({
-            pattern_signature: `structural_${group[0].tokens.length}_${simpleHash(signature)}`,
+            pattern_signature: patternSignature,
             kind: 'structural-duplicate',
             files: [...new Set(group.map((block) => block.file))],
+            sample,
             reason: `structurally identical block (${group[0].tokens.length} tokens) in ${group.length} places — likely a missing shared helper`,
         });
     }
@@ -673,6 +710,7 @@ function main(argv) {
             );
             for (const c of result.structuralCandidates) {
                 console.log(`\n[${c.pattern_signature}] ${c.reason}`);
+                if (c.sample) console.log(`  ${c.sample}`);
                 for (const f of c.files) console.log(`  - ${relative(process.cwd(), f)}`);
             }
         }
