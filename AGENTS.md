@@ -82,7 +82,8 @@ during investigations.
 **One path base per command** — When a command sets a subdirectory working directory, every
 path in it is relative to that directory; never mix a package `workdir` with repo-root-relative
 paths, and choose the base before writing the command, including package test/lint tools and
-root-only scripts (`npm run format`). Never prefix the command with `cd`, which silently
+root-only scripts (`npm run format`); the same holds for inline scripts and heredocs, so prefer
+the structured edit tool for file edits. Never prefix the command with `cd`, which silently
 overrides the `workdir` parameter and defeats the base you chose.
 
 **Human context is not observable** — You cannot see the user's terminal, screen, or filesystem.

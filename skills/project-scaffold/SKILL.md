@@ -108,6 +108,13 @@ For desktop apps (Electron, Tauri, etc.) and web apps, unit tests alone are not 
 - The renderer can load the app (no `ERR_FILE_NOT_FOUND` or equivalent)
 If any of these checks fail, the commit must be rejected.
 
+**Every composite gate must print its own verdict.** A gate script (the hook's entry point, or a
+`gate.sh` it calls) must end with `gate: PASSED (<code>)` / `gate: FAILED (<code>)` derived from an
+EXIT trap and the real exit code, so a piped or truncated log cannot hide a failure. Prove the line's
+failure path in a test — for example a PATH shim that fails the first step — rather than only
+observing the success case. Reference: `rpg_combat_tool/scripts/gate.sh` and its `scripts/gate.test.ts`
+(B400).
+
 ### Definition of Done — proof belongs to the feature
 
 A feature that crosses an external boundary (an API response, an imported document, a datastore,
