@@ -11,7 +11,7 @@
  * Dependency-free (Node built-ins only) so it runs in any project.
  *
  * Usage:
- *   node scripts/structural-debt-scan.mjs [dir] [--json] [--fail-on N] [--exclusions=<path>]
+ *   node scripts/structural-debt-scan.mjs [dir] [--json] [--structural] [--fail-on N] [--exclusions=<path>]
  *
  * Exclusions: reads an explicit `--exclusions=<path>` JSON file, or `<dir>/.structural-debt-exclusions.json`
  * if present. Matching pattern_signatures are reported as `downgraded` and excluded from the ratio.
@@ -47,6 +47,9 @@ const BUNDLE_NAME = /\.min\.[cm]?js$/i;
 // Dart code-generation output is not hand-written source: json_serializable/freezed
 // (.g.dart, .freezed.dart, .gr.dart, .mocks.dart) and the Flutter plugin registrant.
 const GENERATED_DART_NAME = /(\.(g|freezed|gr|mocks)\.dart|generated_plugin_registrant\.dart)$/i;
+// TypeScript codegen output (`actions.g.ts`, `*.generated.ts`) is data, not
+// hand-written source; scanning it manufactures structural noise.
+const GENERATED_TS_NAME = /\.(g|generated)\.tsx?$/i;
 const SRC_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.gleam', '.kt', '.java', '.py', '.dart']);
 // A const/property whose initializer is a bare call (`= createApp()`) or a bare
 // identifier (`= mainTable`) only duplicates the *binding*; the shared logic
@@ -83,7 +86,10 @@ const EXTRACTORS = {
     '.dart': extractDart,
 };
 
-export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSignatures = [] } = {}) {
+export function scanDuplication(
+    rootDir,
+    { excludeTestFiles = true, excludedSignatures = [], includeStructural = false } = {},
+) {
     const declarations = [];
     const unsupported = new Map();
     const skippedGenerated = [];
@@ -173,6 +179,7 @@ export function scanDuplication(rootDir, { excludeTestFiles = true, excludedSign
         downgraded,
         unsupportedExtensions,
         skippedGenerated,
+        ...(includeStructural ? { structuralCandidates: scanStructural(rootDir, { excludeTestFiles }) } : {}),
     };
 }
 
@@ -238,6 +245,7 @@ function isGeneratedDir(full) {
 function generatedOutputReason(file) {
     if (BUNDLE_NAME.test(file)) return 'minified bundle (.min.*)';
     if (GENERATED_DART_NAME.test(file)) return 'generated Dart (codegen, not hand-written source)';
+    if (GENERATED_TS_NAME.test(file)) return 'generated TypeScript (codegen, not hand-written source)';
     let size;
     try {
         size = statSync(file).size;
@@ -394,6 +402,212 @@ function extractDart(src) {
     });
 }
 
+// ---- Structural near-duplicate detection (report-only) ----
+// The declaration scan groups identical *named* declarations. This pass groups
+// balanced blocks (function bodies, class methods, inline callbacks, arrow
+// bodies) whose tokens match once identifiers and literals are normalised. It
+// is opt-in via --structural and never contributes to the ratio, so it can
+// surface the shapes the declaration scan cannot see without failing the gate.
+const MIN_STRUCTURAL_TOKENS = 40;
+
+const STRUCTURAL_KEYWORDS = new Set([
+    'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break',
+    'continue', 'return', 'throw', 'try', 'catch', 'finally', 'new', 'await',
+    'async', 'yield', 'const', 'let', 'var', 'final', 'function', 'class',
+    'extends', 'implements', 'interface', 'type', 'enum', 'public', 'private',
+    'protected', 'static', 'void', 'in', 'of', 'is', 'as', 'with', 'import',
+    'export', 'from',
+]);
+
+function stripComments(text) {
+    return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+}
+
+/** A block's token sequence with identifiers and literals collapsed. */
+function normalizeBlock(text) {
+    const tokens = [];
+    const re = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|([A-Za-z_$][\w$]*)|(\d+(?:\.\d+)?)|([^\s])/g;
+    let match;
+    while ((match = re.exec(stripComments(text))) !== null) {
+        if (match[1] !== undefined) tokens.push('STR');
+        else if (match[2] !== undefined) tokens.push(STRUCTURAL_KEYWORDS.has(match[2]) ? match[2] : 'ID');
+        else if (match[3] !== undefined) tokens.push('NUM');
+        else tokens.push(match[4]);
+    }
+    return tokens;
+}
+
+function skipLineComment(src, index) {
+    const end = src.indexOf('\n', index);
+    return end === -1 ? src.length : end + 1;
+}
+
+function skipBlockComment(src, index) {
+    const end = src.indexOf('*/', index + 2);
+    return end === -1 ? src.length : end + 2;
+}
+
+function skipQuoted(src, index) {
+    const quote = src[index];
+    for (let i = index + 1; i < src.length; i += 1) {
+        if (src[i] === '\\') {
+            i += 1;
+            continue;
+        }
+        if (src[i] === quote) return i + 1;
+    }
+    return src.length;
+}
+
+/** The index just after the `}` matching the `{` at [open], or -1. */
+function matchBrace(src, open) {
+    let depth = 0;
+    for (let i = open; i < src.length; i += 1) {
+        const ch = src[i];
+        if (ch === '/' && src[i + 1] === '/') {
+            i = skipLineComment(src, i) - 1;
+        } else if (ch === '/' && src[i + 1] === '*') {
+            i = skipBlockComment(src, i) - 1;
+        } else if (ch === '"' || ch === "'" || ch === '`') {
+            i = skipQuoted(src, i) - 1;
+        } else if (ch === '{') {
+            depth += 1;
+        } else if (ch === '}') {
+            depth -= 1;
+            if (depth === 0) return i;
+        }
+    }
+    return -1;
+}
+
+/** The end of an expression-bodied declaration (`=> ...;`). */
+function matchExpression(src, start) {
+    let parens = 0;
+    let brackets = 0;
+    let braces = 0;
+    for (let i = start; i < src.length; i += 1) {
+        const ch = src[i];
+        if (ch === '/' && src[i + 1] === '/') {
+            i = skipLineComment(src, i) - 1;
+        } else if (ch === '/' && src[i + 1] === '*') {
+            i = skipBlockComment(src, i) - 1;
+        } else if (ch === '"' || ch === "'" || ch === '`') {
+            i = skipQuoted(src, i) - 1;
+        } else if (ch === '(') {
+            parens += 1;
+        } else if (ch === ')') {
+            parens -= 1;
+        } else if (ch === '[') {
+            brackets += 1;
+        } else if (ch === ']') {
+            brackets -= 1;
+        } else if (ch === '{') {
+            braces += 1;
+        } else if (ch === '}') {
+            if (braces === 0) return i;
+            braces -= 1;
+        } else if (ch === ';' && parens === 0 && brackets === 0 && braces === 0) {
+            return i + 1;
+        }
+    }
+    return src.length;
+}
+
+/** The start of a block header: the previous statement/line boundary. */
+function headerStart(src, index) {
+    let i = index - 1;
+    while (i >= 0) {
+        const ch = src[i];
+        if (ch === ';' || ch === '{' || ch === '}') return i + 1;
+        if (ch === '\n') {
+            const previous = src.slice(Math.max(0, i - 40), i).trimEnd();
+            if (/[=>,]$/.test(previous)) {
+                i -= 1;
+                continue;
+            }
+            return i + 1;
+        }
+        i -= 1;
+    }
+    return 0;
+}
+
+/** Every brace block and arrow body in [src], with its normalised tokens. */
+function extractStructuralBlocks(src, file) {
+    const blocks = [];
+    const push = (start, end) => {
+        const header = src.slice(headerStart(src, start), start).trim().slice(-120);
+        const tokens = normalizeBlock(`${header} ${src.slice(start, end)}`);
+        if (tokens.length >= MIN_STRUCTURAL_TOKENS) blocks.push({ file, tokens });
+    };
+
+    for (let i = 0; i < src.length; i += 1) {
+        const ch = src[i];
+        if (ch === '/' && src[i + 1] === '/') {
+            i = skipLineComment(src, i) - 1;
+        } else if (ch === '/' && src[i + 1] === '*') {
+            i = skipBlockComment(src, i) - 1;
+        } else if (ch === '"' || ch === "'" || ch === '`') {
+            i = skipQuoted(src, i) - 1;
+        } else if (ch === '{') {
+            const end = matchBrace(src, i);
+            if (end !== -1) push(i, end + 1);
+        } else if (ch === '=' && src[i + 1] === '>') {
+            const end = matchExpression(src, i + 2);
+            push(i, end);
+            i = end - 1;
+        }
+    }
+    return blocks;
+}
+
+function simpleHash(text) {
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+}
+
+/** Structurally identical blocks, grouped; report-only (never in the ratio). */
+export function scanStructural(rootDir, { excludeTestFiles = true } = {}) {
+    const blocks = [];
+    walk(rootDir, (file) => {
+        const ext = extOf(file);
+        if (!SRC_EXTS.has(ext)) return;
+        if (excludeTestFiles && TEST_MARKERS.some((marker) => file.includes(marker))) return;
+        if (generatedOutputReason(file)) return;
+        let src;
+        try {
+            src = readFileSync(file, 'utf8');
+        } catch {
+            return;
+        }
+        blocks.push(...extractStructuralBlocks(src, file));
+    });
+
+    const byKey = new Map();
+    for (const block of blocks) {
+        const key = block.tokens.join(' ');
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key).push(block);
+    }
+
+    const candidates = [];
+    for (const group of byKey.values()) {
+        if (group.length < 2) continue;
+        const signature = group[0].tokens.join(' ');
+        candidates.push({
+            pattern_signature: `structural_${group[0].tokens.length}_${simpleHash(signature)}`,
+            kind: 'structural-duplicate',
+            files: [...new Set(group.map((block) => block.file))],
+            reason: `structurally identical block (${group[0].tokens.length} tokens) in ${group.length} places — likely a missing shared helper`,
+        });
+    }
+    return candidates;
+}
+
 // Load the known-intentional exclusion registry. Reads an explicit path when
 // given, otherwise `<dir>/.structural-debt-exclusions.json` if present.
 function loadExclusions(dir, explicitPath) {
@@ -413,11 +627,13 @@ function loadExclusions(dir, explicitPath) {
 function main(argv) {
     let dir = process.cwd();
     let json = false;
+    let structural = false;
     let failOn = null;
     let exclusionsPath = null;
 
     for (const arg of argv.slice(2)) {
         if (arg === '--json') json = true;
+        else if (arg === '--structural') structural = true;
         else if (arg.startsWith('--fail-on=')) failOn = parseFloat(arg.split('=')[1]);
         else if (arg.startsWith('--exclusions=')) exclusionsPath = arg.slice('--exclusions='.length);
         else if (!arg.startsWith('--')) dir = arg;
@@ -431,7 +647,7 @@ function main(argv) {
 
     let result;
     try {
-        result = scanDuplication(dir, { excludedSignatures });
+        result = scanDuplication(dir, { excludedSignatures, includeStructural: structural });
     } catch (err) {
         console.error(`Failed to scan ${dir}: ${err.message}`);
         process.exit(2);
@@ -450,6 +666,15 @@ function main(argv) {
         for (const c of result.downgraded) {
             console.log(`\n[downgraded:${c.pattern_signature}] ${c.reason}`);
             for (const f of c.files) console.log(`  - ${relative(process.cwd(), f)}`);
+        }
+        if (result.structuralCandidates?.length > 0) {
+            console.log(
+                `\nStructural near-duplicates (report-only, ${result.structuralCandidates.length} pattern(s)):`
+            );
+            for (const c of result.structuralCandidates) {
+                console.log(`\n[${c.pattern_signature}] ${c.reason}`);
+                for (const f of c.files) console.log(`  - ${relative(process.cwd(), f)}`);
+            }
         }
         for (const u of result.unsupportedExtensions) {
             console.log(

@@ -773,3 +773,166 @@ test('ignores Flutter iOS ephemeral build output', () => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test('reports structurally identical method bodies whose only difference is a renamed helper', () => {
+    const method = (helper) => [
+        'class A {',
+        '  void run() {',
+        '    setState(() {',
+        '      final tabs = [..._tabs];',
+        '      tabs[_activeTab] = playerTabToggle(_active, card, visible, defaults: _defaults);',
+        '      _tabs = tabs;',
+        '    });',
+        `    unawaited(${helper}());`,
+        '  }',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/a.dart': method('_persist'),
+        'lib/b.dart': method('_persistLayout'),
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.equal(result.ratio, 0, 'structural findings are report-only');
+        assert.ok(
+            result.structuralCandidates.some((c) => c.files.length === 2),
+            'expected the renamed-helper methods to be grouped'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('reports arrow-bodied methods that differ only in their labels and keys', () => {
+    const dialog = (name) => [
+        `class ${name} extends StatelessWidget {`,
+        '  Widget build(BuildContext context) => AlertDialog(',
+        `    title: const Text('${name}'),`,
+        `    content: TextField(key: const Key('${name}-field'), controller: _controller),`,
+        `    actions: [TextButton(key: const Key('${name}-cancel'), onPressed: () => Navigator.of(context).pop()), FilledButton(key: const Key('${name}-save'), onPressed: _submit)],`,
+        '  );',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/dialogs.dart': ['Hero', 'Experience', 'Condition'].map(dialog).join('\n'),
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.ok(
+            result.structuralCandidates.some((c) => c.files.length === 1),
+            'expected the arrow-bodied dialogs to be grouped'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('reports five route handlers that share one skeleton', () => {
+    const handler = (write) => [
+        `async function ${write}(c) {`,
+        '  const ownerId = validate(c);',
+        '  const existing = await repository.get(ownerId, c.req.param("pcId"));',
+        '  if (!existing) return c.json({ error: NOT_FOUND }, 404);',
+        '  const snapshot = existing.snapshot;',
+        '  if (!snapshot) return c.json({ error: NOT_WG }, 400);',
+        '  let updatedAt;',
+        `  try { updatedAt = await wgClient().${write}(snapshot.id, value); } catch (error) { return failure(error); }`,
+        '  const updated = new PlayerCharacter({ ...existing.toData(), snapshot, updatedAt });',
+        '  await repository.save(updated);',
+        '  return c.json({ success: true, snapshot });',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'src/handlers.ts': ['writeHp', 'writeHeroPoints', 'writeFocusPoints', 'writeExperience', 'writeConditions']
+            .map(handler)
+            .join('\n'),
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.ok(
+            result.structuralCandidates.some((c) => c.files.length === 1),
+            'expected the five handlers to share one structural signature'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('CLI --structural reports candidates without failing the ratio gate', () => {
+    const handler = (write) => [
+        `async function ${write}(c) {`,
+        '  const ownerId = validate(c);',
+        '  const existing = await repository.get(ownerId, c.req.param("pcId"));',
+        '  if (!existing) return c.json({ error: NOT_FOUND }, 404);',
+        '  const snapshot = existing.snapshot;',
+        '  if (!snapshot) return c.json({ error: NOT_WG }, 400);',
+        '  let updatedAt;',
+        `  try { updatedAt = await wgClient().${write}(snapshot.id, value); } catch (error) { return failure(error); }`,
+        '  const updated = new PlayerCharacter({ ...existing.toData(), snapshot, updatedAt });',
+        '  await repository.save(updated);',
+        '  return c.json({ success: true, snapshot });',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'src/a.ts': handler('writeHp'),
+        'src/b.ts': handler('writeXp'),
+    });
+    try {
+        const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
+        const run = spawnSync('node', [script, dir, '--structural', '--fail-on=0.001'], { encoding: 'utf8' });
+        assert.equal(run.status, 0, 'structural findings must not fail the ratio gate');
+        assert.match(run.stdout, /Structural near-duplicates \(report-only/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('skips generated TypeScript codegen output', () => {
+    const dir = makeFixture({
+        'src/a.g.ts': 'export const Dup = 1;',
+        'src/b.g.ts': 'export const Dup = 1;',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.candidates.length, 0, 'generated TypeScript is not hand-written source');
+        assert.equal(result.skippedGenerated.length, 2, 'both generated files must be reported');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('normalises comments and strings inside a structural block', () => {
+    const method = (label) => [
+        'class A {',
+        '  void run() {',
+        '    // a line comment with a brace {',
+        '    /* a block comment with a brace } */',
+        `    final text = "${label} { not a brace }";`,
+        '    setState(() {',
+        '      final tabs = [..._tabs];',
+        '      tabs[_activeTab] = playerTabToggle(_active, card, visible, defaults: _defaults);',
+        '      _tabs = tabs;',
+        '    });',
+        '    unawaited(_persist());',
+        '  }',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/a.dart': method('one'),
+        'lib/b.dart': method('two'),
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.ok(
+            result.structuralCandidates.some((c) => c.files.length === 2),
+            'comments and strings must not defeat brace matching'
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
