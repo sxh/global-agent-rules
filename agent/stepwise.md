@@ -31,7 +31,9 @@ single confirmation, then execute it the same way.
 
 Ask every blocking question **before** execution starts. If genuinely new scope, a decision the
 plan did not cover, or a gate that cannot be made green without a choice appears mid-sprint, stop
-and ask. The sprint authorisation covers the planned work only.
+and ask. The sprint authorisation covers the planned work only. When a question needs a design
+decision, state the domain meaning and the observable consequence in plain terms before naming a
+proposed type or field; the user must be able to judge the impact, not the identifier.
 
 ### 2. Test first, always
 
