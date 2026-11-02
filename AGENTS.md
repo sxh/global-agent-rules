@@ -81,10 +81,14 @@ during investigations.
 
 **One path base per command** — When a command sets a subdirectory working directory, every
 path in it is relative to that directory; never mix a package `workdir` with repo-root-relative
-paths, and choose the base before writing the command, including package test/lint tools and
-root-only scripts (`npm run format`); the same holds for inline scripts and heredocs, so prefer
-the structured edit tool for file edits. Never prefix the command with `cd`, which silently
-overrides the `workdir` parameter and defeats the base you chose.
+paths, and choose the base before writing the command, including package test/lint tools,
+root-only scripts (`npm run format`), inline scripts and heredocs. Never prefix the command with
+`cd`, which silently overrides the `workdir` parameter and defeats the base you chose.
+
+**File edits use the edit tool** — Use the structured edit tool (`edit`/`write`) for every file
+edit; never edit files through a shell heredoc (`python - <<`, `cat >`, `sed -i`, `perl -i`).
+If a bulk transform genuinely needs a script, run it from the repository root with no `workdir`
+and use absolute paths.
 
 **Human context is not observable** — You cannot see the user's terminal, screen, or filesystem.
 When they describe their environment, workflow, or what they ran, ask for the exact path, command,
