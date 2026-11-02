@@ -125,7 +125,7 @@ For any create/edit/save workflow, add a test that drives the complete cycle —
 
 ### Fixtures Must Mirror How Production Produces Derived Data
 
-A fixture for derived or server-computed data must be produced the way production produces it, not hand-built in the shape the assertion expects, or the suite proves the wrong model and actively hides the defect. A Fey Touched test stored server-computed grants in the character's `preparedSpells`, so green tests confirmed a state the server never sends while the real prepared list omitted the spells; drive the fixture through the same derivation path (or use the real service) and assert the user-visible surface.
+A fixture for derived or server-computed data must be produced the way production produces it, not hand-built in the shape the assertion expects, or the suite proves the wrong model and actively hides the defect. A Fey Touched test stored server-computed grants in the character's `preparedSpells`, so green tests confirmed a state the server never sends while the real prepared list omitted the spells; drive the fixture through the same derivation path (or use the real service) and assert the user-visible surface. A fixture must also satisfy the type's invariants, not just the fields the assertion reads: a cast or hand-built object asserts everything the type promises, so when production starts reading a field the fixture omitted, the failure surfaces inside the producer rather than at the fixture.
 
 ### A Cross-Boundary Identifier Set Is Part of the Contract
 

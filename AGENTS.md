@@ -114,7 +114,7 @@ they work. A green pre-commit does not cover shell scripts or infrastructure con
 tests, coverage at the project threshold, and a smoke test for apps with a build pipeline or
 desktop shell. This applies even if the change is not committed. A gate result is a
 measurement of the tree it ran against: a result obtained before your last edit is not
-evidence about the change, so re-run the covering gate (or let the commit hook be that run).
+evidence about the change, so re-run the covering gate — the affected suite included — or let the commit hook be that run.
 
 **Defects are process failures** — Any reported defect means a test was missing and a process
 step failed. Investigate which test was missing, which step failed, and what change to tooling,
