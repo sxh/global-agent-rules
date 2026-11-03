@@ -23,6 +23,10 @@ suite is green: a fixture that models the domain differently from production can
 wrong closure look proven. When an item spans surfaces, name them in the closure note and
 check each one.
 
+Backlog state is what `pcp_backlog` / `pcp_status` return. An id seen in `events.jsonl` may
+already be promoted or closed, so never cite the event log as a current backlog item; check the
+status tool before naming one.
+
 ## Start the task before the first edit
 
 A task must be active before the first code edit, not minted alongside the closing commit. If
@@ -149,7 +153,10 @@ When the user gives a todolist, a plan document, or starts a sprint:
 3. Ask every blocking question now — scope, acceptance criteria, irreversible choices, and
    conflicting items. Batch independent questions (two or three per message) so scoping does
    not cost a turn per question; keep backlog planning in the `pcp-plan-sprint` skill one item
-   per message. Do not start executing until they are answered.
+   per message. Do not start executing until they are answered. If the backlog item already
+   states its scope and acceptance criterion, do not re-ask them — those are not blocking
+   questions; ask only about decisions the item leaves open (an irreversible choice, a
+   conflicting item, or a gate threshold).
 4. Show the plan and get one confirmation. That confirmation authorises the whole sprint.
 5. Execute every task in order to completion without further prompts: pre-RED, RED, GREEN,
    REFACTOR, gates, `pcp_done`, and the task's commit with `.opencode/pcp`. Advance to the next
