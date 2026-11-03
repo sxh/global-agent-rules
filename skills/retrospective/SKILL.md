@@ -240,6 +240,14 @@ check Step 5 applies to incident entries. Check, in order:
 If any holds, do not create the item: refine the existing artefact, or close the
 finding with no action.
 
+**Verify the mechanism, not just the artefacts.** A finding that asserts A causes B
+(an exclusion hides a group, a fixture masks a path, a config disables a gate) must
+cite the code path that applies A and confirm it reaches B; the existence of A and
+B separately is not evidence. On 2026-11-03 a retrospective captured a backlog item
+claiming declaration-level exclusions were hiding 30 structural groups; the
+declaration scan never read `sample_pattern`, so the item was pivoted at
+implementation (rpg_combat_tool B427).
+
 **Use `pcp_capture`** to add each item with a descriptive title. For example:
 > `pcp_capture("Add NOT NULL constraint to products.url column")`
 > `pcp_capture("Document multi-layer investigation pattern in AGENTS.md")`
