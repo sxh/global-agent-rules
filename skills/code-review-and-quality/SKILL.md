@@ -237,7 +237,7 @@ For each file changed:
 The eight axes review the change; this step reviews the codebase the change sits in. A diff-scoped review cannot see that the fifth copy of a handler, or a sibling screen, already implements the same thing — so look outside the diff.
 
 - Read every changed file **in full**, not just the hunks. Duplication is a property of the whole file.
-- Run the project's structural-debt scan (if it has one); where it offers a report-only structural mode, run that too and triage the candidates. Report-only findings are review input, not gate failures.
+- Run the project's structural-debt scan (if it has one); where it offers a structural report, run that too and triage the candidates. A project may also cap the structural count: a cap failure is a gate failure, while the uncapped report is review input.
 - For each touched module, look for: repeated blocks that differ only by field/name substitution, parallel implementations of the same behaviour on two surfaces, near-duplicate helpers, and over-abstraction that a simpler shape would remove.
 - Record every finding as a backlog item with `pcp_capture` (or the project's equivalent), giving file:line evidence and the expected saving. **Out-of-scope findings are captured, never fixed in the same commit.**
 - Include the captured ids in the commit report/proposal. "No findings" is a valid result, but it must follow the sweep, not replace it.

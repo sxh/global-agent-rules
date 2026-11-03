@@ -968,6 +968,60 @@ test('drops an enclosing class body when its method is the duplicate', () => {
     }
 });
 
+test('fails when the structural candidate count exceeds the cap', () => {
+    const method = (helper) => [
+        'class A {',
+        '  void run() {',
+        '    setState(() {',
+        '      final tabs = [..._tabs];',
+        '      tabs[_activeTab] = playerTabToggle(_active, card, visible, defaults: _defaults);',
+        '      _tabs = tabs;',
+        '    });',
+        `    unawaited(${helper}());`,
+        '  }',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/a.dart': method('_persist'),
+        'lib/b.dart': method('_persistLayout'),
+    });
+    try {
+        const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
+        const run = spawnSync('node', [script, dir, '--max-structural=0'], { encoding: 'utf8' });
+        assert.equal(run.status, 1);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('passes when the structural candidate count is within the cap', () => {
+    const method = (helper) => [
+        'class A {',
+        '  void run() {',
+        '    setState(() {',
+        '      final tabs = [..._tabs];',
+        '      tabs[_activeTab] = playerTabToggle(_active, card, visible, defaults: _defaults);',
+        '      _tabs = tabs;',
+        '    });',
+        `    unawaited(${helper}());`,
+        '  }',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/a.dart': method('_persist'),
+        'lib/b.dart': method('_persistLayout'),
+    });
+    try {
+        const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
+        const run = spawnSync('node', [script, dir, '--max-structural=1'], { encoding: 'utf8' });
+        assert.equal(run.status, 0);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('honours a sample_pattern exclusion from the registry', () => {
     const method = (helper) => [
         'class A {',

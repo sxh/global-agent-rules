@@ -11,7 +11,7 @@
  * Dependency-free (Node built-ins only) so it runs in any project.
  *
  * Usage:
- *   node scripts/structural-debt-scan.mjs [dir] [--json] [--structural] [--fail-on N] [--exclusions=<path>]
+ *   node scripts/structural-debt-scan.mjs [dir] [--json] [--structural] [--max-structural N] [--fail-on N] [--exclusions=<path>]
  *
  * Exclusions: reads an explicit `--exclusions=<path>` JSON file, or `<dir>/.structural-debt-exclusions.json`
  * if present. Matching pattern_signatures are reported as `downgraded` and excluded from the ratio.
@@ -665,12 +665,14 @@ function main(argv) {
     let dir = process.cwd();
     let json = false;
     let structural = false;
+    let maxStructural = null;
     let failOn = null;
     let exclusionsPath = null;
 
     for (const arg of argv.slice(2)) {
         if (arg === '--json') json = true;
         else if (arg === '--structural') structural = true;
+        else if (arg.startsWith('--max-structural=')) maxStructural = parseFloat(arg.split('=')[1]);
         else if (arg.startsWith('--fail-on=')) failOn = parseFloat(arg.split('=')[1]);
         else if (arg.startsWith('--exclusions=')) exclusionsPath = arg.slice('--exclusions='.length);
         else if (!arg.startsWith('--')) dir = arg;
@@ -684,7 +686,10 @@ function main(argv) {
 
     let result;
     try {
-        result = scanDuplication(dir, { excludedSignatures, includeStructural: structural });
+        result = scanDuplication(dir, {
+            excludedSignatures,
+            includeStructural: structural || maxStructural !== null,
+        });
     } catch (err) {
         console.error(`Failed to scan ${dir}: ${err.message}`);
         process.exit(2);
@@ -704,7 +709,7 @@ function main(argv) {
             console.log(`\n[downgraded:${c.pattern_signature}] ${c.reason}`);
             for (const f of c.files) console.log(`  - ${relative(process.cwd(), f)}`);
         }
-        if (result.structuralCandidates?.length > 0) {
+        if (structural && result.structuralCandidates?.length > 0) {
             console.log(
                 `\nStructural near-duplicates (report-only, ${result.structuralCandidates.length} pattern(s)):`
             );
@@ -729,6 +734,15 @@ function main(argv) {
             for (const s of result.skippedGenerated) {
                 console.log(`  - ${relative(process.cwd(), s.file)} (${s.reason})`);
             }
+        }
+    }
+
+    if (maxStructural !== null) {
+        const count = result.structuralCandidates?.length ?? 0;
+        if (!json) console.log(`Structural candidates: ${count} (cap ${maxStructural}).`);
+        if (count > maxStructural) {
+            if (!json) console.error(`\nFAIL: ${count} structural candidate(s) > cap ${maxStructural}.`);
+            process.exit(1);
         }
     }
 
