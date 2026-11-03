@@ -171,17 +171,19 @@ export function scanDuplication(
     const ratio = total === 0 ? 0 : duplicatedCount / total;
     const unsupportedExtensions = [...unsupported.entries()].map(([ext, files]) => ({ ext, files }));
 
+    const structural = includeStructural
+        ? scanStructural(rootDir, { excludeTestFiles, excludedSignatures })
+        : undefined;
+
     return {
         ratio,
         totalDeclarations: total,
         fileCount,
         candidates,
-        downgraded,
+        downgraded: [...downgraded, ...(structural?.downgraded ?? [])],
         unsupportedExtensions,
         skippedGenerated,
-        ...(includeStructural
-            ? { structuralCandidates: scanStructural(rootDir, { excludeTestFiles, excludedSignatures }) }
-            : {}),
+        ...(structural === undefined ? {} : { structuralCandidates: structural.candidates }),
     };
 }
 
@@ -620,29 +622,52 @@ export function scanStructural(rootDir, { excludeTestFiles = true, excludedSigna
         byKey.get(key).push(block);
     }
 
-    const excluded = new Set(
-        excludedSignatures.map((entry) => entry.pattern_signature).filter((signature) => signature !== undefined),
+    const excludedSignatureReasons = new Map(
+        excludedSignatures
+            .filter((entry) => entry.pattern_signature !== undefined)
+            .map((entry) => [entry.pattern_signature, entry.reason]),
     );
-    const excludedPatterns = excludedSignatures
+    const excludedSamplePatterns = excludedSignatures
         .filter((entry) => typeof entry.sample_pattern === 'string')
-        .map((entry) => new RegExp(entry.sample_pattern));
+        .map((entry) => ({ pattern: new RegExp(entry.sample_pattern), reason: entry.reason }));
     const candidates = [];
+    const downgraded = [];
     for (const group of byKey.values()) {
         if (group.length < 2) continue;
         const signature = group[0].tokens.join(' ');
         const patternSignature = `structural_${group[0].tokens.length}_${simpleHash(signature)}`;
         const sample = group[0].sample ?? '';
-        if (excluded.has(patternSignature)) continue;
-        if (excludedPatterns.some((pattern) => pattern.test(sample))) continue;
+        const files = [...new Set(group.map((block) => block.file))];
+        if (excludedSignatureReasons.has(patternSignature)) {
+            downgraded.push({
+                pattern_signature: patternSignature,
+                kind: 'downgraded',
+                files,
+                sample,
+                reason: excludedSignatureReasons.get(patternSignature),
+            });
+            continue;
+        }
+        const excludedBySample = excludedSamplePatterns.find((entry) => entry.pattern.test(sample));
+        if (excludedBySample !== undefined) {
+            downgraded.push({
+                pattern_signature: patternSignature,
+                kind: 'downgraded',
+                files,
+                sample,
+                reason: excludedBySample.reason,
+            });
+            continue;
+        }
         candidates.push({
             pattern_signature: patternSignature,
             kind: 'structural-duplicate',
-            files: [...new Set(group.map((block) => block.file))],
+            files,
             sample,
             reason: `structurally identical block (${group[0].tokens.length} tokens) in ${group.length} places — likely a missing shared helper`,
         });
     }
-    return candidates;
+    return { candidates, downgraded };
 }
 
 // Load the known-intentional exclusion registry. Reads an explicit path when

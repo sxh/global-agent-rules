@@ -1046,6 +1046,10 @@ test('honours a sample_pattern exclusion from the registry', () => {
             excludedSignatures: [{ sample_pattern: '^void run', reason: 'intentional' }],
         });
         assert.equal(result.structuralCandidates.length, 0);
+        assert.ok(
+            result.downgraded.some((entry) => entry.reason === 'intentional'),
+            'an excluded structural group must be reported under downgraded',
+        );
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
