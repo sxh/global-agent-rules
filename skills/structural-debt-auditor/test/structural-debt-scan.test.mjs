@@ -1054,3 +1054,51 @@ test('honours a sample_pattern exclusion from the registry', () => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test('ignores a declaration-scope exclusion in the structural scan', () => {
+    const method = (helper) => [
+        'class A {',
+        '  void run() {',
+        '    setState(() {',
+        '      final tabs = [..._tabs];',
+        '      tabs[_activeTab] = playerTabToggle(_active, card, visible, defaults: _defaults);',
+        '      _tabs = tabs;',
+        '    });',
+        `    unawaited(${helper}());`,
+        '  }',
+        '}',
+        '',
+    ].join('\n');
+    const dir = makeFixture({
+        'lib/a.dart': method('_persist'),
+        'lib/b.dart': method('_persistLayout'),
+    });
+    try {
+        const result = scanDuplication(dir, {
+            includeStructural: true,
+            excludedSignatures: [{ sample_pattern: '^void run', reason: 'declaration only', scope: 'declaration' }],
+        });
+        assert.ok(result.structuralCandidates.length > 0);
+        assert.ok(!result.downgraded.some((entry) => entry.reason === 'declaration only'));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('ignores a structural-scope declaration signature in the declaration scan', () => {
+    const dir = makeFixture({
+        'a/x.ts': 'export function parseThing(raw: unknown): string { return String(raw); }',
+        'b/y.ts': 'export function parseThing(raw: unknown): string { return String(raw); }',
+    });
+    try {
+        const result = scanDuplication(dir, {
+            excludedSignatures: [
+                { pattern_signature: 'function_parseThing', reason: 'structural only', scope: 'structural' },
+            ],
+        });
+        assert.ok(result.candidates.some((c) => c.pattern_signature === 'function_parseThing'));
+        assert.ok(!result.downgraded.some((entry) => entry.reason === 'structural only'));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

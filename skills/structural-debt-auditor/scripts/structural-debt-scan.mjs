@@ -86,6 +86,17 @@ const EXTRACTORS = {
     '.dart': extractDart,
 };
 
+/**
+ * Whether an exclusion entry applies to a scan kind. `scope` makes the intent
+ * explicit; absent (legacy) means a `pattern_signature` covers both scans and a
+ * `sample_pattern` covers the structural scan only.
+ */
+function exclusionAppliesTo(entry, kind) {
+    if (entry.scope === 'both' || entry.scope === kind) return true;
+    if (entry.scope === 'declaration' || entry.scope === 'structural') return false;
+    return entry.pattern_signature !== undefined || kind === 'structural';
+}
+
 export function scanDuplication(
     rootDir,
     { excludeTestFiles = true, excludedSignatures = [], includeStructural = false } = {},
@@ -130,7 +141,11 @@ export function scanDuplication(
         byKey.get(key).push(d);
     }
 
-    const exclusionReasons = new Map(excludedSignatures.map((e) => [e.pattern_signature, e.reason]));
+    const exclusionReasons = new Map(
+        excludedSignatures
+            .filter((entry) => entry.pattern_signature !== undefined && exclusionAppliesTo(entry, 'declaration'))
+            .map((entry) => [entry.pattern_signature, entry.reason]),
+    );
 
     const candidates = [];
     const downgraded = [];
@@ -624,11 +639,11 @@ export function scanStructural(rootDir, { excludeTestFiles = true, excludedSigna
 
     const excludedSignatureReasons = new Map(
         excludedSignatures
-            .filter((entry) => entry.pattern_signature !== undefined)
+            .filter((entry) => entry.pattern_signature !== undefined && exclusionAppliesTo(entry, 'structural'))
             .map((entry) => [entry.pattern_signature, entry.reason]),
     );
     const excludedSamplePatterns = excludedSignatures
-        .filter((entry) => typeof entry.sample_pattern === 'string')
+        .filter((entry) => typeof entry.sample_pattern === 'string' && exclusionAppliesTo(entry, 'structural'))
         .map((entry) => ({ pattern: new RegExp(entry.sample_pattern), reason: entry.reason }));
     const candidates = [];
     const downgraded = [];
