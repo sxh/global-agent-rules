@@ -106,6 +106,12 @@ reason:            declared identically in 3 files — likely a missing shared a
 
 Record findings to the project backlog (PCP `pcp_capture`) so they are tracked, not lost to the session.
 
+**Name the production path.** Every finding must state how production code reaches the suspect
+declaration or branch; code no production path reaches is a dead-code finding, not a live
+duplication or rule violation. A fallback that only runs when a server payload is absent is not
+the same finding as a rule production uses (2026-11-03: a `pf2ePreparedSlots` fallback described
+as a second live capacity rule was unreachable because the server always sends `slots`).
+
 ## Definition of Done
 
 - [ ] Scan ran on the target scope (whole repo or layer)
