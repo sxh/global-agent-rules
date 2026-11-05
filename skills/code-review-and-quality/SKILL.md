@@ -395,6 +395,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - [ ] Refactors reduce complexity rather than relocate it
 - [ ] No feature logic in shared modules; file stays within a healthy size
 - [ ] Second-surface behavior reuses one strategy rather than a parallel analog
+- [ ] UI affordances reuse the shared primitive and placement convention (or the divergence is justified and captured); a bespoke row/icon/dialog is a finding
 - [ ] Port/type contracts honoured (preconditions weakened, postconditions strengthened, invariants preserved)
 
 ### Simplification sweep (Step 3b)
@@ -491,6 +492,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - A review that never looks outside the diff for duplication or simplification (Step 3b skipped)
 - New conditionals scattered into unrelated code paths (a missing abstraction)
 - A bespoke helper that duplicates an existing canonical one, or feature logic placed in a shared module
+- A new UI affordance that hand-rolls a row/icon/dialog already implemented on a sibling surface
 - A bulk "bump dependencies" PR with no changelog review and no per-package isolation
 - A lockfile change that's hand-edited, uncommitted, or merged without reviewing its diff
 - A gate that exists in name only (stubbed script, workflow that never triggers, threshold set below the measured value)

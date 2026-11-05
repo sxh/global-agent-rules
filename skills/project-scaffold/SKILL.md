@@ -128,6 +128,9 @@ objects prove only the assumptions encoded in the fixture; they cannot falsify t
   the feature. Backlog holds optional hardening and extra variants, never the only verification.
 - At completion and commit review, name the real-capture test and the surface it covers. A feature
   whose proof is a backlog item is a blocker, not an acceptable follow-up.
+- **UI reuse:** a new affordance uses the shared primitive and placement convention (the project's
+  `docs/ui-primitives.md`), or the task records the justified divergence and captures the
+  extraction. A control that duplicates an existing one is not done.
 
 Failure class this guards: a WG class-feature import stripped its selection operations in the
 schema, so the resolver tests (fed hand-built blocks) and the app tests (fed a hand-built snapshot)
