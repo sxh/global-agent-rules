@@ -34,6 +34,9 @@ work arrives without a plan, load it first with `pcp_plan` (or `pcp_start` for a
 an unplanned edit leaves the work outside the task history and forces retroactive state repair.
 `pcp_start` for a single task is a **one-task sprint**: the task is the entire contents of a new
 sprint and follows the same sprint-start question gate and execute-to-completion rule below.
+A follow-up refinement is not exempt: the commit-time `check-pcp-task` gate only proves a task
+existed by commit time, not during the work, so start the task before the first edit rather than
+alongside the closing commit.
 
 ## PCP state files are part of the project
 
