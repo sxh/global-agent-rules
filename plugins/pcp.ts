@@ -24,7 +24,7 @@ import {
 import type { ProjectData, Stack, Task } from "../pcp/state.js";
 import { commitTrailerSource, parsePcpTaskRef } from "../pcp/commit_ref.js";
 import { isWriteTool, isBashTool } from "../pcp/tool_classify.js";
-import { unplannedEditWarning } from "../pcp/unplanned_edit.js";
+import { applyUnplannedEditWarning } from "../pcp/unplanned_edit.js";
 import { decideStart } from "../pcp/pcp_start.js";
 import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
@@ -959,19 +959,17 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
         // Surface an unplanned edit in the tool's own result. The before-hook
         // already auto-advances a queued task; this covers the empty-queue gap.
         if (isWriteTool(toolName)) {
-          if (unplannedEditWarned.has(sessionID)) return;
           const dir = await getSessionDir(sessionID);
-          // Only PCP-managed projects get the warning; a plain project has no
-          // .opencode/pcp state to engage.
-          if (!existsSync(pcpDir(dir))) return;
           const stack = readStack(dir);
-          const warning = unplannedEditWarning(
-            stack.active_task_id,
-            stack.ready_tasks.length,
-          );
-          if (!warning) return;
-          unplannedEditWarned.add(sessionID);
-          output.output = `${output.output}${warning}`;
+          const result = applyUnplannedEditWarning({
+            activeTaskId: stack.active_task_id,
+            readyTaskCount: stack.ready_tasks.length,
+            warned: unplannedEditWarned.has(sessionID),
+            pcpManaged: existsSync(pcpDir(dir)),
+            output: output.output,
+          });
+          if (result.warned) unplannedEditWarned.add(sessionID);
+          output.output = result.output;
           return;
         }
 
