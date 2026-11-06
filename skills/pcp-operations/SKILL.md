@@ -36,7 +36,9 @@ an unplanned edit leaves the work outside the task history and forces retroactiv
 sprint and follows the same sprint-start question gate and execute-to-completion rule below.
 A follow-up refinement is not exempt: the commit-time `check-pcp-task` gate only proves a task
 existed by commit time, not during the work, so start the task before the first edit rather than
-alongside the closing commit.
+alongside the closing commit. The plugin's `tool.execute.before` hook auto-advances a **queued**
+task on the first write when no task is active, but it cannot create one when the queue is empty,
+so a brand-new refinement still needs an explicit `pcp_start`.
 
 ## PCP state files are part of the project
 
