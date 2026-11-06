@@ -62,6 +62,7 @@ Does the change fit the system's design?
 - **Is this a second-surface analog?** If a sibling surface already implements the behavior, require one shared strategy (or a recorded justification for divergence); do not accept a copy.
 - **Are type boundaries explicit?** Question gratuitous `any`/`unknown`/optional/casts and silent fallbacks that paper over an unclear invariant — making the boundary explicit often makes the surrounding control flow simpler.
 - **Are the contracts of the types and ports it touches still honoured?** For every override or adapter implementing a port, apply the variance rule — preconditions weakened, postconditions strengthened, invariants preserved, never the reverse. A boundary that silently accepts or returns a value outside its contract is a finding. See `design-by-contract`.
+- **Does this change add a capability that needs a new deployment grant?** A new mail send, datastore, queue, or external service needs an IAM link/permission in the infrastructure config; verify the grant, not just the code path. A capability added in code without its infrastructure grant works in unit tests and fails in production.
 
 ### 4. Security
 
@@ -397,6 +398,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - [ ] Second-surface behavior reuses one strategy rather than a parallel analog
 - [ ] UI affordances reuse the shared primitive and placement convention (or the divergence is justified and captured); a bespoke row/icon/dialog is a finding
 - [ ] Port/type contracts honoured (preconditions weakened, postconditions strengthened, invariants preserved)
+- [ ] A new capability that crosses a deployment boundary (mail, new datastore/service) has its infrastructure grant (IAM link/permission) verified
 
 ### Simplification sweep (Step 3b)
 - [ ] Every changed file read in full, not just the diff

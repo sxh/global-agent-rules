@@ -246,7 +246,10 @@ cite the code path that applies A and confirm it reaches B; the existence of A a
 B separately is not evidence. On 2026-11-03 a retrospective captured a backlog item
 claiming declaration-level exclusions were hiding 30 structural groups; the
 declaration scan never read `sample_pattern`, so the item was pivoted at
-implementation (rpg_combat_tool B427).
+implementation (rpg_combat_tool B427). The finding's own diagnosis is a hypothesis
+too: verify the cited cause against the code before capturing it (a retrospective
+blamed a reused widget key for an ambiguous finder; the key was unique and the real
+cause was a horizontal order assertion invalidated by wrapping — B455 pivoted).
 
 **Use `pcp_capture`** to add each item with a descriptive title. For example:
 > `pcp_capture("Add NOT NULL constraint to products.url column")`
