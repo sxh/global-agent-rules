@@ -463,6 +463,8 @@ Projects drift from AGENTS.md compliance when:
 
 - **[2026-11-05] [Architecture] [KNOWLEDGE] State Handed to an Async Consumer Must Be a Snapshot** — A value object passed to an asynchronous consumer must not share mutable state with its producer, because the producer can mutate it before the consumer runs; replace collections rather than mutating them. The player-view layout's `expanded` map was mutated in place while a queued save held the same map, so two rapid toggles would have serialised the later state twice; replacing the map on each toggle fixed it.
 
+- **[2026-11-05] [Architecture] [KNOWLEDGE] A Key That Protects Element State Must Stay on That Element** — A widget key that preserves a stateful element's identity must stay on that element; moving it to a descendant to gain a tap target loses the identity, and the element's state then follows its position across a reorder. Moving a collapsible section's `expanderKey` from the `ExpansionTile` to its header made the expansion state jump between sections when cards were reordered, fixed by keying the tile by its stable `sectionId` and giving the header its own key.
+
 These entries have been archived as of their respective retrospectives. They document specific platform/tool gotchas or superseded entries preserved for reference.
 - **Merged (2026-10-13):** [2026-09-28] A Description of an Artefact Is Not the Artefact — merged into Verify the Actual State and Artefact, Not a Proxy of It.
 - **Merged (2026-11-02):** [2026-09-27] A Coverage Report Artifact Is Not the Live Measurement — merged into Verify the Actual State and Artefact, Not a Proxy of It.
