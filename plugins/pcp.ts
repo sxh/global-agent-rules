@@ -1,6 +1,6 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin/tool";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -9,6 +9,7 @@ import {
   ensureDir,
   getPendingBacklog,
   getTask,
+  pcpDir,
   readEventLog,
   readProjectContext,
   readProjectMd,
@@ -23,6 +24,7 @@ import {
 import type { ProjectData, Stack, Task } from "../pcp/state.js";
 import { commitTrailerSource, parsePcpTaskRef } from "../pcp/commit_ref.js";
 import { isWriteTool, isBashTool } from "../pcp/tool_classify.js";
+import { unplannedEditWarning } from "../pcp/unplanned_edit.js";
 import { decideStart } from "../pcp/pcp_start.js";
 import { decidePromote } from "../pcp/pcp_promote.js";
 import { decideRename, renameOutcome } from "../pcp/pcp_rename.js";
@@ -137,6 +139,8 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
   const sessionDirCache = new Map<string, string>();
   // Sessions already warned about running one level above their PCP state.
   const misplacedWarned = new Set<string>();
+  // Sessions already warned that a write ran with no active or queued task.
+  const unplannedEditWarned = new Set<string>();
 
   async function getSessionDir(sessionID: string): Promise<string> {
     const cached = sessionDirCache.get(sessionID);
@@ -947,9 +951,30 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
       }
     },
 
-    "tool.execute.after": async (input, _output) => {
+    "tool.execute.after": async (input, output) => {
       try {
         const { tool: toolName, sessionID, args } = input;
+        if (toolName.startsWith("pcp_")) return;
+
+        // Surface an unplanned edit in the tool's own result. The before-hook
+        // already auto-advances a queued task; this covers the empty-queue gap.
+        if (isWriteTool(toolName)) {
+          if (unplannedEditWarned.has(sessionID)) return;
+          const dir = await getSessionDir(sessionID);
+          // Only PCP-managed projects get the warning; a plain project has no
+          // .opencode/pcp state to engage.
+          if (!existsSync(pcpDir(dir))) return;
+          const stack = readStack(dir);
+          const warning = unplannedEditWarning(
+            stack.active_task_id,
+            stack.ready_tasks.length,
+          );
+          if (!warning) return;
+          unplannedEditWarned.add(sessionID);
+          output.output = `${output.output}${warning}`;
+          return;
+        }
+
         if (!isBashTool(toolName)) return;
 
         const cmd: string =
