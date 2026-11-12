@@ -49,6 +49,11 @@ touching code. Do not resume an edit in the same turn a question arrives.
 Expected or benign output (an anticipated log line, a known warning) is not a caveat: presenting
 it as one manufactures a problem that does not exist.
 
+**Report the consequence, not the mechanism** — When a design choice requires the user to act
+(re-save, re-import, reload, re-run a migration), the report states that action. "Normalise on
+load" is a mechanism; "characters saved before this change need one editor save" is the
+consequence, and it is the only part that changes what the user does.
+
 **Bypass flags are a STOP, not a workaround** — If a commit would require `--no-verify`, `-n`,
 or equivalent, freeze immediately and state the reason and risk in text. Wait for the user to
 volunteer permission. A prior yes does not carry forward.

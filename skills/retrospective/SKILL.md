@@ -24,6 +24,8 @@ A "session" is the span of conversation since the last retrospective was run, or
 - Identify what was worked on, what bugs were found and fixed, what design decisions were made, and what process feedback was given.
 - Explicitly look for **both** problems and successes — what went well is as important as what went wrong.
 - Look for explicit mentions of "the problem was...", "I found the issue...", "the bug was...", "I learned...", "we learned...", and any user feedback about the process itself.
+- **Mandatory question — did this session add a second mechanism for a concept that already existed?** A twin route, a second quantity map beside an existing one, a write model and a read model for the same shape, a second persistence helper, a second row builder. If yes, that is a **process failure in this session**, recorded as a defect here regardless of green gates — not a refactoring opportunity to note and move on. The mechanism belonged in the same change as the feature.
+- **Mandatory question — did the user have to intervene to get existing duplication consolidated?** If the consolidation only happened because the user demanded it, name that as the finding. Detection and ownership are the agent's; a backlog item the user had to invent is a failure to surface, not a scheduling gap.
 
 ### Step 2: Run Structural Debt Scan (software projects only)
 
@@ -37,6 +39,7 @@ If the session's project is a **software project** (a codebase with source files
 2. **Apply the evidence gate** to every candidate (see `structural-debt-auditor/references/evidence-gate.md`): verify at the source that the same-named declaration is truly the same shape with the same ownership; downgrade intentional duplication (different security contexts, divergent evolution paths, deliberate decoupling).
 3. **Treat each verified candidate as a finding** — it feeds the same pipeline as defect and positive findings: it gets generalized to a principle in Step 3, checked for coverage in Step 4, reported in the summary (Step 5), and becomes a backlog item.
 4. **Record the ratio** in the retrospective summary as a baseline for the next retrospective — a rising ratio between retrospectives is itself a finding ("structure is diverging"), even if no single candidate is severe.
+5. **Reconcile the ratio against the session's actual work.** A clean ratio is a measurement, not a verdict. If the session's changes were mostly consolidation, or a second mechanism appeared without any candidate, the ratio was a **false negative**: report it as the session's most important finding and emit a scanner-improvement item, because the instrument cannot see the class that is costing the time (semantically parallel mechanisms — owner/token route pairs, write/read models, per-surface row builders — differ in names and layers, so declaration- and block-level comparison reads zero).
 
 The scan catches the *missing abstractions* the session analysis cannot see: duplicated types, helpers, and boilerplate that accumulate silently across files because per-diff review ratifies the existing baseline. A retrospective that only analyzes the session's changes will keep finding the same class of symptom; the scan is what surfaces the underlying structure.
 

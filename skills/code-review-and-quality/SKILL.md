@@ -240,8 +240,9 @@ The eight axes review the change; this step reviews the codebase the change sits
 - Read every changed file **in full**, not just the hunks. Duplication is a property of the whole file.
 - Run the project's structural-debt scan (if it has one); where it offers a structural report, run that too and triage the candidates. A project may also cap the structural count: a cap failure is a gate failure, while the uncapped report is review input.
 - For each touched module, look for: repeated blocks that differ only by field/name substitution, parallel implementations of the same behaviour on two surfaces, near-duplicate helpers, and over-abstraction that a simpler shape would remove.
-- Record every finding as a backlog item with `pcp_capture` (or the project's equivalent), giving file:line evidence and the expected saving. **Out-of-scope findings are captured, never fixed in the same commit.**
-- Include the captured ids in the commit report/proposal. "No findings" is a valid result, but it must follow the sweep, not replace it.
+- **Consolidate every duplication finding in this change.** A second copy of an existing mechanism is a defect in the change that introduces it, so the change is not complete until the copies are one mechanism. The sweep is where you *find* it; the same commit is where you *fix* it.
+- `pcp_capture` is for work with genuinely separate ownership — a different module, a different team, a mechanism the change cannot touch. It is never the destination for duplication in the area you are already editing; recording it there defers the fix to a human who has no reason to know the work is owed.
+- Record what you consolidated in the commit report/proposal, with the file:line of each consolidated site. "No findings" is a valid result, but it must follow the sweep, not replace it — and a clean scanner ratio is not that result. A scanner that compares declarations and blocks reports zero for semantically parallel mechanisms (owner/token route pairs, write/read models, per-surface row builders); a session whose work is consolidation is proof the previous ratio was a false negative.
 
 The sweep is only as good as its tooling. A scanner that cannot parse a language, or that only compares declarations, will miss structural duplicates — when that gap causes a miss, capture the scanner improvement as a backlog item too.
 
