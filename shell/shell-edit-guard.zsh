@@ -12,7 +12,8 @@
 # Deliberate exception, for a genuine bulk operation:
 #   ALLOW_SHELL_EDITS=1 sed -i 's/a/b/' file
 #
-# Sourced from ~/.zshrc; remove that line to disable.
+# Sourced from ~/.zshenv, which non-interactive shells also read; remove that
+# line to disable.
 
 # Whether these arguments request an in-place edit: `-i`, `-i.bak`, `--in-place`,
 # or a short cluster carrying `i` (perl's `-pi`, sed's `-ni`).

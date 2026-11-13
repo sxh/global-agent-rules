@@ -41,6 +41,20 @@ check "ALLOW_SHELL_EDITS overrides" 0 \
     "$(run "ALLOW_SHELL_EDITS=1 sed -i '' 's/before/after/' '$scratch'")"
 check "the override actually edited" "after" "$(command cat "$scratch")"
 
+# The guard must be loaded by the shell a tool actually runs: a *bare*
+# non-interactive zsh reading a .zshenv, not one that sources the guard
+# explicitly (2026-11-13: the .zshrc-only source was absent from tool shells).
+zshdir="$(mktemp -d)"
+print "before" >"$scratch"
+print "source '$GUARD'" >"$zshdir/.zshenv"
+print "python3 - <<'PY'" >"$zshdir/edit.zsh"
+print "open('$scratch', 'w').write('after')" >>"$zshdir/edit.zsh"
+print "PY" >>"$zshdir/edit.zsh"
+ZDOTDIR="$zshdir" zsh "$zshdir/edit.zsh" >/dev/null 2>&1
+check "a bare non-interactive zsh loads the guard from .zshenv" 1 "$?"
+check "the bare shell wrote nothing" "before" "$(command cat "$scratch")"
+rm -rf "$zshdir"
+
 if ((failures > 0)); then
     print -u2 "$failures case(s) failed"
     exit 1

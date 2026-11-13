@@ -95,6 +95,10 @@ edit; never edit files through a shell heredoc (`python - <<`, `cat >`, `sed -i`
 If a bulk transform genuinely needs a script, run it from the repository root with no `workdir`
 and use absolute paths.
 
+**Commit messages are written to a file** — Pass `git commit -F <file>`; a message supplied
+inline with `-m` is expanded by the shell before git sees it (backticks, quotes), so verbatim
+content can be mangled or abort the commit.
+
 **Human context is not observable** — You cannot see the user's terminal, screen, or filesystem.
 When they describe their environment, workflow, or what they ran, ask for the exact path, command,
 or output rather than assuming. Guessing which script the user ran has burned multiple turns.
