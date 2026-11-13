@@ -18,6 +18,7 @@ Every rule in this skill derives from these five values. When you are unsure wha
 - **Respect** — Respect the craft (no shortcuts). Respect the codebase (leave it cleaner). Respect the user (their time, their goals). Respect future maintainers (including your future self).
 
 ## 1. Optimization Mandate
+- **Present the correct fix, not a menu of workarounds.** When a workaround and a correct fix both exist, the correct fix is the only option offered. A workaround may be mentioned only alongside the condition and date that removes it. Cost is information attached to an option, never the filter that decides which options exist: a menu built from what is cheap to finish presents temporary accommodation as design. If a choice is about a boundary (an import, an ownership, a schema), name the root cause first — workarounds offered without it are the mechanism by which short-term options become permanent.
 - **Feedback over Efficiency:** Prioritize frequent feedback and incremental verification over minimizing tokens or turns. Outside an authorised sprint, NEVER skip the "yield after RED" or "yield after GREEN" steps. Inside an authorised sprint the sprint start is the confirmation: run RED→GREEN→REFACTOR continuously and report the evidence at each task boundary. Never skip RED or GREEN itself.
 
 ## 2. The Red-Green-Refactor Tool Gate
