@@ -97,7 +97,9 @@ and use absolute paths.
 
 **Commit messages are written to a file** — Pass `git commit -F <file>`; a message supplied
 inline with `-m` is expanded by the shell before git sees it (backticks, quotes), so verbatim
-content can be mangled or abort the commit.
+content can be mangled or abort the commit. Exception: a project commit helper that appends its
+own `-m` (a PCP task trailer) rejects `-F` — then pass each paragraph as a single-quoted `-m`
+argument, which still keeps shell expansion out.
 
 **Human context is not observable** — You cannot see the user's terminal, screen, or filesystem.
 When they describe their environment, workflow, or what they ran, ask for the exact path, command,
