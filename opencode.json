@@ -27,6 +27,12 @@
     }
   },
   "disabled_providers": ["deepseek"],
+  "permissions": [
+    { "action": "external_directory", "resource": "*", "effect": "ask" }
+  ],
+  "experimental": {
+    "todo": true
+  },
   "lsp": {
     "jdtls": {
       "disabled": true

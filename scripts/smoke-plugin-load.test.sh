@@ -13,13 +13,15 @@ cd "$ROOT"
 fixture="$(mktemp -d)"
 trap 'rm -rf "$fixture"' EXIT
 
-# Mirror this repo's config into a fake HOME: opencode.json + plugins/ + pcp/.
+# Mirror this repo's config into a fake HOME: opencode.json + plugins/ + pcp/ + the
+# node_modules the plugin resolves `zod` from (pcp/tools.ts imports it directly).
 make_home() {
   local home="$1"
   mkdir -p "$home/.config/opencode"
   cp "$ROOT/opencode.json" "$home/.config/opencode/opencode.json"
   cp -R "$ROOT/plugins" "$home/.config/opencode/plugins"
   cp -R "$ROOT/pcp" "$home/.config/opencode/pcp"
+  ln -s "$ROOT/node_modules" "$home/.config/opencode/node_modules"
 }
 
 # --- A well-formed plugin must load ---

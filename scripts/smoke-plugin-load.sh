@@ -8,11 +8,18 @@
 # non-interactively and fails loudly if PCP did not load.
 #
 # WHY THE PROCESS EXIT CODE IS IGNORED
-# `opencode debug info` exits 0 even when a plugin fails to load, and still lists the
-# plugin path. The only reliable signal is the --print-logs output:
-#   pass: "PCP initialized" present AND "failed to load plugin" absent
-#   fail: "PCP initialized" absent OR  "failed to load plugin" present
-# A plugin that logs and then throws prints both, so both signals are required.
+# The boot command exits 0 even when a plugin fails to load, and still lists the plugin
+# path. The only reliable signal is the --print-logs output, and the two lines differ per
+# major:
+#
+#   V1 (`opencode debug info`):      pass: "PCP initialized" present AND
+#                                          "failed to load plugin" absent
+#   V2 (`opencode debug agents`):    pass: 'msg="loading plugin" … plugins/pcp.ts' present
+#                                          AND 'message="failed to load plugin"' absent
+#
+# A plugin that logs and then throws prints both the load line and the failure, so the
+# failure check takes precedence in both branches. V2 no longer forwards a plugin's
+# console output to the server log, which is why it is matched on the loader line instead.
 #
 # Usage: scripts/smoke-plugin-load.sh
 # Env:
@@ -36,6 +43,33 @@ fi
 cwd="${SMOKE_CWD:-$(mktemp -d)}"
 if [ -z "${SMOKE_CWD:-}" ]; then
   trap 'rm -rf "$cwd"' EXIT
+fi
+
+version="$(opencode --version 2>/dev/null || true)"
+case "$version" in
+  *v2.*|*2.*) major=2 ;;
+  *) major=1 ;;
+esac
+
+if [ "$major" = "2" ]; then
+  # --standalone boots a private instance with this HOME, so SMOKE_HOME is honoured and
+  # no model call is made.
+  out="$(cd "$cwd" && HOME="$smoke_home" opencode debug agents --standalone --print-logs 2>&1)"
+
+  if printf '%s\n' "$out" | grep -q 'message="failed to load plugin"'; then
+    echo "FAIL: opencode reported a plugin load failure"
+    printf '%s\n' "$out" | grep -n 'failed to load plugin' | head
+    exit 1
+  fi
+
+  if ! printf '%s\n' "$out" | grep -q 'msg="loading plugin".*plugins/pcp\.ts'; then
+    echo "FAIL: PCP plugin was not loaded (opencode booted without it)"
+    printf '%s\n' "$out" | grep -iE 'plugin' | sed -n '1,20p'
+    exit 1
+  fi
+
+  echo "PASS: PCP plugin loaded and initialised (opencode 2)"
+  exit 0
 fi
 
 out="$(cd "$cwd" && HOME="$smoke_home" opencode debug info --print-logs 2>&1)"

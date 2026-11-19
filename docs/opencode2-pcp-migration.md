@@ -9,8 +9,8 @@ Date: 19 Nov 2026. Verified against the vendor's migration pages (`/docs/migrate
 
 | Thing | Version / state |
 |---|---|
-| Installed CLI | `opencode 1.19.6` — the curl install at `~/.opencode/bin/opencode` (via `~/.local/bin/opencode`); `~/.zshrc` alias points here |
-| V2 install | `opencode v2.3.2` via Homebrew at `/opt/homebrew/bin/opencode` — installed 19 Nov 2026, shadowed by the `~/.opencode` bin dir in PATH (brew warns about this; the alias makes it irrelevant) |
+| Installed CLI | `opencode v2.3.2` on both paths — Homebrew's `/opt/homebrew/bin/opencode` and `~/.opencode/bin/opencode` (reached via `~/.local/bin`); the `.zshrc` alias now points at Homebrew |
+| V1 binary | **not installed any more.** The `~/.opencode` curl install was silently replaced with 2.3.2 during V2 testing (its file mtime is the 2.3.2 build date, so the swap preserved the archive timestamp). Rollback now means reinstalling `opencode-ai@1.19.6`; the only surviving V1 artefact is `~/opencode-backups/opencode-1.17.15`, which is **too old** for the dual entrypoint |
 | Homebrew candidate | `opencode` formula is **2.3.2** — a plain `brew upgrade` now tracks the V2 line |
 | V1 line on npm | `opencode-ai@1.19.6` (latest), `1.18.29`+ required for object plugin entrypoints |
 | V2 line | `@opencode/cli@2.3.2` (bin `opencode`, also `opencode2`), `@opencode/plugin@2.3.2` |
@@ -26,6 +26,12 @@ brought to 1.19.6 — the Homebrew Cellar copy is untouched and 1.17.15 stays av
 **Object entrypoints verified on 1.19.6, not just documented.** A probe plugin in an isolated
 `HOME` exporting `{ id, server }` was called through `.server()` and listed under `plugins:` by
 `opencode debug info --print-logs`. The dual export is therefore viable on this install.
+
+**Switched to V2 on 19 Nov 2026.** The `opencode` alias points at `/opt/homebrew/bin/opencode`,
+`opencode.json` gained `permissions: [{external_directory, *, ask}]` (V2's default allows it) and
+`experimental.todo: true`, and the "migrate" half of the dual shell is now the live path. Small
+correction to the plan below: the smoke gate had to be made version-aware, because `opencode debug
+info` no longer exists — see step 6.
 
 V2 does **not** install alongside V1: the installer replaces the binary. V1 config is read and
 normalised in memory, so nothing must be converted to try V2.
@@ -172,19 +178,17 @@ a locally-declared `{type:"text", text, synthetic:true}` shape.
    keeps V1's outside-project prompt.
 5. Type-check both projects (done); `scripts/probe-plugin-v2.mjs` is the manual V2-half probe
    (needs bun, so it is deliberately outside `check-contract.sh`).
-6. ~~Update the smoke check for V2.~~ **Superseded by a documented procedure** — `opencode plugin
-   list` only lists *package* plugins ("No plugins found" is expected for a local file), so it is
-   not the V2 signal. What does work, all run from a scratch project:
-   - `opencode run --standalone --print-logs "…"` → the server log shows
-     `msg="loading plugin" id=…/plugins/pcp.ts` and watchers on `plugins/pcp.ts` + every `pcp/*.ts`.
-   - `Object.keys(tools)` inside the codemode `execute` tool lists all 18 `pcp_*` names (V2 exposes
-     plugin tools through `execute`, so a direct call and a `tools.pcp_status({})` call both work).
-   - a write with no active task returns the `[PCP] No active task was engaged…` warning in the
-     tool result (proves `execute.after` mutation reaches the model);
-   - a write with a queued task auto-activates it (proves `execute.before`);
-   - `[PCP] PCP-managed project…` quoted verbatim by the model (proves the `context` hook);
-   - running one level above the project surfaces the misplaced warning in the prompt text
-     (proves the `prompt` hook).
+6. ~~Update the smoke check for V2.~~ **Done (19 Nov 2026).** `scripts/smoke-plugin-load.sh` is now
+   version-aware: V1 keeps the `debug info` + "PCP initialized" probe, V2 boots a standalone
+   instance with `debug agents --standalone --print-logs` and requires
+   `msg="loading plugin" … plugins/pcp.ts` with no `message="failed to load plugin"`. That costs no
+   model call and still honours `SMOKE_HOME`, so the throwing-plugin negative case keeps working.
+   The fixture in `smoke-plugin-load.test.sh` now also symlinks `node_modules` — the plugin imports
+   `zod` directly, so a bare copy of `plugins/` + `pcp/` cannot resolve it.
+   `opencode plugin list` was a dead end: it lists package plugins only, so "No plugins found" is
+   the correct answer for a local file. `opencode api plugin.list` does show it
+   (`{"id":"pcp","source":{"type":"local",…},"state":{"status":"active"}}`) and is the cheapest
+   manual probe.
 7. ~~Cross the line on a scratch clone.~~ **Done (19 Nov 2026)** on 2.3.2: plugin loads, 18 tools,
    read (`pcp_status`) and write (`pcp_capture` → `events.jsonl`) both round-trip, and the
    `execute.before` / `execute.after` / `context` / `prompt` hooks all fire. Not yet observed on a
