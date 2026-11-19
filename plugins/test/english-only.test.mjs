@@ -14,6 +14,8 @@ const pluginDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const libDir = join(pluginDir, '..', 'pcp');
 const FILES = [
   ['pcp.ts', pluginDir],
+  ['tools.ts', libDir],
+  ['hooks.ts', libDir],
   ['state.ts', libDir],
   ['backlog_state.ts', libDir],
   ['task_state.ts', libDir],

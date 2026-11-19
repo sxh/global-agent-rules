@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import type { TextPart } from "@opencode-ai/sdk/v2";
+
+// The shape the host needs to inject a synthetic text part into the current turn.
+// Declared locally rather than imported from @opencode-ai/sdk/v2, so this module
+// stays free of V1-only types (it is shared with the V2 plugin port).
+export interface SyntheticTextPart {
+  id: string;
+  sessionID: string;
+  messageID: string;
+  type: "text";
+  text: string;
+  synthetic: true;
+}
 
 // PCP state lives at <projectDir>/.opencode/pcp. When opencode is started one level *above* the
 // project (e.g. the repo root instead of the java/ project dir), the plugin would otherwise create
@@ -26,15 +37,24 @@ export function misplacedMessagePart(
   sessionDir: string,
   sessionID: string,
   messageID: string,
-): TextPart | null {
+): SyntheticTextPart | null {
   const warning = misplacedStateWarning(sessionDir);
   if (!warning) return null;
+  return textPart(warning, sessionID, messageID);
+}
+
+/** Wrap already-computed warning text in the synthetic part shape. */
+export function textPart(
+  text: string,
+  sessionID: string,
+  messageID: string,
+): SyntheticTextPart {
   return {
     id: `prt_${randomUUID()}`,
     sessionID,
     messageID,
     type: "text",
-    text: warning,
+    text,
     synthetic: true,
   };
 }

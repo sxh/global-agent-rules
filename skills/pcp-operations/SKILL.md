@@ -102,7 +102,8 @@ PCP-Task: T123
 
 Without a matching trailer the queue is left unchanged (the plugin logs this); a commit that does
 not implement the active task simply omits it and leaves the task open. (Mechanism:
-`plugins/pcp.ts` `parsePcpTaskRef` + `autoDoneTask`, patch marker `PCP_TASK_BINDING_FIX`.)
+`pcp/commit_ref.ts` `parsePcpTaskRef` + `pcp/hooks.ts` `autoDoneTask`, patch marker
+`PCP_TASK_BINDING_FIX`.)
 
 If a project provides a commit helper that closes the task itself (for example
 `scripts/commit.sh`), use it instead of `pcp_done` — or make it accept a task that `pcp_done` has

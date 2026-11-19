@@ -11,18 +11,22 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const read = (rel) => readFileSync(join(repoRoot, rel), 'utf8');
 
-test('pcp.ts no longer references the old pcp-sprint-review skill id', () => {
-  assert.doesNotMatch(read('plugins/pcp.ts'), /pcp-sprint-review/);
+// The user-facing tool prose lives in pcp/tools.ts; plugins/pcp.ts is the host adapter.
+// Both are read together so the terminology contract covers wherever the prose sits.
+const pcpSource = () => read('plugins/pcp.ts') + '\n' + read('pcp/tools.ts');
+
+test('the PCP tool source no longer references the old pcp-sprint-review skill id', () => {
+  assert.doesNotMatch(pcpSource(), /pcp-sprint-review/);
 });
 
-test('pcp.ts points users at pcp-plan-sprint with planning wording', () => {
-  const source = read('plugins/pcp.ts');
+test('the PCP tool source points users at pcp-plan-sprint with planning wording', () => {
+  const source = pcpSource();
   assert.match(source, /pcp-plan-sprint/);
   assert.match(source, /plan sprint/i);
 });
 
-test('pcp.ts user-facing prose drops the "sprint review" term', () => {
-  assert.doesNotMatch(read('plugins/pcp.ts'), /sprint review/i);
+test('PCP user-facing prose drops the "sprint review" term', () => {
+  assert.doesNotMatch(pcpSource(), /sprint review/i);
 });
 
 test('the skill is renamed to pcp-plan-sprint', () => {

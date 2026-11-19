@@ -65,5 +65,5 @@ T177/T179 (2026-09-19, T179 recreated immediately after T177 was pivoted).
 
 Fixed 2026-09-20: the auto-create branch was removed — a write tool with no active task now only
 activates the queued head and never invents a task from the session title (`pcp/task_flow.ts`
-`decideAutoCreate` returns `skip-idle`; `plugins/pcp.ts` `autoActivateQueuedTask`; marker
+`decideAutoCreate` returns `skip-idle`; `pcp/hooks.ts` `autoActivateQueuedTask`; marker
 `PCP_NO_TITLE_TASK_FIX`). Recovery via `pcp_pivot` remains available for any stale task.
