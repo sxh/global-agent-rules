@@ -128,6 +128,13 @@ objects prove only the assumptions encoded in the fixture; they cannot falsify t
   the feature. Backlog holds optional hardening and extra variants, never the only verification.
 - At completion and commit review, name the real-capture test and the surface it covers. A feature
   whose proof is a backlog item is a blocker, not an acceptable follow-up.
+
+**Type-check is a per-package gate, and a stubbed script is not a gate.** Each package that ships
+TypeScript needs its own strict `tsconfig.json` and a `type-check` script that runs the compiler —
+`echo 'Type-check disabled'` reads as a gate in `package.json` while checking nothing, which is how a
+self-referential declaration reached a commit. Wire the workspace into the root script so the hook
+and preflight both run it, and pin the wiring with a test asserting the script is a real compiler
+invocation, the tsconfig stays strict, and the root script names the package.
 - **UI reuse:** a new affordance uses the shared primitive and placement convention (the project's
   `docs/ui-primitives.md`), or the task records the justified divergence and captures the
   extraction. A control that duplicates an existing one is not done.
