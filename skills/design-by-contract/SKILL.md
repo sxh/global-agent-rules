@@ -127,4 +127,5 @@ Contract *quality* cannot be linted; review is the gate. What can be mechanised:
 - **engineering-standards** — architecture, SOLID, API design; the design-time home
 - **testing-standards** — property-based testing and port conformance suites
 - **code-review-and-quality** — the Architecture and Test Quality axes apply these checks
+- **boundary-contracts** — turns a contract into an executable test per runtime edge, and derives the build order (outside-in)
 - **stack-playbooks** — per-stack idioms for the translation ladder

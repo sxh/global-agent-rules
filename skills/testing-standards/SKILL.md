@@ -221,3 +221,7 @@ translation.
 
 **Do not assume packages above the target are done** — A package at 98% may be easier to bring to 100% than a package at 85% is to bring to 90%. Always evaluate the effort required before deciding where to focus.
 
+## Boundary contracts
+
+Unit tests with mocked collaborators do not verify the edge they mock. Apply `boundary-contracts`: every edge needs one contract that runs the real code on both sides and enumerates its surface; a check meant to catch an omission (route, field, binding) must enumerate the expected set, not sample examples. Conformance suites are the model — run the same suite against every real implementation, including the production one.
+

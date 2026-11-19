@@ -162,3 +162,7 @@ When addressing code review findings (from automated tools, PR comments, or AI r
 - **If verified** — proceed with the fix. **If false** — do not make the change; instead leave an explicit comment **in the codebase** at the site of the finding (e.g. an inline `//` comment where the reviewer flagged the line) stating that the finding is a false positive and why. The disposition must be visible to any reviewer in the diff — a finding you verified as invalid but answered only privately is a process failure, not a silent skip.
 - **Linter rules take precedence over code review suggestions** — If a code review finding conflicts with an enforced linter rule, follow the linter rule and find an alternative approach (e.g., scoping constants more narrowly rather than removing them entirely). The precommit hook enforces linter rules, so any fix that violates them will be rejected regardless of the code review's intent.
 
+## Boundary contracts in the gate
+
+The gate set must contain, for every boundary in the project's boundary map, a contract that spans both real sides. A feature is not Done until its touched edges are BOUND and the map is updated. Every new gate or rule must be shown failing for the defect it exists to catch before it is trusted: a gate that has only ever passed is unverified. See `boundary-contracts`.
+

@@ -461,6 +461,7 @@ For triaging `npm audit` findings and supply-chain risk (typosquatting, compromi
 - **structural-debt-auditor** — this skill reviews the *diff* (eight axes on the change) plus Step 3b's per-change simplification sweep; structural-debt-auditor is the deeper *structure between diffs* pass (missing abstractions across the whole codebase). Run both: Step 3b per change, structural-debt-auditor on cadence/layer-touch. This skill's Architecture axis ratifies the existing baseline; structural-debt-auditor measures the baseline itself.
 - **project-scaffold** — defines the required gates (start.sh, pre-commit hook, CI) that the Quality-Gate Integrity axis verifies.
 - **design-by-contract** — the contract discipline (preconditions, postconditions, invariants, and the LSP variance rule) applied in the Architecture and Test Quality axes.
+- **boundary-contracts** — the edge/relationship layer the eight axes lack: derive which boundaries a change touches, require each to be BOUND by one executable contract that spans both real sides, and gate it. The axes judge nodes; this judges edges.
 
 ## Common Rationalizations
 
