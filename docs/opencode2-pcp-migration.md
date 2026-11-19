@@ -10,8 +10,8 @@ Date: 19 Nov 2026. Verified against the vendor's migration pages (`/docs/migrate
 | Thing | Version / state |
 |---|---|
 | Installed CLI | `opencode 1.19.6` — the curl install at `~/.opencode/bin/opencode` (via `~/.local/bin/opencode`); `~/.zshrc` alias points here |
-| Homebrew copy | `opencode 1.17.15` still in the Cellar and **pinned**, now vestigial — the `opencode` formula has moved to the 2.x line, so brew cannot supply a 1.x build |
-| Homebrew candidate | `opencode` formula is **2.3.2** — a plain `brew upgrade` crosses the major |
+| V2 install | `opencode v2.3.2` via Homebrew at `/opt/homebrew/bin/opencode` — installed 19 Nov 2026, shadowed by the `~/.opencode` bin dir in PATH (brew warns about this; the alias makes it irrelevant) |
+| Homebrew candidate | `opencode` formula is **2.3.2** — a plain `brew upgrade` now tracks the V2 line |
 | V1 line on npm | `opencode-ai@1.19.6` (latest), `1.18.29`+ required for object plugin entrypoints |
 | V2 line | `@opencode/cli@2.3.2` (bin `opencode`, also `opencode2`), `@opencode/plugin@2.3.2` |
 | Repo | `~/.config/opencode` is a git repo → rollback is a checkout |
@@ -172,11 +172,24 @@ a locally-declared `{type:"text", text, synthetic:true}` shape.
    keeps V1's outside-project prompt.
 5. Type-check both projects (done); `scripts/probe-plugin-v2.mjs` is the manual V2-half probe
    (needs bun, so it is deliberately outside `check-contract.sh`).
-6. Update the smoke check for V2 (`opencode plugin list` showing `pcp` instead of grepping
-   `PCP initialized` logs). Not started — needs a V2 binary to write against.
-7. Cross the line on a scratch clone: install 2.3.2, `opencode plugin list` shows `pcp`, then
-   exercise each of the 18 tools and each hook (before/after write, commit trailer, compaction,
-   system rule, misplaced warning).
+6. ~~Update the smoke check for V2.~~ **Superseded by a documented procedure** — `opencode plugin
+   list` only lists *package* plugins ("No plugins found" is expected for a local file), so it is
+   not the V2 signal. What does work, all run from a scratch project:
+   - `opencode run --standalone --print-logs "…"` → the server log shows
+     `msg="loading plugin" id=…/plugins/pcp.ts` and watchers on `plugins/pcp.ts` + every `pcp/*.ts`.
+   - `Object.keys(tools)` inside the codemode `execute` tool lists all 18 `pcp_*` names (V2 exposes
+     plugin tools through `execute`, so a direct call and a `tools.pcp_status({})` call both work).
+   - a write with no active task returns the `[PCP] No active task was engaged…` warning in the
+     tool result (proves `execute.after` mutation reaches the model);
+   - a write with a queued task auto-activates it (proves `execute.before`);
+   - `[PCP] PCP-managed project…` quoted verbatim by the model (proves the `context` hook);
+   - running one level above the project surfaces the misplaced warning in the prompt text
+     (proves the `prompt` hook).
+7. ~~Cross the line on a scratch clone.~~ **Done (19 Nov 2026)** on 2.3.2: plugin loads, 18 tools,
+   read (`pcp_status`) and write (`pcp_capture` → `events.jsonl`) both round-trip, and the
+   `execute.before` / `execute.after` / `context` / `prompt` hooks all fire. Not yet observed on a
+   real V2 host: the `compaction` hook and the `title` / `generate` registrations (registration
+   itself is proven — a throwing registration would have rejected `setup()` and left no tools).
 8. Only then unpin/upgrade the working install; keep the 1.17.15 reinstall command and the
    `git checkout` of `~/.config/opencode` as rollback.
 
