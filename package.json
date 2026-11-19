@@ -1,8 +1,10 @@
 {
   "dependencies": {
-    "@opencode-ai/plugin": "1.4.10"
+    "@opencode-ai/plugin": "1.4.10",
+    "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@opencode/plugin": "^2.3.2",
     "@types/node": "^22.20.2",
     "typescript": "^7.0.2"
   }

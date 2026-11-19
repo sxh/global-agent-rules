@@ -149,27 +149,52 @@ a locally-declared `{type:"text", text, synthetic:true}` shape.
    Note: `pcp/tools.ts` and `pcp/hooks.ts` import `./x.js` specifiers like the rest of `pcp/`, so
    `node --test` cannot load them — hook-level regression tests must run under `bun test`
    (the 25 existing `.mjs` suites stay valid because they only import the leaf modules).
-3. Rewrite `plugins/pcp.ts` as the dual shell (`{...Plugin.define({id, setup}), async server}`).
-   Add `@opencode/plugin@2.3.2` as a devDependency and declare `zod` explicitly in
-   `package.json` — it is currently satisfied by `@opencode-ai/plugin`'s hoisted copy (4.1.8),
-   which is an undeclared but working dependency until the V2 package lands.
-4. Repoint the two text-level tests (done); rebuild the load smoke check for the V2 path.
-5. Cross the line on a scratch clone: install 2.3.2, `opencode plugin list` shows `pcp`, then
+3. ~~Rewrite `plugins/pcp.ts` as the dual shell.~~ **Done (19 Nov 2026).** One default export:
+   `{ id: "pcp", setup: v2Setup, server: v1Server }`. Shared plumbing (`sessionDirs`,
+   `ensureRule`, `resultText`) sits above both halves; each half is a thin registration layer.
+   The V1 `tool` helper is imported lazily inside `server()`, so a V2 host never loads
+   `@opencode-ai/plugin`. `@opencode/plugin@2.3.2` is a devDependency used for types only
+   (installed with `--legacy-peer-deps` to keep its seven GUI/TUI peers — electron, vite,
+   solid — out of the tree), and `zod` is now an explicit dependency.
+   Verified: both tsconfigs clean; the V1 gates stay green (18 tools, live `pcp_status`);
+   `scripts/probe-plugin-v2.mjs` drives `setup()` against a fake V2 context and passes —
+   18 tools with zod schemas, a `pcp_capture` → `pcp_backlog` round-trip returning
+   `{content}`, all seven hook registrations, the rule exactly once in
+   context/title/generate/compaction, the unplanned-edit warning once per session, and the
+   misplaced warning prepended to prompt text.
+   Findings worth keeping: the V2 session directory is `info.location.directory` (not
+   `info.directory`); `event.result` is assignable, so the after-hook replaces the result
+   object rather than mutating readonly `content`; V1 1.19.6 ignores the extra `setup` key on
+   the module object.
+4. Behavioural deltas — **decided in code**: the rule is registered per request kind, the
+   misplaced warning rides in the prompt text, tool results are structured. Still open:
+   adding `{"action":"external_directory","resource":"*","effect":"ask"}` to the config so V2
+   keeps V1's outside-project prompt.
+5. Type-check both projects (done); `scripts/probe-plugin-v2.mjs` is the manual V2-half probe
+   (needs bun, so it is deliberately outside `check-contract.sh`).
+6. Update the smoke check for V2 (`opencode plugin list` showing `pcp` instead of grepping
+   `PCP initialized` logs). Not started — needs a V2 binary to write against.
+7. Cross the line on a scratch clone: install 2.3.2, `opencode plugin list` shows `pcp`, then
    exercise each of the 18 tools and each hook (before/after write, commit trailer, compaction,
    system rule, misplaced warning).
-6. Only then unpin/upgrade the working install; keep the 1.17.15 reinstall command and the
+8. Only then unpin/upgrade the working install; keep the 1.17.15 reinstall command and the
    `git checkout` of `~/.config/opencode` as rollback.
+
+Two `opencode` binaries make the crossing cheap: Homebrew holds the 2.x line and the curl
+install in `~/.opencode` holds 1.x, so `brew upgrade opencode` produces a 2.3.2 binary at
+`/opt/homebrew/bin/opencode` while the `opencode` alias keeps pointing at V1. There is no
+in-place replacement and no rollback cliff — which is the opposite of the "all-or-nothing
+install" note below, so treat that risk as resolved for this machine.
 
 ## 6. Risks
 
-- **All-or-nothing install.** No side-by-side, so V2 validation must be done with the V1 binary
-  backed up, not assumed.
+- ~~**All-or-nothing install.**~~ Resolved on this machine: Homebrew (2.x) and the `~/.opencode`
+  curl install (1.x) coexist, so the major can be crossed without destroying the V1 path.
 - **Config normalisation is in-memory.** After V2 writes config (or after a native-V2
   conversion) V1 may no longer read the same file — do not point V1 at converted files.
 - **Silent plugin failure.** A rejected plugin leaves the agent running with no tools. Verify
   `pcp` appears in `opencode plugin list` before trusting any session.
 - **Session history.** The migration page does not state whether V2 imports V1 session history;
   check before upgrading if old sessions matter.
-- **Plugin zod coupling.** `tool.schema` is zod 4.1.8 via `@opencode-ai/plugin`; import `zod`
-  directly in `pcp/tools.ts` and keep the version aligned (`npm ls zod`) so the V1 helper and the
-  V2 StandardSchema path see the same instance.
+- ~~**Plugin zod coupling.**~~ Resolved: `zod` is a declared dependency at 4.1.8 and is the single
+  instance both hosts see (V1's raw shape, V2's `z.object(...)` as `StandardSchemaV1`).

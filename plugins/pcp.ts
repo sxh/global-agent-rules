@@ -1,15 +1,16 @@
-import type { Plugin } from "@opencode-ai/plugin";
-import { tool } from "@opencode-ai/plugin/tool";
+import type { Plugin, PluginInput } from "@opencode-ai/plugin";
+import type { Plugin as V2Api } from "@opencode/plugin";
+import { z } from "zod";
 
 import { PCP_TOOLS } from "../pcp/tools.js";
 import { createPcpHooks } from "../pcp/hooks.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
 import { textPart } from "../pcp/misplaced_state.js";
 
-// V1 host adapter. Everything substantive lives in pcp/ — the 18 tool bodies in
-// pcp/tools.ts and the hook decisions in pcp/hooks.ts — so this file only wires the V1
-// plugin API to them. That keeps the logic portable to the V2 plugin API (see
-// docs/opencode2-pcp-migration.md) instead of forking it.
+// Dual host adapter: one default export that satisfies both plugin APIs, so the same file
+// runs on OpenCode 1.x (calls `server`) and 2.x (reads `id` + `setup`). All the substance
+// lives in pcp/ — the 18 tool bodies in pcp/tools.ts, the hook decisions in pcp/hooks.ts —
+// so neither half contains logic of its own. See docs/opencode2-pcp-migration.md.
 //
 // This directory may export only plugin factories: opencode invokes every export of a
 // top-level plugins/*.ts as a plugin factory (see scripts/check-contract.sh section 8).
@@ -19,7 +20,7 @@ import { textPart } from "../pcp/misplaced_state.js";
 // System-prompt rule
 // ──────────────────────────────────────────────
 
-// PCP behavioral rule — always injected to ALL agents via system.transform.
+// PCP behavioral rule — always injected to ALL agents.
 //
 // PCP_CACHE_FIX (forked locally; not re-downloaded):
 // This rule is the ONLY thing injected into the system prompt. It is a constant, so the system
@@ -31,30 +32,76 @@ import { textPart } from "../pcp/misplaced_state.js";
 // Do NOT reintroduce changing values here.
 
 // ──────────────────────────────────────────────
-// Plugin
+// Shared plumbing (host-agnostic)
 // ──────────────────────────────────────────────
 
-export const PCPPlugin: Plugin = async ({ directory, client }) => {
-  console.log("PCP initialized");
+type SessionDir = (sessionID: string) => Promise<string>;
 
-  // ── Session helpers (cached to avoid repeated API calls) ────
+/** The structural slice of a system prompt either host lets a plugin append to. */
+type SystemParts = Array<{ type: "text"; text: string }>;
 
-  const sessionDirCache = new Map<string, string>();
-
-  async function getSessionDir(sessionID: string): Promise<string> {
-    const cached = sessionDirCache.get(sessionID);
-    if (cached) return cached;
+/**
+ * Memoise a session → project directory lookup. Both hosts expose the session record
+ * differently, so the caller supplies the lookup; the fallback covers lookup failures.
+ */
+function sessionDirs(
+  fallback: string,
+  lookup: (sessionID: string) => Promise<string | undefined>,
+): SessionDir {
+  const cache = new Map<string, string>();
+  return async (sessionID) => {
+    const hit = cache.get(sessionID);
+    if (hit) return hit;
     try {
-      const resp = await client.session.get({ path: { id: sessionID } });
-      const dir: string = (resp.data as any)?.directory ?? directory;
-      sessionDirCache.set(sessionID, dir);
+      const dir = (await lookup(sessionID)) ?? fallback;
+      cache.set(sessionID, dir);
       return dir;
     } catch {
-      return directory;
+      return fallback;
     }
-  }
+  };
+}
 
-  const hooks = createPcpHooks({ sessionDir: getSessionDir });
+/**
+ * V1 had one `experimental.chat.system.transform` covering every request; V2 hooks are
+ * per request kind (context / compaction / title / generate), so each one has to add the
+ * rule itself or auxiliary requests lose it.
+ */
+function ensureRule(system: SystemParts): void {
+  if (!system.some((part) => part.text === PCP_RULE)) {
+    system.push({ type: "text", text: PCP_RULE });
+  }
+}
+
+/** Flatten a V2 tool result's content to the text the unplanned-edit check reasons about. */
+function resultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) =>
+      part && typeof part === "object" && "text" in part
+        ? String((part as { text: unknown }).text)
+        : "",
+    )
+    .join("");
+}
+
+// ──────────────────────────────────────────────
+// V1 host (OpenCode 1.x): `server(input)` returns the hooks object
+// ──────────────────────────────────────────────
+
+const v1Server: Plugin = async ({ directory, client }: PluginInput) => {
+  console.log("PCP initialized");
+
+  // Imported lazily so the V1 package is never loaded by a V2 host.
+  const { tool } = await import("@opencode-ai/plugin/tool");
+
+  const sessionDir = sessionDirs(directory, async (sessionID) => {
+    const resp = await client.session.get({ path: { id: sessionID } });
+    return (resp.data as any)?.directory as string | undefined;
+  });
+
+  const hooks = createPcpHooks({ sessionDir });
 
   const tools = Object.fromEntries(
     PCP_TOOLS.map((t) => [
@@ -70,11 +117,7 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
   );
 
   return {
-    // ── Tools ──────────────────────────────────
-
     tool: tools,
-
-    // ── Auto-lifecycle hooks ────────────────────
 
     "tool.execute.before": async (input) => {
       await hooks.beforeTool(input);
@@ -95,8 +138,6 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
       output.parts.push(textPart(warning, input.sessionID, output.message.id));
     },
 
-    // ── Context injection hooks ─────────────────
-
     // Constant only — see the PCP_CACHE_FIX note. Anything that changes between turns
     // belongs at the *end* of the request (a message), never in the system array.
     "experimental.chat.system.transform": async (_input, output) => {
@@ -114,4 +155,81 @@ export const PCPPlugin: Plugin = async ({ directory, client }) => {
   };
 };
 
-export default PCPPlugin;
+// ──────────────────────────────────────────────
+// V2 host (OpenCode 2.x): `setup(ctx)` registers hooks, transforms and tools
+// ──────────────────────────────────────────────
+
+const v2Setup = async (ctx: V2Api.Context): Promise<void> => {
+  console.log("PCP initialized");
+
+  const sessionDir = sessionDirs(
+    ctx.location.directory,
+    async (sessionID) => (await ctx.session.get({ sessionID })).location.directory,
+  );
+
+  const hooks = createPcpHooks({ sessionDir });
+
+  // Tools: V2 wants one schema per tool (a zod object qualifies as StandardSchemaV1) and a
+  // structured result, so `run`'s text becomes `content`.
+  await ctx.tool.transform((editor) => {
+    for (const t of PCP_TOOLS) {
+      editor.add({
+        name: t.name,
+        description: t.description,
+        input: z.object(t.args),
+        async execute(args, call) {
+          const dir = await sessionDir(call.sessionID);
+          return { content: await t.run(args, { dir, sessionID: call.sessionID }) };
+        },
+      });
+    }
+  });
+
+  await ctx.tool.hook("execute.before", async (event) => {
+    await hooks.beforeTool({ tool: event.tool, sessionID: event.sessionID });
+  });
+
+  await ctx.tool.hook("execute.after", async (event) => {
+    if (event.status !== "completed") return;
+    const replacement = await hooks.afterTool(
+      { tool: event.tool, sessionID: event.sessionID, args: event.input },
+      resultText(event.result.content),
+    );
+    if (replacement !== null) {
+      event.result = { ...event.result, content: replacement };
+    }
+  });
+
+  // V2 has no parts array on the submitted prompt, so the misplaced-directory warning is
+  // prepended to the prompt text instead of being injected as a synthetic part.
+  await ctx.session.hook("prompt", async (event) => {
+    const warning = await hooks.misplaced(event.sessionID);
+    if (warning) event.prompt.text = `${warning}\n\n${event.prompt.text}`;
+  });
+
+  // One registration per request kind — see ensureRule.
+  await ctx.session.hook("context", (event) => {
+    ensureRule(event.system);
+  });
+
+  await ctx.session.hook("title", (event) => {
+    ensureRule(event.system);
+  });
+
+  await ctx.session.hook("generate", (event) => {
+    ensureRule(event.system);
+  });
+
+  await ctx.session.hook("compaction", async (event) => {
+    ensureRule(event.system);
+    const resume = await hooks.compaction(event.sessionID);
+    if (resume) event.system.push({ type: "text", text: resume });
+  });
+};
+
+const v2Plugin: V2Api.Plugin = { id: "pcp", setup: v2Setup };
+
+export default {
+  ...v2Plugin,
+  server: v1Server,
+};
