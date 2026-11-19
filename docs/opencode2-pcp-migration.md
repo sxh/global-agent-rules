@@ -18,10 +18,10 @@ Date: 19 Nov 2026. Verified against the vendor's migration pages (`/docs/migrate
 | PCP state | plain files: `<project>/.opencode/pcp/{stack.json,events.jsonl,WORKLOG.md}` — no server/API/schema coupling |
 
 Two `opencode` binaries were installed: the Homebrew copy (1.17.15) and a curl install in
-`~/.opencode` (was 1.17.15 too). The shell alias pointed at Homebrew, so that is the one that ran.
-The alias now points at `~/.opencode/bin/opencode`, which `opencode upgrade 1.19.6 --method curl`
-brought to 1.19.6 — the Homebrew Cellar copy is untouched and 1.17.15 stays available as
-`/opt/homebrew/bin/opencode`.
+`~/.opencode` (also 1.17.15). The shell alias pointed at Homebrew, so that is the one that ran.
+The alias was then pointed at `~/.opencode/bin/opencode`, which `opencode upgrade 1.19.6 --method
+curl` brought to 1.19.6 while the Homebrew Cellar copy stayed at 1.17.15. Both are now 2.3.2 — see
+the version table above.
 
 **Object entrypoints verified on 1.19.6, not just documented.** A probe plugin in an isolated
 `HOME` exporting `{ id, server }` was called through `.server()` and listed under `plugins:` by
@@ -194,14 +194,17 @@ a locally-declared `{type:"text", text, synthetic:true}` shape.
    `execute.before` / `execute.after` / `context` / `prompt` hooks all fire. Not yet observed on a
    real V2 host: the `compaction` hook and the `title` / `generate` registrations (registration
    itself is proven — a throwing registration would have rejected `setup()` and left no tools).
-8. Only then unpin/upgrade the working install; keep the 1.17.15 reinstall command and the
-   `git checkout` of `~/.config/opencode` as rollback.
+8. ~~Only then unpin/upgrade the working install.~~ **Done (19 Nov 2026).** Rollback is no longer
+   "run the old binary": the V1 curl install was overwritten by 2.3.2, and the `1.17.15` backup
+   predates object entrypoints. Reinstating V1 means `npm i -g opencode-ai@1.19.6` (or the curl
+   installer pinned to that version) plus repointing the `.zshrc` alias; `git checkout` of
+   `~/.config/opencode` restores the config, which is still read by both majors.
 
-Two `opencode` binaries make the crossing cheap: Homebrew holds the 2.x line and the curl
-install in `~/.opencode` holds 1.x, so `brew upgrade opencode` produces a 2.3.2 binary at
-`/opt/homebrew/bin/opencode` while the `opencode` alias keeps pointing at V1. There is no
-in-place replacement and no rollback cliff — which is the opposite of the "all-or-nothing
-install" note below, so treat that risk as resolved for this machine.
+~~Two `opencode` binaries make the crossing cheap~~ — that held while Homebrew was pinned to
+1.17.15 and `~/.opencode` carried 1.19.6, and it is what made the crossing reversible for a day.
+It stopped holding when the V2 binary replaced the `~/.opencode` install: both paths now report
+2.3.2, so the "all-or-nothing install" risk is live again for this machine until a V1 install is
+put back deliberately.
 
 ## 6. Risks
 
