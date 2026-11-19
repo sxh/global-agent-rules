@@ -9,12 +9,23 @@ Date: 19 Nov 2026. Verified against the vendor's migration pages (`/docs/migrate
 
 | Thing | Version / state |
 |---|---|
-| Installed CLI | `opencode 1.17.15` (Homebrew, `/opt/homebrew/Cellar/opencode/1.17.15`, **pinned**) |
-| Homebrew candidate | `opencode` formula is now **2.3.2** — a plain `brew upgrade` crosses the major |
+| Installed CLI | `opencode 1.19.6` — the curl install at `~/.opencode/bin/opencode` (via `~/.local/bin/opencode`); `~/.zshrc` alias points here |
+| Homebrew copy | `opencode 1.17.15` still in the Cellar and **pinned**, now vestigial — the `opencode` formula has moved to the 2.x line, so brew cannot supply a 1.x build |
+| Homebrew candidate | `opencode` formula is **2.3.2** — a plain `brew upgrade` crosses the major |
 | V1 line on npm | `opencode-ai@1.19.6` (latest), `1.18.29`+ required for object plugin entrypoints |
 | V2 line | `@opencode/cli@2.3.2` (bin `opencode`, also `opencode2`), `@opencode/plugin@2.3.2` |
-| Repo | `~/.config/opencode` is a git repo, tree clean at `a5f340e` → rollback is a checkout |
+| Repo | `~/.config/opencode` is a git repo → rollback is a checkout |
 | PCP state | plain files: `<project>/.opencode/pcp/{stack.json,events.jsonl,WORKLOG.md}` — no server/API/schema coupling |
+
+Two `opencode` binaries were installed: the Homebrew copy (1.17.15) and a curl install in
+`~/.opencode` (was 1.17.15 too). The shell alias pointed at Homebrew, so that is the one that ran.
+The alias now points at `~/.opencode/bin/opencode`, which `opencode upgrade 1.19.6 --method curl`
+brought to 1.19.6 — the Homebrew Cellar copy is untouched and 1.17.15 stays available as
+`/opt/homebrew/bin/opencode`.
+
+**Object entrypoints verified on 1.19.6, not just documented.** A probe plugin in an isolated
+`HOME` exporting `{ id, server }` was called through `.server()` and listed under `plugins:` by
+`opencode debug info --print-logs`. The dual export is therefore viable on this install.
 
 V2 does **not** install alongside V1: the installer replaces the binary. V1 config is read and
 normalised in memory, so nothing must be converted to try V2.
@@ -121,8 +132,11 @@ a locally-declared `{type:"text", text, synthetic:true}` shape.
 
 ## 5. Work breakdown
 
-1. Bump V1 to `opencode-ai@1.19.6` (npm global; the brew formula is already 2.x so there is no
-   Homebrew route to 1.19.6). Re-run `scripts/check-contract.sh` and the smoke test.
+1. ~~Bump V1 to `opencode-ai@1.19.6`.~~ **Done (19 Nov 2026).** `opencode upgrade 1.19.6
+   --method curl` moved the `~/.opencode` install from 1.17.15 → 1.19.6; the `~/.zshrc` alias now
+   points at that binary instead of the Homebrew Cellar copy (which stays at 1.17.15, pinned, and
+   is the reinstall route if a rollback is ever needed). Gates re-run green on 1.19.6, the plugin
+   loads, all 18 tools register and a live `pcp_status` round-trips.
 2. ~~Extract the 18 tools to `pcp/tools.ts` and the 5 hook bodies to `pcp/hooks.ts`.~~
    **Done (19 Nov 2026).** Still V1-only and behaviour-identical; `plugins/pcp.ts` is now a
    ~120-line adapter (`PCP_TOOLS` → `tool()`, `createPcpHooks` → the five string-keyed hooks).
