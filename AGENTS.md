@@ -179,6 +179,7 @@ Triggers: "run retrospective" / "reflect on session" → `skills/retrospective/S
 | Debugging discipline and proven platform limitations | `skills/debugging-playbook/SKILL.md` |
 | Past incidents and gotchas (institutional memory) | `docs/incidents.md` — grep it; do not load wholesale |
 | Machine setup (server, local models, ports) | `docs/local-setup.md` |
+| Handoff for a fresh session | `./HANDOFF.md` **in the project it describes** — `pcp_handoff` writes into `.opencode/pcp/`, so move the file; one copy, always in the project root, because several projects are live at once |
 
 ## Adding rules to this file
 
