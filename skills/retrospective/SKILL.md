@@ -10,9 +10,18 @@ Analyze the work done in the current conversation context to extract lessons lea
 
 The four destinations:
 - **`docs/incidents.md`** — the default. Tool gotchas and dated findings. Not loaded into the prompt; retrieved by grep when a class of problem recurs.
-- **Contract (`~/.config/opencode/AGENTS.md`)** — only rules that apply every turn, cannot be enforced mechanically, and are non-obvious. Hard budget: 200 lines.
+- **Contract (`AGENTS.md` in the shared config)** — only rules that apply every turn, cannot be enforced mechanically, and are non-obvious. Hard budget: 200 lines.
 - **Skills** — standards and playbooks that apply when a situation arises.
 - **Mechanisms** — hooks, lint rules, CI gates, scripts. The preferred destination for any recurring failure class; prose is the last resort.
+
+### Paths and integrations
+
+This skill runs in several projects on several machines, so nothing below hard-codes a path or a tool that may be absent. Resolve these before use:
+
+- **`<config>`** — the shared agent configuration directory that contains this skill's `skills/` parent (wherever the agent loads globally-shared rules from on this machine). Every path written as `<config>/…` is relative to it.
+- **The incidents store** — `<config>/docs/incidents.md`. It is **shared by every project on this machine**, which drives one rule: an entry never carries a tracker id. Work ids are per-project by definition, so a qualified id is meaningless in another project's checkout; describe the outstanding work in the entry and let the tracker stay the tracker.
+- **PCP** — optional. When the project exposes the `pcp_*` tools, capture backlog items with `pcp_capture`; when it does not, record them in whatever tracker the project actually uses (issue list, TODO file) and say which in the summary. Do not invent a tracker that is not there.
+- **The config directory is often a git repository of its own** — when it is, commit and push the changes there; do not leave them uncommitted on the assumption they are outside version control.
 
 ### Session Definition
 A "session" is the span of conversation since the last retrospective was run, or since the start of the current conversation if no retrospective has been run yet. If the context window has rotated and earlier turns are no longer accessible, limit analysis to what is available in the current context. Do not fabricate or assume details from lost context — note "insufficient context" if needed.
@@ -33,7 +42,7 @@ If the session's project is a **software project** (a codebase with source files
 
 1. **Run the scan** on the project:
    ```
-   node ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-scan.mjs [project-dir] [--json]
+   node <config>/skills/structural-debt-auditor/scripts/structural-debt-scan.mjs [project-dir] [--json]
    ```
    If the project does not have source code the scanner supports, skip this step and note why. The bundled scanner only extracts TypeScript; for Kotlin/Java use the Kotlin extractor referenced in the `structural-debt-auditor` skill — a scan reporting "0 declarations" on `.kt`/`.java` is an unsupported-language result, not a "no duplication" result. In a monorepo, pass the source root (for example `packages`) rather than the repository root, and confirm `totalDeclarations`/`fileCount` are non-zero before trusting a ratio; a repo-root scan can report 0 declarations, which is a silent clean.
 2. **Apply the evidence gate** to every candidate (see `structural-debt-auditor/references/evidence-gate.md`): verify at the source that the same-named declaration is truly the same shape with the same ownership; downgrade intentional duplication (different security contexts, divergent evolution paths, deliberate decoupling).
@@ -81,7 +90,7 @@ If a finding does not generalize to a principle that would prevent a different c
 
 ### Step 5: Choose the Destination, Then Check Principle Coverage
 
-- Read all three stores: `docs/incidents.md` (entry archive), `~/.config/opencode/AGENTS.md` (contract), and the relevant `skills/*/SKILL.md`.
+- Read all three stores: `docs/incidents.md` (entry archive), `<config>/AGENTS.md` (contract), and the relevant `skills/*/SKILL.md`.
 - For each **principle** identified in Step 4, choose its destination first:
   - **MECHANISM** — can be enforced by a hook, lint rule, gate, or CI check. Do not write prose; emit a backlog item instead.
   - **CONTRACT** — must hold every turn, cannot be enforced mechanically, and is non-obvious. All three must hold; the contract file states this admission test.
@@ -89,7 +98,7 @@ If a finding does not generalize to a principle that would prevent a different c
   - **INCIDENT** — everything else. This is the default destination: `docs/incidents.md`.
 - Then check coverage *within that destination*: search for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
   - Already covered: **do not add a new entry.** Propose a refinement that clarifies scope (a sentence, or this session's example).
-  - Not covered: propose a new entry (or a contract/skill line, per the destination), carrying a status tag — `[ENFORCED]` (name the covering gate), `[EXPIRED]`, or `[KNOWLEDGE]` (a gotcha/principle with no enforceable mechanism by design). If a mechanism is identified but not built, the open work is a PCP backlog item, not a prose tag: capture it and note `Backlog: B###` in the entry. An entry that asserts a rule without a tag is a leak and must be resolved before the summary is presented.
+  - Not covered: propose a new entry (or a contract/skill line, per the destination), carrying a status tag — `[ENFORCED]` (name the covering gate), `[EXPIRED]`, or `[KNOWLEDGE]` (a gotcha/principle with no enforceable mechanism by design). If a mechanism is identified but not built, the open work is a tracker item, not a prose tag: capture it in the project's tracker and describe it in the entry — never as a tracker id, because this store is shared across projects and a per-project id means nothing in another checkout. An entry that asserts a rule without a tag is a leak and must be resolved before the summary is presented.
   - Contradicted: mark the old entry for removal or amendment.
 - **Compression scan:** If 3+ incident entries from different sessions express the same principle, propose merging them into one and archiving the surplus.
 - **Recurrence check:** If an incident's failure class recurs despite being documented, the gap is enforcement, not documentation — emit a mechanism backlog item rather than another entry.
@@ -98,7 +107,7 @@ If a finding does not generalize to a principle that would prevent a different c
 
 Before presenting the summary, audit the previous retrospective's outputs. This is what makes the process a loop rather than a document generator:
 
-- **Report every incident entry that references a backlog item (`Backlog: B###`)**, with the item's age: verify the item still exists and is pending, and that the entry's rule is not actually enforced. A dangling reference (item closed or dismissed) is itself the finding — resolve or drop the entry. PCP is the single tracker of open work; an incident entry must not park unbuilt enforcement as prose.
+- **Report every incident entry that names outstanding work**, with its age: verify the work is still open in whichever tracker owns it, and that the entry's rule is not actually enforced. An entry carrying a per-project tracker id is itself a finding when this store is shared, because that id cannot be resolved from another project — describe the work instead. A dangling reference (item closed or dismissed) is the finding — resolve or drop the entry. The tracker is the single place open work lives; an incident entry must not park unbuilt enforcement as prose.
 - **Verify every `[ENFORCED]` claim** by reading the covering artefact: the hook exists and is not stubbed, the lint rule is configured, the CI job triggers, the test is present, and the guard is **loaded in the context it protects** (a function sourced only from `.zshrc` is absent from a non-interactive shell, so its self-test must exercise the real entry point, not an explicit `source`). A gate that has been disabled or removed since the claim is a finding.
 - **Check recurrence** — for each documented failure class, state whether it occurred again since the entry's date. Recurrence means the documentation did not change behaviour: require the mechanism (backlog item), do not write another entry.
 - **Flag leaks** — any entry asserting a rule with no mechanism and no status tag. Resolve each as enforcement, `[EXPIRED]`, or a justified knowledge entry.
@@ -156,13 +165,13 @@ Wait for user confirmation before proceeding.
 
 ### Step 8: Apply Changes (after confirmation)
 If user confirms:
-- **Add, update, merge, or archive** entries in `docs/incidents.md` (`~/.config/opencode/docs/incidents.md`) as proposed. When updating, replace the entry in place. When merging, keep the surviving entry and archive the surplus under the archive heading at the bottom of the file.
-  - **The global config directory `~/.config/opencode/` is itself a git repository** (remote: `sxh/global-agent-rules`). After applying changes, commit and push them in that repo — do not leave them uncommitted or assume they are outside version control.
-- **Contract changes are rare** — touch global AGENTS.md (`~/.config/opencode/AGENTS.md`) only for findings that pass the admission test (applies every turn, cannot be enforced mechanically, non-obvious). The contract has a hard 200-line budget; anything that pushes it over must displace something else.
+- **Add, update, merge, or archive** entries in `docs/incidents.md` (`<config>/docs/incidents.md`) as proposed. When updating, replace the entry in place. When merging, keep the surviving entry and archive the surplus under the archive heading at the bottom of the file.
+  - **If `<config>` is a git repository** (it usually is), commit and push the changes there — do not leave them uncommitted or assume they are outside version control.
+- **Contract changes are rare** — touch the contract (`<config>/AGENTS.md`) only for findings that pass the admission test (applies every turn, cannot be enforced mechanically, non-obvious). The contract has a hard 200-line budget; anything that pushes it over must displace something else.
 - **Add, update, or remove** entries in local AGENTS.md (`./AGENTS.md`) if in a project with a local AGENTS.md.
 - **Update skill files** if the lesson reveals a gap in a skill (XP Craftsman, RPG Master, etc.). Propose the specific edits to the user.
 - **Mechanisms** — a recurring failure class becomes a backlog item for enforcement (hook, lint rule, CI gate, script), not a prose entry.
-- **Capture backlog items into PCP** — for each proposed backlog item, call `pcp_capture` with a clear title and optional context. The item is now tracked in the PCP backlog for future sprint planning.
+- **Capture backlog items** — when the project exposes the `pcp_*` tools, call `pcp_capture` with a clear title and optional context; otherwise add each item to the tracker the project actually uses (issues, a TODO file) and name it in the summary. Open work must land somewhere the next session will look.
 - Show confirmation that all updates were made.
 
 ### Step 9: Compact (every session)
@@ -171,7 +180,7 @@ Every retrospective must propose a compaction pass, even if no new entries are a
 - Identify any 2+ entries that express the same principle (different titles, same idea) and propose merging them.
 - If merging, keep the principle and update the date of the surviving entry to the current date. Archive the surplus entries.
 - Also apply the principle-coverage check from Step 5: if a new principle subsumes older entries, those older entries should be archived.
-- Also check the contract (`~/.config/opencode/AGENTS.md`) against its hard 200-line budget: if it is at or over budget, propose what to remove or demote before anything new is added.
+- Also check the contract (`<config>/AGENTS.md`) against its hard 200-line budget: if it is at or over budget, propose what to remove or demote before anything new is added.
 - Propose the specific merges and archive actions in the summary for user confirmation.
 
 ## Guidelines
@@ -238,8 +247,7 @@ check Step 5 applies to incident entries. Check, in order:
    carried that section for 82 minutes.
 2. **Already an entry** — run Step 5's coverage check against `docs/incidents.md`, the
    contract, and the relevant skill.
-3. **Already in PCP** — grep the backlog and queue for the same principle before
-   calling `pcp_capture`.
+3. **Already in the tracker** — grep the backlog and queue (or the project's issue list) for the same principle before capturing it.
 If any holds, do not create the item: refine the existing artefact, or close the
 finding with no action.
 
@@ -249,12 +257,12 @@ cite the code path that applies A and confirm it reaches B; the existence of A a
 B separately is not evidence. On 2026-11-03 a retrospective captured a backlog item
 claiming declaration-level exclusions were hiding 30 structural groups; the
 declaration scan never read `sample_pattern`, so the item was pivoted at
-implementation (rpg_combat_tool B427). The finding's own diagnosis is a hypothesis
+implementation (pivoted at implementation time; the tracker item was rewritten). The finding's own diagnosis is a hypothesis
 too: verify the cited cause against the code before capturing it (a retrospective
 blamed a reused widget key for an ambiguous finder; the key was unique and the real
 cause was a horizontal order assertion invalidated by wrapping — B455 pivoted).
 
-**Use `pcp_capture`** to add each item with a descriptive title. For example:
+**Use the project's tracker** — `pcp_capture` where PCP is available, the project's issue list or TODO file otherwise — with a descriptive title. For example:
 > `pcp_capture("Add NOT NULL constraint to products.url column")`
 > `pcp_capture("Document multi-layer investigation pattern in AGENTS.md")`
 
@@ -312,7 +320,7 @@ Every entry must express a general principle, not a specific observation. The ti
 **Status tags — required for any entry that asserts a rule to follow:**
 - `[ENFORCED]` — a gate covers it. Name the covering artefact (hook, lint rule, CI job, test) so the next audit can verify it still exists and still gates.
 - `[EXPIRED]` — retired: no recurrence observed and no mechanism warranted. Keep it for one more retrospective before archiving.
-- `[KNOWLEDGE]` — a gotcha, design principle, or advice with no enforceable mechanism by design. Use the explicit tag (the checker accepts it) so the entry is not re-reported as a leak; state the illustrative example in the body. If a mechanism IS identified but not yet built, do not park it here as prose — capture it as a PCP backlog item and add `Backlog: <project>/B###` to the entry (PCP ids are per-project while this incidents store is global), so the backlog is the single tracker of open work.
+- `[KNOWLEDGE]` — a gotcha, design principle, or advice with no enforceable mechanism by design. Use the explicit tag (the checker accepts it) so the entry is not re-reported as a leak; state the illustrative example in the body. If a mechanism IS identified but not yet built, do not park it here as prose — capture it in the project's tracker and describe the outstanding work in the body; tracker ids are per-project while this store is shared, so the tracker stays the single place open work lives.
 - A pure knowledge entry (a gotcha with no rule to enforce) must carry `[KNOWLEDGE]` rather than no tag, so the Effectiveness Audit and `check-contract.sh` can distinguish it from an unresolved leak. An entry that asserts a rule and carries neither tag nor mechanism is a leak.
 
 Example: `- **[2026-09-09] [Process] [ENFORCED] Hooks Must Resolve the Repo Root via Git** — ...`
