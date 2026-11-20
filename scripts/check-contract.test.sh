@@ -8,7 +8,13 @@
 # [Positive] practice entries, and everything in the archive section.
 set -uo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)"
+# This suite drives the gate, so a gate call it makes must never re-enter the suites —
+# otherwise a case that overrides SKILLS_DIR/PLUGINS_DIR (the plugin fixtures) leaks those
+# overrides into a nested run of this same file and its assertions become context-dependent.
+# Exporting it here also makes the suite runnable directly, not only via the gate.
+export CONTRACT_SUITES=1
+
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 fixture="$(mktemp)"
@@ -180,3 +186,19 @@ if ! printf '%s\n' "$leak_out" | grep -q 'import a plugins/ module'; then
   exit 1
 fi
 echo "PASS: a test importing a plugins/ module fails the gate"
+
+# --- The gate resolves the config repo from its own location ---
+# Invoked from another git repo (the normal case: every project's hook), `git rev-parse
+# --show-toplevel` names the *caller's* repo, so a gate that trusts it checks paths that
+# do not exist there and reports them as failures. Run the real gate from a throwaway repo.
+other_repo="$(mktemp -d)"
+trap 'rm -f "$fixture" "$smoke_stub"; rm -rf "$skills" "$skills_ok" "$plug_bad" "$plug_ok" "$leak_dir" "$other_repo"' EXIT
+git -C "$other_repo" init -q
+
+if ( cd "$other_repo" && bash "$ROOT/scripts/check-contract.sh" >/dev/null 2>&1 ); then
+  echo "PASS: the gate resolves the config root from its own location, not the caller's repo"
+else
+  echo "FAIL: run from another git repo, the gate checks paths in that repo instead of the config"
+  ( cd "$other_repo" && bash "$ROOT/scripts/check-contract.sh" 2>&1 | grep -E '^FAIL' | head -3 )
+  exit 1
+fi
