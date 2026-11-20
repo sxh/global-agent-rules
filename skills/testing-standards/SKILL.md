@@ -183,6 +183,17 @@ rejects them at the boundary.
   path: invalid input is refused at the edge, not silently coerced.
 - **Shrinking matters** — a property test that cannot report a minimal
   counterexample is stated too broadly to be useful.
+- **No framework is not an excuse** — where a PBT library is unavailable or
+  unwanted, a seeded PRNG plus a small generator is enough (mulberry32 is ten
+  lines), and the generator gets its own test asserting it only emits inputs the
+  model permits. A seed makes a failure reproducible: "seed 21" is a bug report,
+  "it failed once in CI" is not.
+- **Examples can pass while the property fails** — in 2026-11-20 (paints-app) the
+  documented invariant "a component is ordered before its parts" held for every
+  hand-written example because they listed parents first; contributions listed
+  child-first put a part ahead of its assembly, and only the seeded property test
+  over random DAGs caught it. When prose states an invariant, the example tests
+  are not evidence that it holds.
 
 See the `design-by-contract` skill for what each contract means and how far it
 can be pushed into the type.

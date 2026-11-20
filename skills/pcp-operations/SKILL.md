@@ -129,8 +129,11 @@ the next task (2026-10-29: T715 failed the lint ratchet and T717 the structural-
 close).
 
 Before calling `pcp_done`, run the fast gates the hook will judge — format check, lint ratchet,
-structural-debt scan, analyzer/type-check. They, not the full suite, are what fail after close; the
-full suite, integration, e2e and build can stay with the commit.
+structural-debt scan, analyzer/type-check, **and the changed-lines coverage check**
+(`scripts/check-changed-line-coverage.ts` where the project has one). They, not the full suite, are
+what fail after close; the full suite, integration, e2e and build can stay with the commit. The
+changed-lines check is the one that fails most often after close, because it judges new branches
+that the happy-path test never reaches — error paths, cancel paths, and the second arm of a guard.
 
 ## Cross-repo work commits its state in the state's repo
 
@@ -164,6 +167,10 @@ When the user gives a todolist, a plan document, or starts a sprint:
    questions; ask only about decisions the item leaves open (an irreversible choice, a
    conflicting item, or a gate threshold).
 4. Show the plan and get one confirmation. That confirmation authorises the whole sprint.
+   Size the sprint to the context budget as well as to the work: a nine-task phase that spans a
+   modelling session, a storage migration and a UI build will exhaust one session mid-phase. Split
+   it, and say at planning time which tasks are expected to run over — stopping between tasks is
+   cheap, stopping inside one is not.
 5. Execute every task in order to completion without further prompts: pre-RED, RED, GREEN,
    REFACTOR, gates, `pcp_done`, and the task's commit with `.opencode/pcp`. Advance to the next
    task automatically.
