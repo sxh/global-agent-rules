@@ -7,8 +7,9 @@ This is a human-facing machine document, not agent instructions.
 
 ### OpenCode server for Obsidian (port 14096)
 - Managed by the **OpenCodeServer login item**, not launchd:
-  `~/Applications/OpenCodeServer.app` — a shell script that execs
-  `opencode serve --port 14096 --cors app://obsidian.md`.
+  `~/Applications/OpenCodeServer.app` — a shell script that syncs the V1 config mirror, reads the
+  keys, then execs `~/opencode-v1/bin/opencode serve --port 14096 --cors app://obsidian.md`
+  (pinned to OpenCode **1.19.6** — see the next section).
 - The old launchd plist (`~/Library/LaunchAgents/com.opencode.server.plist`) was
   **deleted** — it crash-looped against the login item's port and could not read the Keychain.
 - Why a login item: Obsidian is a GUI app and does not inherit `.zshrc` environment
@@ -22,6 +23,32 @@ This is a human-facing machine document, not agent instructions.
 - Restart: kill the opencode PID listening on 14096, then `open ~/Applications/OpenCodeServer.app`.
 - Verify the running process actually has the key:
   `ps eww -p $(pgrep -f "opencode.*14096" | head -1) | tr ' ' '\n' | grep DEEPSEEK`
+
+### The server is pinned to OpenCode 1 (1.19.6) — do not point it at 2.x
+Decision 2026-11-20. The Obsidian panel is the **only** consumer of this server (software work
+uses the CLI against the 2.3.2 background service), so one V1 server replaces the old setup.
+- **Why pinned:** `opencode-obsidian` 0.2.1 — still the latest release — speaks only the V1 HTTP
+  API (`POST /session`, `/session/:id/message`, `/session/:id/prompt_async`). An OpenCode 2
+  server serves a different API (`/api/*` behind Basic auth) and answers **405** to every V1
+  call, so every send from the panel failed. Upstream: `mtymek/opencode-obsidian` issue #74,
+  fix sits in unmerged PR #75 (needs a `<webview>` + localStorage seeding, not an iframe).
+- **Binary:** `~/opencode-v1/bin/opencode` (1.19.6, unzipped from the GitHub release asset
+  `opencode-darwin-arm64.zip`). Not npm -g: the global prefix is `/opt/homebrew`, so it would
+  clobber Homebrew's 2.3.2 symlink. 1.19.6 rather than the 1.17.15 backup because the dual-shell
+  `plugins/pcp.ts` needs an object-entrypoint-capable V1 (≥1.18.29).
+- **Config mirror:** V1 refuses to start on the shared `~/.config/opencode/opencode.json` — the
+  V2-only `permissions` key is a hard error ("V2 permissions are not supported by OpenCode V1").
+  The launcher exports `XDG_CONFIG_HOME=~/opencode-v1/xdg`, and `~/opencode-v1/sync-config.sh`
+  rebuilds `~/opencode-v1/xdg/opencode/` at every launch: `opencode.json` = live config with
+  `permissions` and `experimental.todo` stripped, everything else symlinked to
+  `~/.config/opencode` (AGENTS.md, skills, agent, commands, plugins, pcp, node_modules) so it
+  cannot go stale. `OPENCODE_CONFIG` / `OPENCODE_CONFIG_DIR` are **ignored** by 1.19.6's
+  validation — the XDG redirect is what works.
+- **Verify:** `curl -s http://127.0.0.1:14096/global/health` → `{"healthy":true,"version":"1.19.6"}`.
+  A 2.x server answers that path with the SPA as `200 text/html`, so check the version field, not
+  the status code.
+- **Undo** (only if a V2-capable plugin ships): point the launcher's `exec` back at
+  `/opt/homebrew/bin/opencode` and drop the `XDG_CONFIG_HOME` + sync lines.
 
 ### Local models — ABANDONED (decision, 2026-10-05)
 - **Decision:** local inference is abandoned on this machine. User's words: "Local does not

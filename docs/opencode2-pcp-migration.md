@@ -212,6 +212,10 @@ put back deliberately.
   curl install (1.x) coexist, so the major can be crossed without destroying the V1 path.
 - **Config normalisation is in-memory.** After V2 writes config (or after a native-V2
   conversion) V1 may no longer read the same file — do not point V1 at converted files.
+  **Confirmed 2026-11-20:** V1 1.19.6 refuses to boot on the shared `opencode.json` because of the
+  V2-only `permissions` key. The one V1 process on this machine (the Obsidian server on :14096) now
+  reads a mirror config dir via `XDG_CONFIG_HOME` — see `local-setup.md`, "The server is pinned to
+  OpenCode 1 (1.19.6)". The 2.3.2 CLI is unaffected and still the only line used for software work.
 - **Silent plugin failure.** A rejected plugin leaves the agent running with no tools. Verify
   `pcp` appears in `opencode plugin list` before trusting any session.
 - **Session history.** The migration page does not state whether V2 imports V1 session history;
