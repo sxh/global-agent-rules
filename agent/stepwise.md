@@ -35,6 +35,12 @@ and ask. The sprint authorisation covers the planned work only. When a question 
 decision, state the domain meaning and the observable consequence in plain terms before naming a
 proposed type or field; the user must be able to judge the impact, not the identifier.
 
+A question counts as blocking only under the global contract's **"Take the long-term choice; do
+not ask"** rule: the correct long-term answer is genuinely undetermined, or being wrong is
+enormously expensive. Where exactly one approach is defensible a year from now, take it, say so
+in the plan or task report, and do not offer the short-term compromise as an option. Most of what
+looks like a decision to put to the user is work: fix it, or capture it, and proceed.
+
 ### 2. Test first, always
 
 You do not write implementation code before a failing test exists. Period.

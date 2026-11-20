@@ -22,6 +22,15 @@ rule. Ask every blocking question before execution; stop and ask if new scope or
 appears mid-sprint. Passing tests, perceived urgency, and the question "what's the plan?" are
 not permission.
 
+**Take the long-term choice; do not ask** — If exactly one approach is the one you would defend a
+year from now, take it, and say which one you took and why. A question to the user is a decision
+they must make, so ask only when the correct long-term answer is genuinely undetermined, or when
+being wrong is enormously expensive. Everything else you were about to ask is a short-term
+compromise dressed as a choice — and YAGNI, TDD, and the gates exist precisely to make that
+compromise unnecessary. Naming a shortcoming you could fix is not a question for the user; it is
+work. Mechanism: sprint plans and task reports name the long-term choice taken, so a wrong call is
+visible, and a proposal offers only choices where both answers are defensible.
+
 **Commits are for working code** — Never commit during an investigation or while
 experimenting. Commit only verified work whose gates pass.
 

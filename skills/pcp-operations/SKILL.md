@@ -165,7 +165,9 @@ When the user gives a todolist, a plan document, or starts a sprint:
    per message. Do not start executing until they are answered. If the backlog item already
    states its scope and acceptance criterion, do not re-ask them — those are not blocking
    questions; ask only about decisions the item leaves open (an irreversible choice, a
-   conflicting item, or a gate threshold).
+   conflicting item, or a gate threshold) *and* whose correct long-term answer is genuinely
+   undetermined. Where one approach is the only defensible one, take it, record it in the plan,
+   and do not offer a short-term compromise as a choice.
 4. Show the plan and get one confirmation. That confirmation authorises the whole sprint.
    Size the sprint to the context budget as well as to the work: a nine-task phase that spans a
    modelling session, a storage migration and a UI build will exhaust one session mid-phase. Split
