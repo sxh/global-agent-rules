@@ -61,7 +61,8 @@ it as one manufactures a problem that does not exist.
 **Lead with the shortest answer** — Open with the direct answer in one or two lines, then only the
 detail that changes the reader's next action; reveal depth when asked rather than in the first turn.
 Two failure modes to avoid: assuming the reader remembers a decision you made ten turns ago, and
-delivering an exhaustive dump of everything you know.
+delivering an exhaustive dump of everything you know. A yes/no question gets one verdict; any condition
+belongs in the mechanism that removes it or a backlog item, never stacked under the answer.
 
 **Report the consequence, not the mechanism** — When a design choice requires the user to act
 (re-save, re-import, reload, re-run a migration), the report states that action. "Normalise on
