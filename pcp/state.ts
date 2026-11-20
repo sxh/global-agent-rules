@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { applyBacklogEvents, pendingBacklog } from "./backlog_state.js";
+import { handoffPath as handoffPathFor } from "./handoff_path.js";
 import { applyTaskEvents, formatEventSummary } from "./task_state.js";
 import { parseStackStrict, recoverStackFromEvents } from "./stack_state.js";
 
@@ -482,7 +483,7 @@ export function buildHandoffMarkdown(dir: string, options: HandoffOptions = {}):
 export function writeHandoff(dir: string, options: HandoffOptions = {}): { path: string; markdown: string } {
   ensureDir(dir);
   const markdown = buildHandoffMarkdown(dir, options);
-  const handoffPath = path.join(pcpDir(dir), "HANDOFF.md");
+  const handoffPath = handoffPathFor(dir);
   fs.writeFileSync(handoffPath, markdown);
   return { path: handoffPath, markdown };
 }

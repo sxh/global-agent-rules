@@ -536,7 +536,7 @@ export const PCP_TOOLS: PcpTool[] = [
   defineTool({
     name: "pcp_handoff",
     description:
-      "Generate HANDOFF.md on demand for AI tools without shared memory (ChatGPT, Claude Code, OpenCode, etc.). " +
+      "Generate HANDOFF.md in the project root, on demand, for AI tools without shared memory (ChatGPT, Claude Code, OpenCode, etc.). " +
       "Content comes from PCP's current tasks, queue, backlog, PROJECT.md, and WORKLOG.md.",
     args: {
       audience: z
