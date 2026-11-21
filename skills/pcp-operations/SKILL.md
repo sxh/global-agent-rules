@@ -16,6 +16,14 @@ premises it was written under. A stale item wastes a whole session. Also grep
 `docs/incidents.md` for the item's domain — the same failure class may already be documented,
 including the surface that is about to be missed.
 
+Do this **at planning time, before `pcp_plan` loads the item**, and write the answer down: grep
+the code paths the item names (route, widget, script) and say what already exists. Two items
+loaded without that check cost a sprint their size — one was ~90 % built (server route, client
+API and optimistic toggle all present; only the conflict message and the reload were missing),
+and one turned out to be an investigation with no known cause rather than a fix. Naming the gap
+before loading is what keeps a task's title honest; discovering it mid-task makes the plan
+wrong rather than the item stale.
+
 If the work appears done, verify it against the current code and dismiss or close the item
 rather than redoing it. For user-visible behavior, "verify" means reproduce the outcome on
 every named surface (screen, card, dialog), not just confirm the call exists and the unit
