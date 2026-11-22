@@ -37,9 +37,28 @@ check "python from stdin is refused" 1 \
 check "read-only sed still works" 0 "$(run "sed -n 'p' '$scratch'")"
 check "python -c still works" 0 "$(run "python3 -c 'print(1)'")"
 
+# Inline scripts are the same hole as a heredoc: the edit never passes through
+# the edit tool, and a failing command can leave the file half-written.
+check "node -e writing a file is refused" 1 \
+    "$(run "node -e \"require('fs').writeFileSync('$scratch','after')\"")"
+check "the file is unchanged after node" "before" "$(command cat "$scratch")"
+check "node --eval writing a file is refused" 1 \
+    "$(run "node --eval \"require('node:fs').appendFileSync('$scratch','after')\"")"
+check "bun -e writing a file is refused" 1 \
+    "$(run "bun -e \"await Bun.write('$scratch','after')\"")"
+check "python -c writing a file is refused" 1 \
+    "$(run "python3 -c \"open('$scratch','w').write('after')\"")"
+check "the file is unchanged after python -c" "before" "$(command cat "$scratch")"
+check "node from stdin is refused" 1 "$(run "printf 'console.log(1)\\n' | node -")"
+
+check "node -e that only reads still works" 0 "$(run "node -e 'console.log(1)'")"
+
 check "ALLOW_SHELL_EDITS overrides" 0 \
     "$(run "ALLOW_SHELL_EDITS=1 sed -i '' 's/before/after/' '$scratch'")"
 check "the override actually edited" "after" "$(command cat "$scratch")"
+check "the override covers node too" 0 \
+    "$(run "ALLOW_SHELL_EDITS=1 node -e \"require('fs').writeFileSync('$scratch','node')\"")"
+check "the node override actually edited" "node" "$(command cat "$scratch")"
 
 # The guard must be loaded by the shell a tool actually runs: a *bare*
 # non-interactive zsh reading a .zshenv, not one that sources the guard

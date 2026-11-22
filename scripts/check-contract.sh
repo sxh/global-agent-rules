@@ -136,13 +136,24 @@ fi
 
 # --- 7c. Bash regression suites (skills + this checker's own test) ---
 # Section 7 runs the Node (.test.mjs) suites; the bash suites were invoked by nothing, so a
-# rotted checker passed silently (B013). Run the skill bash suites and this checker's own test.
+# rotted checker passed silently (B013). Run the skill bash suites, the shell guard's own
+# zsh suite (sourced from .zshenv, so a broken guard breaks every shell), and this checker's
+# own test.
 # CONTRACT_SUITES guards re-entry: check-contract.test.sh spawns this checker repeatedly, and a
 # nested run must not re-enter the suites (nor the test spawn itself again).
 if [ "${CONTRACT_SUITES:-0}" -eq 0 ]; then
-  for t in "$SKILLS_DIR"/*/scripts/*.test.sh "$ROOT"/scripts/check-contract.test.sh; do
+  for t in "$SKILLS_DIR"/*/scripts/*.test.sh "$ROOT"/shell/*.test.zsh "$ROOT"/scripts/check-contract.test.sh; do
     [ -f "$t" ] || continue
-    if out="$(CONTRACT_SUITES=1 bash "$t" 2>&1)"; then
+    case "$t" in
+      *.zsh) runner=(zsh) ;;
+      *) runner=(bash) ;;
+    esac
+    if ! command -v "${runner[0]}" >/dev/null 2>&1; then
+      echo "FAIL: no ${runner[0]} to run suite: ${t#"$ROOT"/}"
+      fail=1
+      continue
+    fi
+    if out="$(CONTRACT_SUITES=1 "${runner[@]}" "$t" 2>&1)"; then
       echo "bash-suite: ${t#"$ROOT"/} passed"
     else
       echo "FAIL: bash suite failed: ${t#"$ROOT"/}"
