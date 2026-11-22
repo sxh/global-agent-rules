@@ -6,9 +6,11 @@ description: Analyze the current session to identify lessons learned and record 
 # Retrospective Skill
 
 ## Purpose
+
 Analyze the work done in the current conversation context to extract lessons learned — both positive and negative — and record them at the right layer, to prevent recurrence of defects, reinforce good practices, and keep the always-loaded prompt small.
 
 The four destinations:
+
 - **`docs/incidents.md`** — the default. Tool gotchas and dated findings. Not loaded into the prompt; retrieved by grep when a class of problem recurs.
 - **Contract (`AGENTS.md` in the shared config)** — only rules that apply every turn, cannot be enforced mechanically, and are non-obvious. Hard budget: 200 lines.
 - **Skills** — standards and playbooks that apply when a situation arises.
@@ -24,11 +26,13 @@ This skill runs in several projects on several machines, so nothing below hard-c
 - **The config directory is often a git repository of its own** — when it is, commit and push the changes there; do not leave them uncommitted on the assumption they are outside version control.
 
 ### Session Definition
+
 A "session" is the span of conversation since the last retrospective was run, or since the start of the current conversation if no retrospective has been run yet. If the context window has rotated and earlier turns are no longer accessible, limit analysis to what is available in the current context. Do not fabricate or assume details from lost context — note "insufficient context" if needed.
 
 ## Process
 
 ### Step 1: Analyze Current Context
+
 - Review the messages available in the current conversation context window.
 - Identify what was worked on, what bugs were found and fixed, what design decisions were made, and what process feedback was given.
 - Explicitly look for **both** problems and successes — what went well is as important as what went wrong.
@@ -50,9 +54,20 @@ If the session's project is a **software project** (a codebase with source files
 4. **Record the ratio** in the retrospective summary as a baseline for the next retrospective — a rising ratio between retrospectives is itself a finding ("structure is diverging"), even if no single candidate is severe.
 5. **Reconcile the ratio against the session's actual work.** A clean ratio is a measurement, not a verdict. If the session's changes were mostly consolidation, or a second mechanism appeared without any candidate, the ratio was a **false negative**: report it as the session's most important finding and emit a scanner-improvement item, because the instrument cannot see the class that is costing the time (semantically parallel mechanisms — owner/token route pairs, write/read models, per-surface row builders — differ in names and layers, so declaration- and block-level comparison reads zero).
 
-The scan catches the *missing abstractions* the session analysis cannot see: duplicated types, helpers, and boilerplate that accumulate silently across files because per-diff review ratifies the existing baseline. A retrospective that only analyzes the session's changes will keep finding the same class of symptom; the scan is what surfaces the underlying structure.
+The scan catches the _missing abstractions_ the session analysis cannot see: duplicated types, helpers, and boilerplate that accumulate silently across files because per-diff review ratifies the existing baseline. A retrospective that only analyzes the session's changes will keep finding the same class of symptom; the scan is what surfaces the underlying structure.
+
+### Step 2b: Development Cycle Speed (mandatory in every retrospective)
+
+Every retrospective must include a speed analysis, even when the session went well. The goal is to find the mechanisms that make the next session finish sooner, not to narrate the work.
+
+1. **Measure the phases.** From the context, state the wall-clock cost of the three most expensive phases. Typical phases: the pre-commit/full gate, repeated gate re-runs after a close, deploy/CI waits, test or coverage iteration, research/tool discovery, and rework caused by a reversed decision. If exact times are unavailable, give a bounded estimate and say it is an estimate.
+2. **Rank by total cost, not by single occurrence.** A 30-second step run twenty times costs more than a one-off five-minute wait. Multiply frequency by duration.
+3. **For every cost above two minutes total, name a mechanism.** Speed findings take the same destinations as every other finding: a hook, a staged-file gate, a cached or affected-only test run, a background wait, a script, or a skill rule. Prose is the last resort. If the right fix is a contract change (e.g. moving the full suite from pre-commit to CI), say so explicitly and treat it as a mechanism proposal.
+4. **Check whether any wait was avoidable by ordering.** A gate run after `pcp_done` that fails, a visual claim made without a renderer, a migration applied before the code that stops reading it, or a decision reversed after implementation are ordering costs. Each one is a candidate for a checklist step or a helper script, not just a note.
+5. **State the single biggest speed cost and its proposed fix** in the summary. Track whether the previous retrospective's speed fixes landed and whether the same cost recurred — recurrence means the fix was documentation, not a mechanism.
 
 ### Step 3: Identify Defect Pattern and Positives
+
 - **If a defect/bug was found and fixed in this session:**
   - Run the full 5-tier **Five Whys** analysis.
   - Document: root cause, the missing/insufficient test, the process gap, the guidance gap.
@@ -62,7 +77,7 @@ The scan catches the *missing abstractions* the session analysis cannot see: dup
 - **Always also analyze positives** — for each significant positive outcome:
   - Run the full 5-tier **Positive Amplification Analysis**.
   - Document: the enablers at each layer (direct, practice, preparation, mindset).
-  - The goal is to identify what to *repeat and reinforce*, not just what to fix.
+  - The goal is to identify what to _repeat and reinforce_, not just what to fix.
 - **If both a defect and a positive outcome occurred** (common): run both analyses independently.
 - **At the end of analysis** — for every significant finding (defect root cause, positive enabler, lesson learned):
   - Formulate actionable backlog items: concrete tasks that can be executed in a future sprint.
@@ -76,13 +91,13 @@ Before filtering or writing entries, generalize each finding:
 
 Examples of principles vs findings:
 
-| Finding (narrow) | Principle (general) |
-|---|---|
-| "Forgot `--mode=mono` on SST dev" | "Infrastructure config requires tool-specific syntax, not general reasoning" |
-| "Shell quoting bugs in start.sh" | "Infrastructure config requires tool-specific syntax, not general reasoning" |
+| Finding (narrow)                            | Principle (general)                                                          |
+| ------------------------------------------- | ---------------------------------------------------------------------------- |
+| "Forgot `--mode=mono` on SST dev"           | "Infrastructure config requires tool-specific syntax, not general reasoning" |
+| "Shell quoting bugs in start.sh"            | "Infrastructure config requires tool-specific syntax, not general reasoning" |
 | "Wrong `$interpolate` syntax in SST config" | "Infrastructure config requires tool-specific syntax, not general reasoning" |
-| "API test used wrong field name" | "Test assertions must reference the actual data, not assumptions about it" |
-| "Validation didn't catch null URL" | "Every required field needs both a set and an unset test" |
+| "API test used wrong field name"            | "Test assertions must reference the actual data, not assumptions about it"   |
+| "Validation didn't catch null URL"          | "Every required field needs both a set and an unset test"                    |
 
 If two or more different findings from this session (or from recent retrospectives) map to the same principle, propose **one entry for the principle**, not one per finding.
 
@@ -96,7 +111,7 @@ If a finding does not generalize to a principle that would prevent a different c
   - **CONTRACT** — must hold every turn, cannot be enforced mechanically, and is non-obvious. All three must hold; the contract file states this admission test.
   - **SKILL** — a situational standard or playbook. Patch the relevant skill.
   - **INCIDENT** — everything else. This is the default destination: `docs/incidents.md`.
-- Then check coverage *within that destination*: search for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
+- Then check coverage _within that destination_: search for the same **principle**, not the same wording. Two entries may have different titles but the same governing idea.
   - Already covered: **do not add a new entry.** Propose a refinement that clarifies scope (a sentence, or this session's example).
   - Not covered: propose a new entry (or a contract/skill line, per the destination), carrying a status tag — `[ENFORCED]` (name the covering gate), `[EXPIRED]`, or `[KNOWLEDGE]` (a gotcha/principle with no enforceable mechanism by design). If a mechanism is identified but not built, the open work is a tracker item, not a prose tag: capture it in the project's tracker and describe it in the entry — never as a tracker id, because this store is shared across projects and a per-project id means nothing in another checkout. An entry that asserts a rule without a tag is a leak and must be resolved before the summary is presented.
   - Contradicted: mark the old entry for removal or amendment.
@@ -114,6 +129,7 @@ Before presenting the summary, audit the previous retrospective's outputs. This 
 - **Report the audit** in the summary under its own heading, before the proposed changes.
 
 ### Step 7: Present Summary
+
 Show the user a summary BEFORE confirming. The summary must include:
 
 ```
@@ -127,6 +143,9 @@ Show the user a summary BEFORE confirming. The summary must include:
 
 ### Effectiveness Audit
 [Previous retrospective's outputs: which mechanisms landed, which referenced backlog items remain (with age), which failure classes recurred since, and any rule-bearing entry with no mechanism and no tag (a leak)]
+
+### Development Cycle Speed
+[The three most expensive phases with durations or bounded estimates, ranked by frequency × duration; the biggest cost and its proposed mechanism; which previous speed fixes landed; any cost that recurred]
 
 ### What Went Well
 1. [Positive practice or good outcome]
@@ -164,7 +183,9 @@ Show the user a summary BEFORE confirming. The summary must include:
 Wait for user confirmation before proceeding.
 
 ### Step 8: Apply Changes (after confirmation)
+
 If user confirms:
+
 - **Add, update, merge, or archive** entries in `docs/incidents.md` (`<config>/docs/incidents.md`) as proposed. When updating, replace the entry in place. When merging, keep the surviving entry and archive the surplus under the archive heading at the bottom of the file.
   - **If `<config>` is a git repository** (it usually is), commit and push the changes there — do not leave them uncommitted or assume they are outside version control.
 - **Contract changes are rare** — touch the contract (`<config>/AGENTS.md`) only for findings that pass the admission test (applies every turn, cannot be enforced mechanically, non-obvious). The contract has a hard 200-line budget; anything that pushes it over must displace something else.
@@ -175,7 +196,9 @@ If user confirms:
 - Show confirmation that all updates were made.
 
 ### Step 9: Compact (every session)
+
 Every retrospective must propose a compaction pass, even if no new entries are added:
+
 - Scan the last 20 entries in `docs/incidents.md` (or all entries since the last compaction).
 - Identify any 2+ entries that express the same principle (different titles, same idea) and propose merging them.
 - If merging, keep the principle and update the date of the surviving entry to the current date. Archive the surplus entries.
@@ -186,6 +209,7 @@ Every retrospective must propose a compaction pass, even if no new entries are a
 ## Guidelines
 
 ### 5 Whys Analysis Template
+
 For each defect found, trace through 5 levels:
 
 1. **Immediate symptom** — What was the user-facing bug?
@@ -213,7 +237,9 @@ The goal is not a single "root cause" but a chain of enablers at every layer tha
 **After the 5 Wins, extract the underlying principle** — what practice or mindset, if maintained, would continue producing this kind of positive outcome regardless of the specific tool or scenario? State it as a positive rule to reinforce.
 
 ### What Went Well
+
 Capture specific, concrete examples of successes identified through the Positive Amplification Analysis (or from direct observation):
+
 - **Practices** that saved time or prevented errors (e.g., "Writing snapshot test before refactoring caught a margin bug")
 - **Tooling** that worked effectively (e.g., "Birdie diff revealed the missing state transition")
 - **Process** that flowed well (e.g., "User caught the scope creep before I implemented it")
@@ -221,17 +247,28 @@ Capture specific, concrete examples of successes identified through the Positive
 
 These entries go into `docs/incidents.md` with a `[Positive]` prefix to distinguish them from defect-driven entries.
 
+### Speed Findings
+
+Speed is a first-class finding, not a closing note:
+
+- A gate or test phase that runs more than a handful of times in a session is a mechanism candidate (affected-only suites, caching, staging files before the gate, a helper that closes and commits in one run).
+- A repeated failure whose cause is ordering — running coverage before staging, verifying visuals without a renderer, applying a migration before its readers deploy — becomes a checklist step or a script in the same sprint, never a prose reminder.
+- A research cost that recurs (unreachable docs, reading dependency internals) earns a timebox and a fallback in the relevant skill.
+- The retrospective must state whether the previous session's speed fixes landed. If a cost recurs after a recorded fix, the finding is that the fix failed, and it escalates to a mechanism.
+
 ### Backlog Generation
 
 For each finding from the Five Whys or Positive Amplification Analysis, decide whether it should become a backlog item:
 
 **Good backlog items are:**
+
 - **Concrete** — "Add NOT NULL constraint to products.url migration", not "Improve data quality"
 - **Executable in one sprint** — small enough to complete, large enough to matter
 - **Actionable by an agent or developer** — clear what needs to be done and how to verify it's done
 - **Linked to the finding** — include the context so future work understands why it matters
 
 **Sources of backlog items:**
+
 - **Level 2 (Direct cause)** from Five Whys — fix the symptom (e.g., "Add NOT NULL to url column")
 - **Level 4 (Process gap)** from Five Whys — fix the process (e.g., "Add schema review to precommit hooks")
 - **Level 3 (Practice/process enabler)** from 5 Wins — reinforce the practice (e.g., "Document multi-layer investigation pattern")
@@ -241,6 +278,7 @@ For each finding from the Five Whys or Positive Amplification Analysis, decide w
 **Before capturing, prove the work is not already done.** A backlog item is a
 hypothesis that work remains, so verify it before recording it — the same coverage
 check Step 5 applies to incident entries. Check, in order:
+
 1. **Already implemented** — grep the source or skill for the behaviour; the lesson
    may already be codified. On 2026-09-18 a retro recorded B109 ("add the non-vacuity
    proof step to the testing standard") when `skills/testing-standards/SKILL.md` had
@@ -248,8 +286,8 @@ check Step 5 applies to incident entries. Check, in order:
 2. **Already an entry** — run Step 5's coverage check against `docs/incidents.md`, the
    contract, and the relevant skill.
 3. **Already in the tracker** — grep the backlog and queue (or the project's issue list) for the same principle before capturing it.
-If any holds, do not create the item: refine the existing artefact, or close the
-finding with no action.
+   If any holds, do not create the item: refine the existing artefact, or close the
+   finding with no action.
 
 **Verify the mechanism, not just the artefacts.** A finding that asserts A causes B
 (an exclusion hides a group, a fixture masks a path, a config disables a gate) must
@@ -263,23 +301,27 @@ blamed a reused widget key for an ambiguous finder; the key was unique and the r
 cause was a horizontal order assertion invalidated by wrapping — B455 pivoted).
 
 **Use the project's tracker** — `pcp_capture` where PCP is available, the project's issue list or TODO file otherwise — with a descriptive title. For example:
+
 > `pcp_capture("Add NOT NULL constraint to products.url column")`
 > `pcp_capture("Document multi-layer investigation pattern in AGENTS.md")`
 
 ### Destination Decision
+
 - **docs/incidents.md** — the default. Framework-specific lessons, tool gotchas, dated observations. Not loaded into the prompt; retrieved by grep when a class of problem recurs.
 - **Contract (global AGENTS.md)** — only rules that must hold every turn, cannot be enforced mechanically, and are non-obvious. Budget: 200 lines, checked every retrospective.
 - **Skills** — standards and playbooks that apply when a situation arises (testing, stack-specific, debugging, review).
 - **Mechanisms** — anything a hook, lint rule, CI gate, or script can enforce. The preferred destination for any recurring failure class; prose is the last resort.
 - **Local AGENTS.md** — project-specific conventions, domain terms, project infrastructure, repository layout.
 - **Edge cases:**
-  - *Cross-project but not universal:* Record it in the relevant skill with a qualifying phrase ("In Gleam projects using Lustre...") rather than duplicating across local files.
-  - *Meta-lessons about the retrospective skill itself:* Patch `skills/retrospective/SKILL.md` directly, after showing the proposed edit.
-  - *No local AGENTS.md exists:* If the lesson applies locally but no file exists, mention it in the summary and ask the user if they want one created.
-  - *Lesson applies to both:* Write once and reference from the other (do not duplicate content).
+  - _Cross-project but not universal:_ Record it in the relevant skill with a qualifying phrase ("In Gleam projects using Lustre...") rather than duplicating across local files.
+  - _Meta-lessons about the retrospective skill itself:_ Patch `skills/retrospective/SKILL.md` directly, after showing the proposed edit.
+  - _No local AGENTS.md exists:_ If the lesson applies locally but no file exists, mention it in the summary and ask the user if they want one created.
+  - _Lesson applies to both:_ Write once and reference from the other (do not duplicate content).
 
 ### Lesson Significance Triage
+
 Not every observation earns an entry. Apply these filters (and the destination test in Step 5 — mechanisms beat prose):
+
 1. **Would this prevent a future defect?** If yes, keep.
 2. **Is this a repeatable pattern or a one-off?** Only keep repeatable ones.
 3. **Does this correct or clarify an existing entry?** If yes, update the existing entry rather than adding.
@@ -287,13 +329,16 @@ Not every observation earns an entry. Apply these filters (and the destination t
 5. **Would a new developer benefit from reading this?** If no, discard.
 
 ### Revision and Compaction
+
 - **Updating:** When a lesson supersedes an existing entry, replace the old text in-place rather than appending. This keeps `docs/incidents.md` accurate rather than accumulating corrections.
 - **Removing:** When an entry is no longer relevant (fixed tool bug, outdated practice), delete it. Mention the removal in the retrospective summary.
 - **Archiving:** Moved entries are placed under the archive heading at the bottom of `docs/incidents.md` so the history is preserved without cluttering active guidance.
 - **Threshold:** Propose compaction whenever `docs/incidents.md` has accumulated 5 retrospectives' worth of new entries since the last compaction. The contract (`AGENTS.md`) is instead checked against its 200-line budget every retrospective.
 
 ### Cross-Skill Feedback
+
 If a lesson reveals a gap or improvement opportunity in another skill file:
+
 - The retrospective summary must include a `Cross-Skill Impact` section identifying which skills need updates.
 - Apply the same Red-Green-Refactor protocol to skill file edits: propose the change, wait for confirmation, then write — unless the edit is itself a task inside an authorised sprint, in which case the sprint confirmation covers it.
 - Do not edit skill files silently — the user must approve changes to their tooling configuration.
@@ -302,6 +347,7 @@ If a lesson reveals a gap or improvement opportunity in another skill file:
 ## Format for Incident Entries (docs/incidents.md)
 
 ### Principle-First Structure
+
 Every entry must express a general principle, not a specific observation. The title should state the principle itself, not which tool or scenario triggered it. Entries live in `docs/incidents.md`; contract lines in `AGENTS.md` are phrased as standing rules, without dates.
 
 ```
@@ -309,6 +355,7 @@ Every entry must express a general principle, not a specific observation. The ti
 ```
 
 **Rules:**
+
 - `[YYYY-MM-DD]` is the date of the retrospective, not the date the bug was introduced.
 - `[Category]` is one of: `Gleam`, `Lustre`, `Electron`, `Testing`, `Coverage`, `Process`, `Tooling`, `Architecture`, `Security`, `Positive`, `Skill`.
 - "Title" states the principle (e.g., `Generated Output Must Be Run`, `Infrastructure Config Is Discovery`), not the specific tool or scenario (not `SST StaticSite Setup`, `Start.sh Escaping`).
@@ -318,6 +365,7 @@ Every entry must express a general principle, not a specific observation. The ti
 - Do not wrap in backticks — the entry is plain markdown list item.
 
 **Status tags — required for any entry that asserts a rule to follow:**
+
 - `[ENFORCED]` — a gate covers it. Name the covering artefact (hook, lint rule, CI job, test) so the next audit can verify it still exists and still gates.
 - `[EXPIRED]` — retired: no recurrence observed and no mechanism warranted. Keep it for one more retrospective before archiving.
 - `[KNOWLEDGE]` — a gotcha, design principle, or advice with no enforceable mechanism by design. Use the explicit tag (the checker accepts it) so the entry is not re-reported as a leak; state the illustrative example in the body. If a mechanism IS identified but not yet built, do not park it here as prose — capture it in the project's tracker and describe the outstanding work in the body; tracker ids are per-project while this store is shared, so the tracker stays the single place open work lives.
@@ -326,20 +374,24 @@ Every entry must express a general principle, not a specific observation. The ti
 Example: `- **[2026-09-09] [Process] [ENFORCED] Hooks Must Resolve the Repo Root via Git** — ...`
 
 **Before (narrow, tool-specific):**
+
 ```
 - **[2026-05-28] [Gleam] Coverage Isolation** — c8 measures coverage on compiled JS, not original Gleam. Use `.c8rc.json` to exclude dependency output and enforce 95% on statements/lines/branches only.
 ```
 
 **After (principle, generalisable):**
-*(In practice the "Before" would be refined to this rather than archived — the principle was correct, the title was too narrow.)*
+_(In practice the "Before" would be refined to this rather than archived — the principle was correct, the title was too narrow.)_
+
 ```
 - **[2026-05-28] [Coverage] Target Language Coverage Measurement** — Coverage tools measure the compiled output, not the source language. Configure the coverage tool (c8, kover, etc.) to exclude dependency output and enforce thresholds on the compiled artifact, not the original source.
 ```
 
 ### Local Entry Format
+
 Same structure, but categories may be project-specific (e.g., `[Domain]`, `[Deployment]`). Keep the `[YYYY-MM-DD]` and two-sentence body rule.
 
 ### Positive Entry Prefix
+
 Positive entries use the `[Positive]` category and follow the same principle-first format:
 
 ```
