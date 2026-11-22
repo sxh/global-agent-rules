@@ -11,6 +11,14 @@ Code coverage measures "code executed" continuously and gates it. This skill mea
 
 The goal is not a one-off audit. It is a **repeatable mechanism** that makes the missing-abstraction discovery happen on a schedule, so you stop finding one small problem after another.
 
+## Ownership — this is first-party code
+
+This skill is **ours**: written for this project by its agent, owned and maintained alongside it. It is not a third-party dependency, even though it is installed under `~/.config/opencode/skills/` — that location is a *deployment*, not provenance.
+
+- The script here (`scripts/structural-debt-scan.mjs`) is the source of truth. A project that gates on it vendors a copy (for example `scripts/lib/structural-debt-scan.mjs`, pinned by `structural-debt-scan.lock.json`) because CI has no home directory to read; the copy must stay **byte-identical**, and a behavioural "parity test" between the two is a symptom of drift, not a safeguard.
+- A bug in the scanner — a report that outgrows a pipe buffer before stdout drains, an option one copy honours and the other ignores — is **ours to fix here first**, then re-vendor. Never treat it as an upstream constraint.
+- Project-specific policy (exclusions, thresholds, which classes the gate counts) belongs in the project's data files and flags, not in a patched copy of this script.
+
 ## When to Run
 
 | Trigger | Command |

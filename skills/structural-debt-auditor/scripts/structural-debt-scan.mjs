@@ -1,4 +1,13 @@
 #!/usr/bin/env node
+// Vendored from the structural-debt-auditor skill so the duplication-ratio
+// ratchet runs hermetically in the hook and CI.
+//
+// Canonical: ~/.config/opencode/skills/structural-debt-auditor/scripts/structural-debt-scan.mjs
+// Revision: pinned by scripts/lib/structural-debt-scan.lock.json; this copy
+// carries the `new` binding fix and must stay semantically in step with the
+// canonical scanner (scripts/scanner-parity.test.ts compares their findings on
+// this repository). Project-specific downgrades live in
+// packages/.structural-debt-exclusions.json.
 /**
  * Structural Debt Scanner — the coverage-analog for missing abstractions.
  *
@@ -22,7 +31,7 @@
  *   2  usage error
  */
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 
 const DEFAULT_EXCLUDES = new Set([
     'node_modules',
@@ -56,7 +65,9 @@ const SRC_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.gleam'
 // already lives in the called helper, so this is not a missing abstraction.
 // An inline literal or arrow body (`= 10`, `= (e) => e`) is different: it does
 // duplicate standalone logic and must still be flagged.
-const BARE_BINDING = /^(?::[^=]*)?=\s*[A-Za-z_$][\w$.]*(\s*\([^;]*\))?\s*;?$/;
+// A per-module binding of a shared call/constructor (`const app = createApp()`,
+// `const repository = new DynamoRepository()`) — not a missing abstraction.
+const BARE_BINDING = /^(?::[^=]*)?=\s*(?:new\s+)?[A-Za-z_$][\w$.]*(\s*\([^;]*\))?\s*;?$/;
 const TEST_MARKERS = [
     '.test.',
     '.spec.',
@@ -104,34 +115,41 @@ export function scanDuplication(
     const declarations = [];
     const unsupported = new Map();
     const skippedGenerated = [];
-    const fileCount = walk(rootDir, (file) => {
-        const ext = extOf(file);
-        const extractor = EXTRACTORS[ext];
-        if (!extractor) {
-            // A source extension we claim to scan but have no extractor for.
-            // Record it so an empty/undercounted result is loud, not silent.
-            if (SRC_EXTS.has(ext)) {
-                if (!unsupported.has(ext)) unsupported.set(ext, []);
-                unsupported.get(ext).push(file);
+    const skippedDirectories = new Map();
+    const gitignore = createGitignore(rootDir);
+    const fileCount = walk(
+        rootDir,
+        (file) => {
+            const ext = extOf(file);
+            const extractor = EXTRACTORS[ext];
+            if (!extractor) {
+                // A source extension we claim to scan but have no extractor for.
+                // Record it so an empty/undercounted result is loud, not silent.
+                if (SRC_EXTS.has(ext)) {
+                    if (!unsupported.has(ext)) unsupported.set(ext, []);
+                    unsupported.get(ext).push(file);
+                }
+                return;
             }
-            return;
-        }
-        if (excludeTestFiles && TEST_MARKERS.some((m) => file.includes(m))) return;
-        const generatedReason = generatedOutputReason(file);
-        if (generatedReason) {
-            skippedGenerated.push({ file, reason: generatedReason });
-            return;
-        }
-        let src;
-        try {
-            src = readFileSync(file, 'utf8');
-        } catch {
-            return;
-        }
-        for (const decl of extractor(src, file)) {
-            declarations.push({ ...decl, file });
-        }
-    });
+            if (excludeTestFiles && TEST_MARKERS.some((m) => file.includes(m))) return;
+            const generatedReason = generatedOutputReason(file);
+            if (generatedReason) {
+                skippedGenerated.push({ file, reason: generatedReason });
+                return;
+            }
+            let src;
+            try {
+                src = readFileSync(file, 'utf8');
+            } catch {
+                return;
+            }
+            for (const decl of extractor(src, file)) {
+                declarations.push({ ...decl, file });
+            }
+        },
+        gitignore,
+        skippedDirectories,
+    );
 
     // Group by name+kind+normalized body — the "same named thing, same shape".
     const byKey = new Map();
@@ -187,7 +205,12 @@ export function scanDuplication(
     const unsupportedExtensions = [...unsupported.entries()].map(([ext, files]) => ({ ext, files }));
 
     const structural = includeStructural
-        ? scanStructural(rootDir, { excludeTestFiles, excludedSignatures })
+        ? scanStructural(rootDir, {
+              excludeTestFiles,
+              excludedSignatures,
+              gitignore,
+              skippedDirectories,
+          })
         : undefined;
 
     return {
@@ -198,13 +221,154 @@ export function scanDuplication(
         downgraded: [...downgraded, ...(structural?.downgraded ?? [])],
         unsupportedExtensions,
         skippedGenerated,
+        skippedDirectories: [...skippedDirectories.values()],
         ...(structural === undefined ? {} : { structuralCandidates: structural.candidates }),
     };
 }
 
-function walk(dir, onFile) {
+// ---- .gitignore-aware directory skipping ----
+// A generated tree the project ignores must never be scanned as source: a
+// Stryker sandbox (`.stryker-tmp`, a full copy of the package) would otherwise
+// double every declaration and fail the gate on phantom duplicates. The
+// built-in DEFAULT_EXCLUDES still covers the ubiquitous build directories;
+// `.gitignore` covers everything else the project declares as generated.
+//
+// Only the subset of git's pattern language needed to decide whether a
+// *directory* is ignored is implemented: comments, `!` negation, a trailing `/`
+// for directory-only, a leading `/` to anchor to the ignore file's directory,
+// `*`, `?`, `**`, and character classes. Escaped `#`/`!` are not supported.
+function globToRegex(glob) {
+    let re = '';
+    for (let i = 0; i < glob.length; i += 1) {
+        const ch = glob[i];
+        if (ch === '*') {
+            if (glob[i + 1] === '*') {
+                if (glob[i + 2] === '/') {
+                    re += '(?:[^/]+/)*';
+                    i += 2;
+                } else {
+                    re += '.*';
+                    i += 1;
+                }
+            } else {
+                re += '[^/]*';
+            }
+        } else if (ch === '?') {
+            re += '[^/]';
+        } else if (ch === '[') {
+            const end = glob.indexOf(']', i + 1);
+            if (end === -1) {
+                re += '\\[';
+            } else {
+                re += glob.slice(i, end + 1);
+                i = end;
+            }
+        } else if ('\\^$.|+(){}'.includes(ch)) {
+            re += `\\${ch}`;
+        } else {
+            re += ch;
+        }
+    }
+    return re;
+}
+
+function parseGitignore(text) {
+    const rules = [];
+    for (const raw of text.split(/\r?\n/)) {
+        let line = raw.replace(/\s+$/, '');
+        if (!line || line.startsWith('#')) continue;
+        let negate = false;
+        if (line.startsWith('!')) {
+            negate = true;
+            line = line.slice(1);
+        }
+        let dirOnly = false;
+        if (line.endsWith('/')) {
+            dirOnly = true;
+            line = line.replace(/\/+$/, '');
+        }
+        const anchored = line.startsWith('/');
+        if (anchored) line = line.slice(1);
+        if (!line) continue;
+        const body = globToRegex(line);
+        const source = anchored || line.includes('/') ? `^${body}$` : `(?:^|.*/)${body}$`;
+        let regex;
+        try {
+            regex = new RegExp(source);
+        } catch {
+            // git tolerates a malformed pattern; refusing to scan would turn a
+            // bad ignore line into a broken gate.
+            continue;
+        }
+        rules.push({ regex, negate, dirOnly });
+    }
+    return rules;
+}
+
+/**
+ * Loads the `.gitignore` files that apply to a scan root and exposes a decision
+ * for any path below it. Rules are evaluated shallow-to-deep and later rules
+ * win, matching git's precedence. The ignore file in a directory governs its
+ * children, so `walk` loads each visited directory's file before descending.
+ */
+function createGitignore(scanRoot) {
+    const rulesByDir = new Map();
+    const loaded = new Set();
+
+    const load = (absDir) => {
+        if (loaded.has(absDir)) return;
+        loaded.add(absDir);
+        const file = join(absDir, '.gitignore');
+        if (!existsSync(file)) return;
+        let text;
+        try {
+            text = readFileSync(file, 'utf8');
+        } catch {
+            return;
+        }
+        rulesByDir.set(absDir, parseGitignore(text));
+    };
+
+    // The ignore chain runs from the repository root down to the scan root. A
+    // non-git project has no ancestors to consult, so only its own tree applies.
+    const absRoot = resolve(scanRoot);
+    const chain = [];
+    let current = absRoot;
+    while (true) {
+        chain.unshift(current);
+        if (existsSync(join(current, '.git'))) break;
+        const parent = dirname(current);
+        if (parent === current) {
+            chain.length = 0;
+            chain.push(absRoot);
+            break;
+        }
+        current = parent;
+    }
+    for (const dir of chain) load(dir);
+
+    const isIgnored = (absPath, isDir) => {
+        let ignored = false;
+        const applicable = [...rulesByDir.entries()]
+            .filter(([baseDir]) => absPath === baseDir || absPath.startsWith(baseDir + sep))
+            .sort(([a], [b]) => a.length - b.length);
+        for (const [baseDir, rules] of applicable) {
+            const rel = relative(baseDir, absPath).split(sep).join('/');
+            for (const rule of rules) {
+                if (rule.dirOnly && !isDir) continue;
+                if (rule.regex.test(rel)) ignored = !rule.negate;
+            }
+        }
+        return ignored;
+    };
+
+    return { load, isIgnored };
+}
+
+function walk(dir, onFile, gitignore, skippedDirectories) {
     let count = 0;
     const visit = (d) => {
+        if (gitignore) gitignore.load(resolve(d));
         let entries;
         try {
             entries = readdirSync(d, { withFileTypes: true });
@@ -219,6 +383,12 @@ function walk(dir, onFile) {
                 // source, so identify it by its marker rather than by the `.venv` name.
                 if (looksLikeVirtualenv(full)) continue;
                 if (isGeneratedDir(full)) continue;
+                if (gitignore?.isIgnored(resolve(full), true)) {
+                    if (skippedDirectories && !skippedDirectories.has(full)) {
+                        skippedDirectories.set(full, { dir: full, reason: 'ignored by .gitignore' });
+                    }
+                    continue;
+                }
                 visit(full);
             } else if (e.isFile()) {
                 count++;
@@ -614,21 +784,31 @@ function simpleHash(text) {
 }
 
 /** Structurally identical blocks, grouped; report-only (never in the ratio). */
-export function scanStructural(rootDir, { excludeTestFiles = true, excludedSignatures = [] } = {}) {
+export function scanStructural(
+    rootDir,
+    { excludeTestFiles = true, excludedSignatures = [], gitignore, skippedDirectories } = {},
+) {
     const blocks = [];
-    walk(rootDir, (file) => {
-        const ext = extOf(file);
-        if (!SRC_EXTS.has(ext)) return;
-        if (excludeTestFiles && TEST_MARKERS.some((marker) => file.includes(marker))) return;
-        if (generatedOutputReason(file)) return;
-        let src;
-        try {
-            src = readFileSync(file, 'utf8');
-        } catch {
-            return;
-        }
-        blocks.push(...extractStructuralBlocks(src, file));
-    });
+    const ignore = gitignore ?? createGitignore(rootDir);
+    const skipped = skippedDirectories ?? new Map();
+    walk(
+        rootDir,
+        (file) => {
+            const ext = extOf(file);
+            if (!SRC_EXTS.has(ext)) return;
+            if (excludeTestFiles && TEST_MARKERS.some((marker) => file.includes(marker))) return;
+            if (generatedOutputReason(file)) return;
+            let src;
+            try {
+                src = readFileSync(file, 'utf8');
+            } catch {
+                return;
+            }
+            blocks.push(...extractStructuralBlocks(src, file));
+        },
+        ignore,
+        skipped,
+    );
 
     const byKey = new Map();
     for (const block of blocks) {
@@ -682,7 +862,7 @@ export function scanStructural(rootDir, { excludeTestFiles = true, excludedSigna
             reason: `structurally identical block (${group[0].tokens.length} tokens) in ${group.length} places — likely a missing shared helper`,
         });
     }
-    return { candidates, downgraded };
+    return { candidates, downgraded, skippedDirectories: [...skipped.values()] };
 }
 
 // Load the known-intentional exclusion registry. Reads an explicit path when
@@ -694,8 +874,7 @@ function loadExclusions(dir, explicitPath) {
     try {
         parsed = JSON.parse(readFileSync(path, 'utf8'));
     } catch (err) {
-        console.error(`Failed to read exclusions at ${path}: ${err.message}`);
-        process.exit(2);
+        throw new Error(`Failed to read exclusions at ${path}: ${err.message}`);
     }
     return Array.isArray(parsed.excludedSignatures) ? parsed.excludedSignatures : [];
 }
@@ -718,11 +897,19 @@ function main(argv) {
         else if (!arg.startsWith('--')) dir = arg;
         else {
             console.error(`Unknown option: ${arg}`);
-            process.exit(2);
+            process.exitCode = 2;
+            return;
         }
     }
 
-    const excludedSignatures = loadExclusions(dir, exclusionsPath);
+    let excludedSignatures;
+    try {
+        excludedSignatures = loadExclusions(dir, exclusionsPath);
+    } catch (err) {
+        console.error(err.message);
+        process.exitCode = 2;
+        return;
+    }
 
     let result;
     try {
@@ -732,7 +919,8 @@ function main(argv) {
         });
     } catch (err) {
         console.error(`Failed to scan ${dir}: ${err.message}`);
-        process.exit(2);
+        process.exitCode = 2;
+        return;
     }
 
     if (json) {
@@ -775,6 +963,15 @@ function main(argv) {
                 console.log(`  - ${relative(process.cwd(), s.file)} (${s.reason})`);
             }
         }
+        if (result.skippedDirectories?.length > 0) {
+            console.log(
+                `\nWARNING: ${result.skippedDirectories.length} directory/directories skipped as ignored ` +
+                    `(not scanned for duplication):`
+            );
+            for (const s of result.skippedDirectories) {
+                console.log(`  - ${relative(process.cwd(), s.dir)} (${s.reason})`);
+            }
+        }
     }
 
     if (maxStructural !== null) {
@@ -782,17 +979,23 @@ function main(argv) {
         if (!json) console.log(`Structural candidates: ${count} (cap ${maxStructural}).`);
         if (count > maxStructural) {
             if (!json) console.error(`\nFAIL: ${count} structural candidate(s) > cap ${maxStructural}.`);
-            process.exit(1);
+            process.exitCode = 1;
+            return;
         }
     }
 
     if (failOn !== null && result.ratio >= failOn) {
-        if (!json) console.error(`\nFAIL: duplication ratio ${pct}% >= threshold ${failOn * 100}%.`);
-        process.exit(1);
+        if (!json) {
+            console.error(`\nFAIL: duplication ratio ${(result.ratio * 100).toFixed(1)}% >= threshold ${failOn * 100}%.`);
+        }
+        process.exitCode = 1;
     }
-    process.exit(0);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+    // Set `process.exitCode` and let the process end on its own: an explicit
+    // process.exit() after a large report drops whatever is still in the pipe
+    // buffer (a 199 KB report arrived as exactly 65,536 bytes), so a caller
+    // reading a pipe got truncated JSON.
     main(process.argv);
 }

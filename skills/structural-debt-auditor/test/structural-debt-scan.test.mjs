@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { scanDuplication } from '../scripts/structural-debt-scan.mjs';
 
+/** The CLI under test, resolved once for the cases that spawn it. */
+const script = new URL('../scripts/structural-debt-scan.mjs', import.meta.url).pathname;
+
 function makeFixture(files) {
     const dir = mkdtempSync(join(tmpdir(), 'sda-'));
     for (const [relPath, content] of Object.entries(files)) {
@@ -1098,6 +1101,198 @@ test('ignores a structural-scope declaration signature in the declaration scan',
         });
         assert.ok(result.candidates.some((c) => c.pattern_signature === 'function_parseThing'));
         assert.ok(!result.downgraded.some((entry) => entry.reason === 'structural only'));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// .gitignore handling. A local mutation run leaves a full copy of the package in
+// `.stryker-tmp/`; scanning it as source reported 241 false candidates once.
+// ---------------------------------------------------------------------------
+
+function scanJson(dir, ...args) {
+    const run = spawnSync('node', [script, dir, '--json', ...args], { encoding: 'utf8' });
+    return { status: run.status, json: JSON.parse(run.stdout) };
+}
+
+const PARSE_THING = 'export function parseThing(raw: unknown): string { return String(raw); }\n';
+
+test('skips a tree ignored by a .gitignore above the scan root', () => {
+    const dir = makeFixture({
+        '.git/keep': '',
+        '.gitignore': '**/.stryker-tmp/\n',
+        'packages/pkg/src/a.ts': PARSE_THING,
+        'packages/pkg/.stryker-tmp/src/a.ts': PARSE_THING,
+    });
+    try {
+        const { status, json } = scanJson(join(dir, 'packages'), '--fail-on=0.001');
+        assert.equal(status, 0);
+        assert.deepEqual(json.candidates, []);
+        assert.ok(json.skippedDirectories.some((s) => s.dir.endsWith('.stryker-tmp')));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('honours a .gitignore inside the scanned tree', () => {
+    const dir = makeFixture({
+        'pkg/.gitignore': 'sandbox/\n',
+        'pkg/src/a.ts': PARSE_THING,
+        'pkg/sandbox/a.ts': PARSE_THING,
+    });
+    try {
+        const { status, json } = scanJson(dir, '--fail-on=0.001');
+        assert.equal(status, 0);
+        assert.deepEqual(json.candidates, []);
+        assert.ok(json.skippedDirectories.some((s) => s.dir.endsWith('sandbox')));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('still scans a generated-looking directory no .gitignore ignores', () => {
+    const dir = makeFixture({
+        'pkg/src/a.ts': PARSE_THING,
+        'pkg/.stryker-tmp/src/a.ts': PARSE_THING,
+    });
+    try {
+        const { status, json } = scanJson(dir, '--fail-on=0.001');
+        assert.equal(status, 1);
+        assert.ok(json.candidates.length > 0);
+        assert.deepEqual(json.skippedDirectories ?? [], []);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not abort the scan on a malformed .gitignore pattern', () => {
+    const dir = makeFixture({
+        '.gitignore': '[z-a]\n',
+        'src/a.ts': PARSE_THING,
+        'src/b.ts': PARSE_THING,
+    });
+    try {
+        const { status, json } = scanJson(dir, '--fail-on=0.001');
+        assert.equal(status, 1);
+        assert.ok(json.candidates.length > 0);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('reports an ignored directory in the CLI output', () => {
+    const dir = makeFixture({
+        '.gitignore': 'generated/\n',
+        'src/a.ts': PARSE_THING,
+        'generated/a.ts': PARSE_THING,
+    });
+    try {
+        const run = spawnSync('node', [script, dir, '--fail-on=0.001'], { encoding: 'utf8' });
+        assert.equal(run.status, 0);
+        assert.match(run.stdout, /skipped/);
+        assert.match(run.stdout, /generated/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('reads the glob forms git actually uses for directories', () => {
+    const dir = makeFixture({
+        '.gitignore': [
+            '# comment',
+            '',
+            'cache?/',          // single-character wildcard
+            '[ab]cache/',       // character class
+            'v1.0/',            // a regex metacharacter, escaped by the translator
+            '/anchored/',       // anchored to the ignore file's directory
+        ].join('\n'),
+        'src/a.ts': PARSE_THING,
+        'cache1/a.ts': PARSE_THING,
+        'bcache/a.ts': PARSE_THING,
+        'v1.0/a.ts': PARSE_THING,
+        'anchored/a.ts': PARSE_THING,
+        'nested/anchored/a.ts': PARSE_THING,
+    });
+    try {
+        const { json } = scanJson(dir, '--fail-on=0.001');
+        const skipped = json.skippedDirectories.map((s) => s.dir);
+        assert.ok(skipped.some((s) => s.endsWith('cache1')));
+        assert.ok(skipped.some((s) => s.endsWith('bcache')));
+        assert.ok(skipped.some((s) => s.endsWith('v1.0')));
+        assert.ok(skipped.some((s) => s.endsWith('anchored') && !s.includes('nested')));
+        // The anchored rule does not reach a same-named directory below.
+        assert.ok(!skipped.some((s) => s.includes('nested')));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('a negated rule re-includes a directory inside an ignored one', () => {
+    const dir = makeFixture({
+        '.gitignore': 'generated/\n!generated/keep/\n',
+        'src/a.ts': PARSE_THING,
+        'generated/drop/a.ts': PARSE_THING,
+        'generated/keep/b.ts': PARSE_THING,
+    });
+    try {
+        const { json } = scanJson(dir, '--fail-on=0.001');
+        const skipped = json.skippedDirectories.map((s) => s.dir);
+        assert.ok(skipped.some((s) => s.endsWith('generated')));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('a directory-only rule does not skip a file of the same name', () => {
+    const dir = makeFixture({
+        '.gitignore': 'build/\n',
+        'src/a.ts': PARSE_THING,
+        'src/build': 'export const build = 1;\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.fileCount, 2);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('scans every language the extractor table claims', () => {
+    const dir = makeFixture({
+        'a/A.kt': 'fun parseThing(raw: String): String { return raw }\n',
+        'b/B.java': 'class B { String parseThing(String raw) { return raw; } }\n',
+        'c/c.py': 'def parse_thing(raw):\n    return str(raw)\n',
+        'd/d.gleam': 'pub fn parse_thing(raw: String) -> String { raw }\n',
+    });
+    try {
+        const result = scanDuplication(dir);
+        assert.equal(result.fileCount, 4);
+        assert.ok(result.totalDeclarations > 0);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('exits 2 with a message when the exclusions file cannot be read', () => {
+    const dir = makeFixture({ 'src/a.ts': PARSE_THING, 'broken.json': '{ not json' });
+    try {
+        const run = spawnSync('node', [script, dir, '--exclusions=' + join(dir, 'broken.json')], {
+            encoding: 'utf8',
+        });
+        assert.equal(run.status, 2);
+        assert.match(run.stderr, /exclusions/i);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('exits 2 on an unknown option instead of scanning anyway', () => {
+    const dir = makeFixture({ 'src/a.ts': PARSE_THING });
+    try {
+        const run = spawnSync('node', [script, dir, '--nonsense'], { encoding: 'utf8' });
+        assert.equal(run.status, 2);
+        assert.match(run.stderr, /Unknown option/);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
