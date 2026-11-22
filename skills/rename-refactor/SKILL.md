@@ -40,6 +40,29 @@ symbols across files.
    state (`pcp_done` / `scripts/commit.sh`). A rename that leaves a stale reference is not
    done — the analyzer/test suite is the no-consumer proof.
 
+## Entity-wide term renames
+
+A rename of the same *term* across the whole codebase (a domain concept renamed, not one
+symbol) is a different operation from the symbol workflow above. It is a scripted transform,
+not a manual sweep:
+
+1. **Protect legacy tokens first.** List the identifiers that must *not* move — persisted
+   field names, historical migration scripts, and protocol strings kept for compatibility —
+   and replace them with sentinels before the term change, restoring them afterwards. A blind
+   `Palette → Project` replacement once turned the persisted `paletteItem` marker into
+   `projectItem` in a documentation pass.
+2. **Order the replacements longest-first.** `Palettes → Projects`, `palettes → projects`,
+   `Palette → Project`, `palette → project`, plus any ALL-CAPS constants, so a shorter token
+   cannot break a longer one.
+3. **Scope the transform to live code.** Exclude historical one-off scripts and archived
+   notes, which name the old term deliberately.
+4. **Run the compiler as the oracle.** The bulk edit is not done when the string count is
+   zero; it is done when `type-check` passes and the suites are green, then review the diff
+   for prose and test titles the script could not judge.
+5. **Rename files and directories with `git mv`** in the same pass, and keep the gate green
+   at the commit boundary; a term rename that spans packages cannot be split into green
+   intermediate commits, so plan it as one deliverable.
+
 ## What the helper does not do
 
 - It does not rename behaviour, string values or prose meaning; review the diff.

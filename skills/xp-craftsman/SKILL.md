@@ -110,6 +110,7 @@ Writing a test that fails is the easy part. Writing tests that drive good design
   - **Triangulate** — Add a second, distinct test example that forces the abstraction to generalize. Use when Fake It has produced too many special cases.
   - **Obvious Implementation** — Write the real implementation directly. Use only when you are certain of the design and the test has already validated your understanding.
 - **Never Refactor on RED** — You may only change the structure of the code (rename, extract, inline) when all tests pass. Changing structure on a failing test means you cannot tell whether the breakage is from the refactor or the unfinished implementation.
+- **A Rewrite Begins by Porting the Tests** — When replacing a module rather than editing it, move or restate its tests first and watch them fail against the old behaviour you intend to change; the ported suite is the specification you must not lose. Writing the replacement first turns TDD into test-after and silently drops the cases the old tests pinned — a rewritten route module that kept its old tests deleted wrote the implementation first and cost a dedicated test-recovery pass.
 - **Tests Are Executable Documentation** — A new developer should be able to understand what the system does by reading the test names alone. If a test name does not tell them what guarantee it provides, rename it.
 
 ## 13. Emergent Design
