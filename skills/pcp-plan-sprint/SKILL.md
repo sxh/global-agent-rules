@@ -42,6 +42,14 @@ Sprint 完成后，逐条规划 backlog 中的待处理项，决定每项的去�
 
 **先做复用门禁（在切任务之前）。** 若待规划项涉及的概念已经在另一处存在（同一张卡片/布局/逻辑在另一个系统或另一个表面上的实现），先列出同类表面与其现有实现，并在计划中明确「复用 X」或「先抽取 Y 作为第一个任务」。共享原语的抽取是 sprint 的第一个任务，不是后续 backlog 项；计划里没有复用点的 UI 任务不得进入 sprint。这一步用三行写完，不许跳过——2026-11-22 就因为在计划阶段没有做，D&D 的 Inventory 卡片与 PF2e 的 Equipment 行各自实现了一遍。
 
+每个涉及 UI 的任务必须在计划里带一行复用点，格式固定、可直接粘进 commit：
+
+```
+UI-Inventory: sibling=<同类表面>; reuse=<已有的 primitive 及其文件> | extract=<要先抽取的 primitive> | none=<为什么确实没有同类表面>
+```
+
+缺这一行，或写 `none` 却不给理由，该任务不得进入 sprint。这不是仪式：项目的 `scripts/check-pcp-task.sh` 在提交触碰 `packages/combat_app/lib/screens/**` 时要求同名的 commit trailer（`UI-Inventory: …`），正文里必须出现 `reuse`、`extract` 或 `none`，缺了提交会被拒。计划阶段漏写，到提交时就会被拦下来重做——所以先写在这里。
+
 输出：
 ```
 📋 Sprint 规划开始，共 N 项待处理。逐条过一遍，每项你来决定。

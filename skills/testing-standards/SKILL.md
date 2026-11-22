@@ -152,6 +152,10 @@ A field on a source-neutral model must be asserted for every origin the model ac
 
 A style request without a target is unbounded; measure a reference gap, token or screenshot before adjusting spacing, then assert the measured geometry. Equipment row spacing changed four times in one session before a measured gap and a 0.8 checkbox scale settled it.
 
+### A Layout or Style Claim Needs a Renderer
+
+Without a renderer, style assertions are unfalsifiable: jsdom does not paint, so a test can pass while the element is invisible. Tree connector lines were "verified" in a jsdom suite and shipped absent, because the rules relied on a positioned span that nothing under jsdom computes. When the claim is visual (a connector, a sticky header, a colour, an alignment), render the markup against the stylesheet in a real browser and keep the artefact, then assert on it — a screenshot's existence, size and signature at minimum, a sampled colour where the claim is a colour. Two constraints: author the fixture against the stylesheet's own selectors when CSS modules hash class names at build time (the check is about the rules, not the hash), and fail loudly with the fix when no browser is present (point at `CHROME_PATH`) rather than skipping — a missing renderer means the claim is unverified, not verified. Composition: render on demand for the feature, and keep the hermetic discovery/failure paths in the permanent suite.
+
 ### Verify Algorithm Scenarios Before Implementing
 
 Before implementing a sorting, ranking, or volume-sensitive algorithm, restate the expected output for realistic scenarios (small change, large jump, multiple moves) and confirm before coding. Otherwise the implementation encodes the wrong definition of the goal.
