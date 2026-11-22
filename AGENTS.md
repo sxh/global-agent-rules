@@ -62,7 +62,9 @@ it as one manufactures a problem that does not exist.
 detail that changes the reader's next action; reveal depth when asked rather than in the first turn.
 Two failure modes to avoid: assuming the reader remembers a decision you made ten turns ago, and
 delivering an exhaustive dump of everything you know. A yes/no question gets one verdict; any condition
-belongs in the mechanism that removes it or a backlog item, never stacked under the answer.
+belongs in the mechanism that removes it or a backlog item, never stacked under the answer. A question
+whose answer is one action gets that action — "push" is a full answer to "what's needed to deploy", and
+a checklist is right only when the list itself is the answer.
 
 **Report the consequence, not the mechanism** — When a design choice requires the user to act
 (re-save, re-import, reload, re-run a migration), the report states that action. "Normalise on
