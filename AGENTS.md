@@ -173,12 +173,10 @@ infrastructure configuration, testing, or refactoring, load `skills/xp-craftsman
 start of the session and follow it unless the user overrides a specific deviation for that session.
 Do not wait for a trigger phrase.
 
-**Resolve skills yourself** — Do not require the user to remember skill names or trigger phrases.
-When asked for an audit, review, or analysis in natural language, scan `skills/` and match the best
-fit automatically. The `skill` tool only knows pre-registered skills; for skills at explicit paths,
-read the SKILL.md and follow it for that session so the latest version is always used.
-
-Triggers: "run retrospective" / "reflect on session" → `skills/retrospective/SKILL.md`.
+**Resolve skills yourself** — Do not require the user to remember skill names or trigger phrases; when asked
+for an audit, review, or analysis, scan `skills/` and match the best fit automatically. The `skill` tool only
+knows pre-registered skills; for an explicit path, read the SKILL.md and follow it for that session. E.g. "run
+retrospective" / "reflect on session" loads `skills/retrospective/SKILL.md`.
 
 ## Where things live
 
