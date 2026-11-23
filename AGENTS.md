@@ -110,7 +110,10 @@ root-only scripts (`npm run format`), inline scripts and heredocs. Never prefix 
 **File edits use the edit tool** — Use the structured edit tool (`edit`/`write`) for every file
 edit; never edit files through a shell heredoc (`python - <<`, `cat >`, `sed -i`, `perl -i`).
 If a bulk transform genuinely needs a script, run it from the repository root with no `workdir`
-and use absolute paths.
+and use absolute paths. `shell/shell-edit-guard.zsh` (sourced from `~/.zshenv`, so every shell
+reads it) refuses those forms with exit 1 on stderr — a refusal you suppressed with `2>/dev/null`
+or a pipe is a no-op you invented, so read it before concluding nothing happened. A genuine bulk
+edit overrides with `ALLOW_SHELL_EDITS=1`.
 
 **Commit messages are written to a file** — Pass `git commit -F <file>`; a message supplied
 inline with `-m` is expanded by the shell before git sees it (backticks, quotes), so verbatim
