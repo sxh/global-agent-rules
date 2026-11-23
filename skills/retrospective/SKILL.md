@@ -286,6 +286,11 @@ check Step 5 applies to incident entries. Check, in order:
 2. **Already an entry** — run Step 5's coverage check against `docs/incidents.md`, the
    contract, and the relevant skill.
 3. **Already in the tracker** — grep the backlog and queue (or the project's issue list) for the same principle before capturing it.
+4. **Already a mechanism** — a finding that proposes a hook, guard, plugin, lint rule or helper
+   must first grep the config (`plugins/`, `shell/`, `scripts/`, `skills/`) and the project for one
+   that already covers the concept; a second mechanism for an existing concept is a defect, not
+   defence in depth. On 2026-11-23 a second shell-edit guard was drafted beside a working one whose
+   refusal had merely been filtered out of the output.
    If any holds, do not create the item: refine the existing artefact, or close the
    finding with no action.
 
