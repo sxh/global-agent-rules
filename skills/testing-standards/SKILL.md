@@ -73,6 +73,16 @@ A test that waits for an asynchronous outcome must synchronize on the outcome it
 
 Example: `scheduler4`'s `tests/process-teardown-test.sh` sampled a killed tree once after `sleep 0.3` and flaked in CI (`survived: 419`). Polling to a deadline is necessary but was not sufficient there: the tree read as alive because the check treated a *zombie* as alive (see the next section).
 
+### A Test Deadline Is a Machine Assumption, Not a Test Budget
+
+A per-test timeout is a guess about how fast the machine is, not a property of the test; inherited from the runner's default it silently encodes the laptop it was written on. A test that awaits nothing cannot hang, so a timeout on it always means the worker was starved — the defect is the budget, and the evidence is the failure's own reported duration.
+
+- Set `testTimeout`/`hookTimeout` (or the runner's equivalent) explicitly, with the reason and the observed worst case recorded beside them, and pin them with a config test so the margin cannot be removed silently.
+- Choose between the two cases on evidence, not instinct: work the timeout can bound (a real O(n²), a slow query) is a performance finding about the code; a reported duration far outside the test's normal runtime, or a test with no awaits, is starvation. Read the failure's message before deciding.
+- Reproducing a suspected flake means reproducing its condition — extra CPU-bound processes, a cold transform cache, a concurrent gate. Repeating the clean run proves nothing, and an unrealistically saturated machine manufactures a different failure than the one observed.
+
+Example: paints-app, 2026-11-24 — a synchronous jsdom test that normally runs in 1ms was reported as "Test timed out in 5000ms" with a 271s duration while CPU-bound work shared the machine. The suite now sets an explicit 20s budget in `packages/web/vitest.config.ts`, pinned by `tests/vitest-config.test.ts`.
+
 ### Liveness Is Process State, Not Existence
 
 A process's PID entry existing is not the same as the process running: `kill -0` (and `process.kill(pid, 0)`) succeeds for a **zombie** — a dead process its parent has not reaped — so a poll-until-dead assertion can hang wherever nothing reaps orphans, notably a container whose PID 1 is not an init. Read the process state and treat `Z` as dead (`ps -o stat= -p <pid>`; both macOS and Linux report `Z`).
