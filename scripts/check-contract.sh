@@ -102,8 +102,13 @@ SKILLS_DIR="${SKILLS_DIR:-$ROOT/skills}"
 PLUGINS_DIR="${PLUGINS_DIR:-$ROOT/plugins}"
 TEST_COUNT="$(find "$SKILLS_DIR" "$PLUGINS_DIR" -path '*/test/*.test.mjs' 2>/dev/null | wc -l | tr -d ' ')"
 if [ "$TEST_COUNT" -gt 0 ]; then
+  # The hook runs under `git commit`, which exports GIT_DIR/GIT_INDEX_FILE. A fixture that
+  # `git init`s a temp repo and inherits them acts on THIS repository instead: one fixture's
+  # `git commit` put a "base" commit on main, another's `git add` staged two files nobody
+  # staged (2026-11-24). The suite runs in a clean git environment, always.
   if out="$(find "$SKILLS_DIR" "$PLUGINS_DIR" -path '*/test/*.test.mjs' -print0 2>/dev/null \
-      | xargs -0 node --test --experimental-test-coverage 2>&1)"; then
+      | xargs -0 env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX -u GIT_COMMON_DIR \
+          node --test --experimental-test-coverage 2>&1)"; then
     cov="$(printf '%s\n' "$out" | awk -F'|' '/all files/ {gsub(/ /, "", $2); print $2; exit}')"
     echo "tests: $TEST_COUNT test file(s) passed (coverage ${cov:-n/a}% lines)"
     # A missing or non-numeric coverage value counts as 0 and therefore fails the floor.
