@@ -49,6 +49,7 @@ export type FormatOutcome =
         | "no-file-path"
         | "outside-workspace"
         | "not-a-file"
+        | "prettier-ignores-path"
         | "no-prettier";
     }
   | { status: "formatted"; file: string }
@@ -144,6 +145,14 @@ function firstLine(text: string): string | null {
   return line === undefined ? null : line.slice(0, 300);
 }
 
+/**
+ * Prettier answering that the path matches no file it formats — it refuses `.git/` by
+ * default (B302). That is a non-zero exit like any other failure, but it says nothing about
+ * the file's content, so it is a skip: reporting it as a syntax error made every commit
+ * message written under `.git/` come back as "the file may not parse".
+ */
+const PRETTIER_MATCHED_NOTHING = /no matching files/i;
+
 /** Run prettier on one file. Never throws: a formatter failure is reported, not raised. */
 export function runPrettier(
   binary: string,
@@ -162,6 +171,9 @@ export function runPrettier(
   );
   if (result.error || result.status !== 0) {
     const message = firstLine(result.stderr ?? "");
+    if (message !== null && PRETTIER_MATCHED_NOTHING.test(message)) {
+      return { status: "skipped", reason: "prettier-ignores-path" };
+    }
     return message ? { status: "failed", file, message } : { status: "failed", file };
   }
   return { status: "formatted", file };

@@ -58,6 +58,17 @@ process.stderr.write("[error] a.ts: SyntaxError: Unexpected token (1:13)\\n");
 process.exit(2);
 `;
 
+/**
+ * A formatter asked for a path it matches nothing under, the way prettier answers a file
+ * inside `.git/`: a non-zero exit and a message that complains about no such file, not
+ * about the file's content.
+ */
+const PRETTIER_MATCHES_NOTHING = `#!/usr/bin/env node
+const file = process.argv[process.argv.length - 1];
+process.stderr.write("No matching files. Patterns: " + file + "\\n");
+process.exit(2);
+`;
+
 function installPrettier(root, body = PRETTIER_OK) {
   const bin = path.join(root, 'node_modules', '.bin', 'prettier');
   put(bin, body);
@@ -345,4 +356,22 @@ test("passes on prettier's own complaint, so the file's syntax error is named", 
   assert.equal(outcome.status, 'failed');
   assert.match(outcome.message, /Unexpected token/);
   assert.match(formatNotice('wrote a.ts', outcome), /Unexpected token/);
+});
+
+// A path prettier matches nothing for is not a file the project's gate looks at — `.git/`
+// is the everyday case, since prettier refuses it by default. Its "no matching files"
+// answer is a non-zero exit like any other, so it read as a syntax error and every commit
+// message written under `.git/` came back with "the file may not parse".
+test('treats a path prettier matches nothing for as skipped, not failed', () => {
+  const ws = workspace();
+  put(path.join(ws, '.prettierrc'), '{}\n');
+  installPrettier(ws, PRETTIER_MATCHES_NOTHING);
+  const file = path.join(ws, 'a.ts');
+  put(file, 'const answer=42;\n');
+
+  const outcome = format('write', { filePath: file }, ws);
+
+  assert.equal(outcome.status, 'skipped');
+  assert.equal(formatNotice('wrote a.ts', outcome), null);
+  assert.equal(readFileSync(file, 'utf8'), 'const answer=42;\n');
 });
