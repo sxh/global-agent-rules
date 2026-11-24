@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Project pre-push gate — TEMPLATE. Copy to hooks/pre-push, uncomment the gates this project
+# needs, then install: cp hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+#
+# The push tier is where the FULL gate belongs: every suite at the coverage threshold,
+# integration against real collaborators, the client e2e seam, the production build and the
+# smoke test. The pre-commit hook judges only the staged diff, so without this hook those
+# checks exist on no developer machine at all — the commit tier would be the whole gate.
+#
+# Keep this file's contents equal to what CI runs (a gate-parity test asserts it), so a push
+# and a clean CI checkout cannot disagree.
+
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# One gate run at a time: the full suite competes with any commit tier already running, and
+# two runs on one machine have produced a false failure. See scripts/gate-lock.sh.
+# shellcheck source=scripts/gate-lock.sh
+# . "$ROOT/scripts/gate-lock.sh"
+# gate_lock_hold pre-push
+
+# The full gate, as one entry point (also what CI runs):
+# ./runTests.sh
+
+# ...or the steps directly, when the project has no single full-gate script:
+# npm run lint && npm run type-check       # cheap and already covered by the commit tier
+# npm test --workspaces                    # every suite, coverage thresholds enforced by config
+# npm run test:integration                 # real collaborators (emulator or test stage)
+# npm run test:e2e                         # the client seam, where one exists
+# npm run build                            # production build
+# ./scripts/smoke-test.sh                  # the built output starts and its entry point loads

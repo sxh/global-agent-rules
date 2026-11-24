@@ -10,8 +10,9 @@
 # actually gate. That axis is judgement; this script is its mechanical half.
 #
 # HOW IT RESOLVES THE GATE:
-#   1. Finds the hook: hooks/pre-commit, .husky/pre-commit, $(git config core.hooksPath)/pre-commit,
-#      or .git/hooks/pre-commit. Husky v9 sets core.hooksPath and installs nothing in .git/hooks.
+#   1. Finds the hooks: hooks/pre-commit, .husky/pre-commit, $(git config core.hooksPath)/pre-commit,
+#      or .git/hooks/pre-commit — and the pre-push hook by the same search, because the full suite
+#      legitimately runs there (the push tier). A gate in either hook is a live gate.
 #   2. Follows indirection: a hook that just calls ./runTests.sh IS a gate — the gates live there.
 #      Referenced shell scripts and package.json scripts are followed two levels deep.
 #   3. Classifies each gate from the text that actually runs: ACTIVE, COMMENTED, STUB, ABSENT,
@@ -49,6 +50,13 @@ hooks_path="$(git config --get core.hooksPath 2>/dev/null || true)"
 hook_file=""
 for cand in hooks/pre-commit .husky/pre-commit ${hooks_path:+$hooks_path/pre-commit} .git/hooks/pre-commit; do
   if [ -f "$cand" ]; then hook_file="$cand"; break; fi
+done
+
+# The push tier is part of the gate chain: a project that runs the full suite at pre-push is
+# gated, not ungated. Resolve it too, or every gate that moved up a tier reads as ABSENT.
+push_file=""
+for cand in hooks/pre-push .husky/pre-push ${hooks_path:+$hooks_path/pre-push} .git/hooks/pre-push; do
+  if [ -f "$cand" ]; then push_file="$cand"; break; fi
 done
 
 strip_comments() { grep -vE '^[[:space:]]*#' "$1" 2>/dev/null; }
@@ -165,12 +173,18 @@ follow_ref() {
 build_corpus() {
   : > "$CORPUS"
   : > "$SEEN"
-  [ -n "$hook_file" ] || return 0
-  printf '##SRC:hook:%s\n' "$hook_file" >> "$CORPUS"
-  strip_comments "$hook_file" >> "$CORPUS"
+  add_hook "$hook_file"
+  add_hook "$push_file"
+}
+
+add_hook() {
+  local file="$1"
+  [ -n "$file" ] || return 0
+  printf '##SRC:hook:%s\n' "$file" >> "$CORPUS"
+  strip_comments "$file" >> "$CORPUS"
   # while-read, not `for t in $(...)`: references contain spaces ("npm run test:all"), and word
   # splitting would shred them into unusable tokens and silently truncate the chain.
-  grep -oE "$REF_RE" "$hook_file" | sort -u | while IFS= read -r t; do
+  grep -oE "$REF_RE" "$file" | sort -u | while IFS= read -r t; do
     follow_ref "$t" 1
   done
 }
@@ -281,7 +295,7 @@ report() {
 }
 
 check_gate() {
-  local name="$1" pattern="$2" note="$3" res src line text inv stubcheck=0
+  local name="$1" pattern="$2" note="$3" res src line text inv stubcheck=0 commented_in="" h=""
   res="$(scan_corpus "$pattern")" || res=""
 
   if [ -n "$res" ]; then
@@ -301,8 +315,12 @@ check_gate() {
     return
   fi
 
-  if [ -n "$hook_file" ] && grep -qE "^[[:space:]]*#[[:space:]]*.*($pattern)" "$hook_file" 2>/dev/null; then
-    if excluded "$name"; then report "$name" "EXCLUDED" ""; else report "$name" "COMMENTED" "commented out in $hook_file"; fi
+  for h in "$hook_file" "$push_file"; do
+    [ -n "$h" ] || continue
+    grep -qE "^[[:space:]]*#[[:space:]]*.*($pattern)" "$h" 2>/dev/null && { commented_in="$h"; break; }
+  done
+  if [ -n "$commented_in" ]; then
+    if excluded "$name"; then report "$name" "EXCLUDED" ""; else report "$name" "COMMENTED" "commented out in $commented_in"; fi
     return
   fi
 
@@ -314,12 +332,12 @@ check_gate() {
     report "$name" "N/A" "not applicable to this project"
     return
   fi
-  report "$name" "ABSENT" "no gate in the hook chain${hook_file:+ ($hook_file)}"
+  report "$name" "ABSENT" "no gate in the hook chain${hook_file:+ ($hook_file)}${push_file:+ ($push_file)}"
 }
 
 echo "gate conformance: $ROOT"
 echo
-echo "hook chain: ${hook_file:-NONE}${hooks_path:+  [core.hooksPath=$hooks_path]}"
+echo "hook chain: ${hook_file:-NONE}${push_file:+ + $push_file}${hooks_path:+  [core.hooksPath=$hooks_path]}"
 if [ -n "$hook_file" ]; then
   ind="$(grep -oE "$REF_RE" "$hook_file" | sort -u | tr '\n' ' ')"
   echo "  invokes:  ${ind:-(direct commands)}"
@@ -329,10 +347,10 @@ echo
 if ! is_code_project; then
   echo "  (non-code repository: no build manifest — application gates do not apply)"
   echo
-  if [ -n "$hook_file" ]; then
-    printf '  %-12s %-10s %s\n' "repo-gate" "PRESENT" "$hook_file (the repository's own check)"
+  if [ -n "$hook_file" ] || [ -n "$push_file" ]; then
+    printf '  %-12s %-10s %s\n' "repo-gate" "PRESENT" "${hook_file:-$push_file} (the repository's own check)"
     echo
-    echo "RESULT: conforms as a non-code repository — its gate is $hook_file"
+    echo "RESULT: conforms as a non-code repository — its gate is ${hook_file:-$push_file}"
     exit 0
   fi
   if excluded repo-gate; then

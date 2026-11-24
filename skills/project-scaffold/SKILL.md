@@ -15,10 +15,17 @@ template, CI workflow YAML, or config — not prose the agent has to remember.
 
 | Template | Copy to | Purpose |
 |---|---|---|
-| `templates/pre-commit` | `hooks/pre-commit`, then into `.git/hooks/` | The gate: format, lint, type-check, tests, coverage, generated-artefact freshness, FFI guard, smoke test, plus stale-build cleanup on rename/delete |
+| `templates/pre-commit` | `hooks/pre-commit`, then into `.git/hooks/` | The commit tier: format, lint, type-check, affected suites, changed-line coverage, generated-artefact freshness, FFI guard, plus stale-build cleanup on rename/delete |
+| `templates/pre-push` | `hooks/pre-push`, then into `.git/hooks/` | The push tier: full suites at the coverage threshold, integration, e2e, build + smoke |
+| `templates/commit-task.sh` | `scripts/commit-task.sh` | Stage → preflight → affected suites → changed-line coverage → receipt → commit, in that order |
 | `templates/post-commit` | `hooks/post-commit`, then into `.git/hooks/` | Commit audit trail; records each commit and flags `--no-verify` bypasses |
 | `templates/start.sh` | `start.sh` (project root, executable) | Dev entry point with process-tree teardown, so Ctrl-C cannot orphan a dev server |
 | `templates/ci.yml` | `.github/workflows/gate.yml` | The canonical gate in a pristine checkout; deploys gated to main/tags |
+| `scripts/gate-lock.sh` | `scripts/gate-lock.sh` | One gate run at a time, with nested-run detection and dead-pid reclaim |
+| `scripts/gate-receipt.sh` | `scripts/gate-receipt.sh` | Content-addressed proof the commit tier judged this exact staged tree |
+| `scripts/prove-gate.sh` | `scripts/prove-gate.sh` | Prove a gate fails when the behaviour it guards is broken |
+| `scripts/run-suite.ts` | `scripts/run-suite.ts` | Run a suite so a failure leaves `.gate/<suite>-failures.json` behind |
+| `scripts/check-changed-line-coverage.ts` | `scripts/check-changed-line-coverage.ts` | Fail a diff whose added or modified lines no test executes (TypeScript/istanbul layout) |
 
 The static-analysis row is stack-specific: name the tool that actually exists. For Dart/Flutter that is `flutter analyze`, not `tsc` — an ungated analyzer lets its findings accumulate and be dismissed as "pre-existing". Wire it into both the hook and CI, and assert parity (see the gate-parity test pattern).
 
@@ -93,20 +100,36 @@ Scaffolding is a decision, not a default. Before creating a build, hooks, CI, an
   - Must be executable (`chmod +x start.sh`)
   - Must start the application in a way that users/developers can run it locally
 
-### Required Git Precommit Hooks
+### Gate tiers — one canonical run per tier
 
-Every project must have a precommit hook (at `hooks/pre-commit` or `.git/hooks/pre-commit`) that runs:
-1. **Linting** - Check code style/formatting
-2. **Tests** - Run the full test suite
-3. **Coverage** - Verify code coverage is at least **95%**
-4. **Integration tests** - Exercise the real collaborators (datastore, IdP, HTTP), not mocks; unit tests with mocks are not evidence that a slice works. Where a real dependency is needed, run a local emulator (e.g. DynamoDB Local) or a test stage in the hook/CI.
-5. **Smoke test** (for desktop/web apps) - Verify the app builds and launches without errors
-For desktop apps (Electron, Tauri, etc.) and web apps, unit tests alone are not sufficient. The smoke test must verify:
+A project has three gate tiers, and every gate belongs to exactly one of them:
+
+| Tier | Entry point | Contents | Target |
+|---|---|---|---|
+| **Preflight** | `scripts/preflight.sh`, called before `pcp_done` and by a docs/PCP-only commit | format, lint, type-check/analyze, structural caps | seconds |
+| **Commit** | `hooks/pre-commit` | preflight + the suites of the packages the staged diff touches + changed-line coverage | under a minute |
+| **Push** | `hooks/pre-push` and CI | full suites at the coverage threshold, integration, e2e, build + smoke | the whole truth |
+
+The full gate belongs to the push, not to every commit. A commit tier that re-runs every suite
+makes the agent batch changes to avoid a five-minute wait, which is the opposite of the small
+verified commits the protocol asks for. The commit tier still judges **exactly what the commit
+contains** (the staged-tree rule below), so "no commit on a red gate" means the commit tier, and
+"nothing leaves this machine unverified" means the push tier. Both tiers must be live: a project
+with no pre-push hook has moved the full gate into a hole.
+
+**Commit tier (must run):** formatting, lint, type-check/analyze, the affected package suites,
+changed-line coverage, and new-source-has-test.
+**Push tier (must run):** every suite at the coverage threshold (**95%**), integration tests
+against real collaborators, e2e where a client seam exists, and build + smoke for a project with
+a build pipeline.
+
+For desktop apps (Electron, Tauri, etc.) and web apps, unit tests alone are not sufficient. The
+smoke test must verify:
 - The build pipeline compiles without errors
 - All referenced files exist (no dangling references in config files)
 - The app process can start without crashing
 - The renderer can load the app (no `ERR_FILE_NOT_FOUND` or equivalent)
-If any of these checks fail, the commit must be rejected.
+If any of these checks fail, the push must be rejected.
 
 **Every composite gate must print its own verdict.** A gate script (the hook's entry point, or a
 `gate.sh` it calls) must end with `gate: PASSED (<code>)` / `gate: FAILED (<code>)` derived from an
@@ -114,6 +137,52 @@ EXIT trap and the real exit code, so a piped or truncated log cannot hide a fail
 failure path in a test — for example a PATH shim that fails the first step — rather than only
 observing the success case. Reference: `rpg_combat_tool/scripts/gate.sh` and its `scripts/gate.test.ts`
 (B400).
+
+**One gate run at a time.** Two gate runs on one machine compete for the same CPUs and produce a
+false failure that costs more than the wait it avoided (a 1423 s run with 4254 s of import time).
+Every gate entry point takes an exclusive lock at `.git/gate.lock`, recording the holder's pid,
+start time and label. A second run is refused (exit 3) naming the holder and the lock path; a run
+started *by* the holder is the same run and proceeds; a lock whose pid is gone is reclaimed
+automatically, so a crash never needs a file deleted by hand. Copy `scripts/gate-lock.sh`: source
+it and call `gate_lock_hold <label>` at each entry point.
+
+**The gate judges the staged tree, once.** Stage first, gate second, commit third — a coverage run
+before staging judges a tree the commit will not contain, and a check that runs before `pcp_done`
+judges a tree the close then changes. `templates/commit-task.sh -F <message-file>` is the
+canonical order: `git add -A`, preflight, affected suites, changed-line coverage, commit. It
+writes a receipt holding `git write-tree`, and the pre-commit hook compares it with the staged
+tree, so the tier never runs twice on an identical tree and any further staged edit re-enters it
+(`scripts/gate-receipt.sh`). A receipt is never a flag: it is git's own content hash.
+
+**Changed lines ship covered.** The package percentage cannot see a rewrite: a function at 0 %
+leaves the total above the threshold because its siblings carry the average. Every statement that
+*starts* on a line the diff adds or modifies must have executed; a changed measured file with no
+coverage entry counts as uncovered; a report older than the newest changed source it would judge
+is a **failure, not an input**, because a stale report can pass an uncovered line as covered.
+Implement per stack — istanbul `coverage-final.json` for vitest/JS, `DA:<line>,<hits>` in
+`lcov.info` for Dart/Flutter — and copy `scripts/check-changed-line-coverage.ts` for a
+`packages/*/src` TypeScript layout. Never degrade it to a ratio.
+
+**A failing suite leaves its cause in a file.** A run that filters stdout to the summary lines
+keeps the verdict and deletes the only text naming the failure, which then costs half an hour to
+recover. Route every suite through a wrapper that writes `.gate/<suite>-failures.json` with each
+failing test's message and stack, removes it on a pass, and passes the exit status through
+unchanged (`scripts/run-suite.ts`). Read the cause from that file, not from a grep of the console.
+
+**A gate's failure path is proven.** A gate that has only ever passed is unverified. Run
+`scripts/prove-gate.sh <file> <from> <to> -- <gate command>`: it applies the probe, requires the
+gate to fail, restores the file with `git checkout --`, and refuses a dirty or untracked file. It
+exits 0 only when the gate failed with the probe applied, 1 when the gate still passed, and 2 when
+the probe or the command could not run. Prove the gate **before** writing the commit message that
+claims it works.
+
+**The gates are tested.** Gate scripts are code: pin them with a root suite that drives real git —
+a temp repo, the installed hooks, a committed change — rather than calling each script directly. A
+trailer gate once read `.git/COMMIT_EDITMSG` from `pre-commit`, which `git commit -F` has not
+written, and every unit test passed while the real commit went unjudged. Cover the lock (a second
+run refused, a nested one allowed), the receipt (a changed tree invalidates it), the tier
+selection, and the hook wiring, and assert the gates run in **both** the hook and CI so the two
+cannot drift.
 
 ### Definition of Done — proof belongs to the feature
 

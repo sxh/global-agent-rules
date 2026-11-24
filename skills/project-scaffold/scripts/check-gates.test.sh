@@ -102,6 +102,36 @@ run "K integration absent" "$K" 1
 printf 'integration | no real collaborators yet | steve | 2026-10-14\n' > $K/.gates-exclusions
 run "L integration excluded" "$K" 0
 
+# --- M: tiered gates — the full suite lives in pre-push, not pre-commit ------
+# The commit tier judges the staged diff; coverage, integration, build and smoke run at push.
+# A checker that reads only pre-commit reports every one of those as ABSENT, which is how a
+# project following the tier model gets told it has no gate.
+M=/tmp/gc-m; rm -rf $M; mkdir -p $M/hooks $M/.github/workflows; cd $M; git init -q
+cat > hooks/pre-commit <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+npm run format:check
+npm run lint
+npm run type-check
+npm test
+EOF
+cat > hooks/pre-push <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+npm test
+npm run coverage
+npm run test:integration
+npm run build
+npm run smoke
+EOF
+cat > package.json <<'EOF'
+{"name":"m","scripts":{"dev":"vite","format:check":"prettier --check .","lint":"eslint .","type-check":"tsc --noEmit","test":"vitest run","coverage":"vitest run --coverage","test:integration":"vitest run --config vitest.integration.config.ts","build":"vite build","smoke":"node smoke.mjs"}}
+EOF
+echo 'export default { test: { coverage: { thresholds: { lines: 95 } } } }' > vitest.config.ts
+printf 'name: gate\non: [push]\njobs:\n  g:\n    steps:\n      - run: npm run lint\n      - run: npm run coverage\n      - run: npm run build\n' > .github/workflows/gate.yml
+printf '#!/usr/bin/env bash\necho dev\n' > start.sh; chmod +x start.sh
+run "M tiered: full gate at push" "$M" 0
+
 # --- F: docs repo, no gate ---------------------------------------------------
 F=/tmp/gc-f; rm -rf $F; mkdir -p $F; cd $F; git init -q; echo "# docs" > README.md
 run "F docs repo no gate" "$F" 1
