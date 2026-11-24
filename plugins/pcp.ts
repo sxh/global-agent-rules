@@ -6,6 +6,7 @@ import { PCP_TOOLS } from "../pcp/tools.js";
 import { createPcpHooks } from "../pcp/hooks.js";
 import { PCP_RULE } from "../pcp/pcp_rule.js";
 import { textPart } from "../pcp/misplaced_state.js";
+import { resultText } from "../pcp/result_text.js";
 
 // Dual host adapter: one default export that satisfies both plugin APIs, so the same file
 // runs on OpenCode 1.x (calls `server`) and 2.x (reads `id` + `setup`). All the substance
@@ -71,19 +72,6 @@ function ensureRule(system: SystemParts): void {
   if (!system.some((part) => part.text === PCP_RULE)) {
     system.push({ type: "text", text: PCP_RULE });
   }
-}
-
-/** Flatten a V2 tool result's content to the text the unplanned-edit check reasons about. */
-function resultText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((part) =>
-      part && typeof part === "object" && "text" in part
-        ? String((part as { text: unknown }).text)
-        : "",
-    )
-    .join("");
 }
 
 // ──────────────────────────────────────────────

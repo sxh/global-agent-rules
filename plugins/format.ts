@@ -1,8 +1,9 @@
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 import type { Plugin as V2Api } from "@opencode/plugin";
 
-import { formatWrittenFile } from "../format/on_write.js";
+import { formatNotice, formatWrittenFile } from "../format/on_write.js";
 import { isWriteTool } from "../pcp/tool_classify.js";
+import { resultText } from "../pcp/result_text.js";
 
 // B284: format the file an edit tool just wrote, so the pre-commit gate stops rediscovering
 // formatting. The decision and the run live in format/on_write.ts; this file owns only the
@@ -14,25 +15,33 @@ import { isWriteTool } from "../pcp/tool_classify.js";
 // belong in format/ or pcp/, sibling directories opencode does not scan.
 
 const v1Server: Plugin = async ({ directory }: PluginInput) => ({
-  "tool.execute.after": async (input) => {
-    formatWrittenFile({
-      tool: input.tool,
-      args: input.args,
-      workspace: directory,
-      isWriteTool,
-    });
+  "tool.execute.after": async (input, output) => {
+    const notice = formatNotice(
+      output.output,
+      formatWrittenFile({
+        tool: input.tool,
+        args: input.args,
+        workspace: directory,
+        isWriteTool,
+      }),
+    );
+    if (notice !== null) output.output = notice;
   },
 });
 
 const v2Setup = async (ctx: V2Api.Context): Promise<void> => {
   await ctx.tool.hook("execute.after", async (event) => {
     if (event.status !== "completed") return;
-    formatWrittenFile({
-      tool: event.tool,
-      args: event.input,
-      workspace: ctx.location.directory,
-      isWriteTool,
-    });
+    const notice = formatNotice(
+      resultText(event.result.content),
+      formatWrittenFile({
+        tool: event.tool,
+        args: event.input,
+        workspace: ctx.location.directory,
+        isWriteTool,
+      }),
+    );
+    if (notice !== null) event.result = { ...event.result, content: notice };
   });
 };
 

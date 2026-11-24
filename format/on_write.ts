@@ -13,7 +13,9 @@
 //   * only the file types the project's gate covers are touched (2026-10-24: formatting a type
 //     the check does not cover rewrote unrelated docs) — prettier's own config and ignore file
 //     are the only source of truth, so there is no second list here;
-//   * a formatter failure is silent: it must never mask the edit result.
+//   * a formatter failure never masks the edit result, and never blocks it — but it is reported
+//     (B295): prettier refusing a file is the cheapest syntax check a session gets, and a
+//     failure left in a discarded outcome is rediscovered two commands later, at the gate.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -61,7 +63,7 @@ export type FormatOutcome =
         | "no-prettier";
     }
   | { status: "formatted"; file: string }
-  | { status: "failed"; file: string };
+  | { status: "failed"; file: string; message?: string };
 
 export interface FormatInput {
   /** Host tool name, e.g. "write", "edit", "bash". */
@@ -151,6 +153,15 @@ function isExistingFile(target: string): boolean {
   }
 }
 
+/** The one line of a formatter's complaint worth showing, or null when it said nothing. */
+function firstLine(text: string): string | null {
+  const line = text
+    .split("\n")
+    .map((part) => part.trim())
+    .find((part) => part !== "");
+  return line === undefined ? null : line.slice(0, 300);
+}
+
 /** Run prettier on one file. Never throws: a formatter failure is reported, not raised. */
 export function runPrettier(
   binary: string,
@@ -159,11 +170,37 @@ export function runPrettier(
 ): FormatOutcome {
   const result = spawnSync(
     binary,
-    ["--write", "--log-level", "silent", file],
-    { cwd, stdio: "ignore", timeout: PRETTIER_TIMEOUT_MS },
+    ["--write", file],
+    {
+      cwd,
+      stdio: ["ignore", "ignore", "pipe"],
+      timeout: PRETTIER_TIMEOUT_MS,
+      encoding: "utf8",
+    },
   );
-  if (result.error || result.status !== 0) return { status: "failed", file };
+  if (result.error || result.status !== 0) {
+    const message = firstLine(result.stderr ?? "");
+    return message ? { status: "failed", file, message } : { status: "failed", file };
+  }
   return { status: "formatted", file };
+}
+
+/**
+ * [output] with a line added when formatting failed, or null when there is nothing to add
+ * (B295).
+ *
+ * The write itself is never blocked — a formatter failure must not mask the edit result —
+ * but it must not be swallowed either. A file prettier refuses usually does not parse, so
+ * the notice names the file and carries prettier's own complaint: the session learns about
+ * the syntax error here, not at the next gate run.
+ */
+export function formatNotice(output: string, outcome: FormatOutcome): string | null {
+  if (outcome.status !== "failed") return null;
+  const detail = outcome.message ? `: ${outcome.message}` : "";
+  return (
+    `${output}\n\nformat-on-write: prettier could not format ${outcome.file}${detail}\n` +
+    "The file may not parse. Fix it before continuing — the project's format gate will fail on it."
+  );
 }
 
 /**

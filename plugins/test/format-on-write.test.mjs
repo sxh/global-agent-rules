@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
+  formatNotice,
   formatWrittenFile,
   resolvePrettier,
   writtenPath,
@@ -49,6 +50,12 @@ fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/const (\\w+)=/g, '
 
 const PRETTIER_FAILS = `#!/usr/bin/env node
 process.exit(1);
+`;
+
+/** A formatter that says why it gave up, the way a syntax error makes prettier do. */
+const PRETTIER_COMPLAINS = `#!/usr/bin/env node
+process.stderr.write("[error] a.ts: SyntaxError: Unexpected token (1:13)\\n");
+process.exit(2);
 `;
 
 function installPrettier(root, body = PRETTIER_OK) {
@@ -289,4 +296,53 @@ test('reports a prettier that cannot be executed rather than throwing', () => {
     status: 'failed',
     file,
   });
+});
+
+// ── a failure reaches the agent instead of stopping at the outcome ───────────
+
+test('adds nothing to a result whose file was formatted', () => {
+  const ws = managedWorkspace();
+  const file = path.join(ws, 'a.ts');
+  put(file, 'const answer=42;\n');
+
+  const outcome = format('write', { filePath: file }, ws);
+
+  assert.equal(formatNotice('wrote a.ts', outcome), null);
+});
+
+test('adds nothing when there was nothing to format', () => {
+  for (const outcome of [
+    { status: 'skipped', reason: 'not-a-write-tool' },
+    { status: 'skipped', reason: 'no-prettier' },
+  ]) {
+    assert.equal(formatNotice('read a.ts', outcome), null);
+  }
+});
+
+test('keeps the tool result and names the file prettier could not format', () => {
+  const ws = workspace();
+  put(path.join(ws, '.prettierrc'), '{}\n');
+  installPrettier(ws, PRETTIER_FAILS);
+  const file = path.join(ws, 'a.ts');
+  put(file, 'const answer=;\n');
+
+  const notice = formatNotice('wrote a.ts', format('write', { filePath: file }, ws));
+
+  assert.ok(notice.startsWith('wrote a.ts'), 'the result the tool reported is kept');
+  assert.match(notice, /a\.ts/);
+  assert.match(notice, /prettier/);
+});
+
+test("passes on prettier's own complaint, so the file's syntax error is named", () => {
+  const ws = workspace();
+  put(path.join(ws, '.prettierrc'), '{}\n');
+  installPrettier(ws, PRETTIER_COMPLAINS);
+  const file = path.join(ws, 'a.ts');
+  put(file, 'const answer=;\n');
+
+  const outcome = format('write', { filePath: file }, ws);
+
+  assert.equal(outcome.status, 'failed');
+  assert.match(outcome.message, /Unexpected token/);
+  assert.match(formatNotice('wrote a.ts', outcome), /Unexpected token/);
 });
