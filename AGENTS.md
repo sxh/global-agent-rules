@@ -177,17 +177,14 @@ start of the session and follow it unless the user overrides a specific deviatio
 Do not wait for a trigger phrase.
 
 **Resolve skills yourself** — Do not require the user to remember skill names or trigger phrases; when asked
-for an audit, review, or analysis, scan `skills/` and match the best fit automatically. The `skill` tool only
-knows pre-registered skills; for an explicit path, read the SKILL.md and follow it for that session. E.g. "run
-retrospective" / "reflect on session" loads `skills/retrospective/SKILL.md`.
+for an audit, review, or analysis, scan `skills/` and match the best fit automatically. The `skill` tool knows
+only pre-registered skills, so for an explicit path read the SKILL.md and follow it for that session.
 
 ## Where things live
 
 | Need | Location |
 |---|---|
-| Coding standards (architecture, naming, SOLID, security, errors, API, a11y) | `skills/engineering-standards/SKILL.md` |
-| Testing practice (DI, functional tests, hermeticity, coverage strategy) | `skills/testing-standards/SKILL.md` |
-| Per-stack playbooks (Gleam+Lustre+Electron, Birdie, React/TS, JVM) | `skills/stack-playbooks/SKILL.md` |
+| Coding, testing and per-stack standards | `skills/engineering-standards/`, `skills/testing-standards/`, `skills/stack-playbooks/` |
 | Project setup and gates (start.sh, pre-commit, CI, review handling) | `skills/project-scaffold/SKILL.md` |
 | Debugging discipline and proven platform limitations | `skills/debugging-playbook/SKILL.md` |
 | Past incidents and gotchas (institutional memory) | `docs/incidents.md` — grep it; do not load wholesale |
