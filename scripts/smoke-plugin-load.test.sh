@@ -13,15 +13,26 @@ cd "$ROOT"
 fixture="$(mktemp -d)"
 trap 'rm -rf "$fixture"' EXIT
 
-# Mirror this repo's config into a fake HOME: opencode.json + plugins/ + pcp/ + the
-# node_modules the plugin resolves `zod` from (pcp/tools.ts imports it directly).
+# Mirror this repo's config into a fake HOME: opencode.json + plugins/ + every helper
+# directory a plugin may import (pcp/, format/) + the node_modules they resolve from.
+#
+# The helper dirs are copied generically rather than named one by one: an allowlist silently
+# stops mirroring the moment a plugin imports a new sibling directory, and the failure then
+# surfaces as "failed to load plugin" in this fixture rather than as the missing copy it is
+# (2026-11-24, plugins/format.ts importing format/).
 make_home() {
   local home="$1"
-  mkdir -p "$home/.config/opencode"
-  cp "$ROOT/opencode.json" "$home/.config/opencode/opencode.json"
-  cp -R "$ROOT/plugins" "$home/.config/opencode/plugins"
-  cp -R "$ROOT/pcp" "$home/.config/opencode/pcp"
-  ln -s "$ROOT/node_modules" "$home/.config/opencode/node_modules"
+  local dest="$home/.config/opencode"
+  mkdir -p "$dest"
+  cp "$ROOT/opencode.json" "$dest/opencode.json"
+  for dir in "$ROOT"/*/; do
+    case "$(basename "$dir")" in
+      # Not plugin-reachable, and large: docs, skills, and the tooling dir.
+      docs|skills|node_modules|scripts) continue ;;
+    esac
+    cp -R "${dir%/}" "$dest/"
+  done
+  ln -s "$ROOT/node_modules" "$dest/node_modules"
 }
 
 # --- A well-formed plugin must load ---
