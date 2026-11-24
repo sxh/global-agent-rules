@@ -21,17 +21,6 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-/** Arguments a host tool uses to name the file it wrote. */
-const PATH_KEYS = [
-  "filePath",
-  "file_path",
-  "filepath",
-  "path",
-  "file",
-  "target_file",
-  "targetFile",
-];
-
 /** Prettier config filenames, per its own resolution order. */
 const CONFIG_FILES = [
   ".prettierrc",
@@ -74,18 +63,11 @@ export interface FormatInput {
   workspace: string;
   /** Supplied by the adapter so the one write-tool classifier is reused, not duplicated. */
   isWriteTool: (tool: string) => boolean;
+  /** Supplied by the adapter for the same reason: one path extractor, in pcp/tool_classify. */
+  writtenPath: (args: unknown) => string | null;
 }
 
 /** The single file path a tool call names, or null when it names none (or several). */
-export function writtenPath(args: unknown): string | null {
-  if (!args || typeof args !== "object" || Array.isArray(args)) return null;
-  const record = args as Record<string, unknown>;
-  for (const key of PATH_KEYS) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim() !== "") return value;
-  }
-  return null;
-}
 
 function isInside(root: string, target: string): boolean {
   const rel = path.relative(root, target);
@@ -210,7 +192,7 @@ export function formatNotice(output: string, outcome: FormatOutcome): string | n
  * outside the written file.
  */
 export function formatWrittenFile(input: FormatInput): FormatOutcome {
-  const { tool, args, workspace, isWriteTool } = input;
+  const { tool, args, workspace, isWriteTool, writtenPath } = input;
   const root = path.resolve(workspace);
 
   if (!isWriteTool(tool)) return { status: "skipped", reason: "not-a-write-tool" };

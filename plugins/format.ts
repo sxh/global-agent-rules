@@ -2,7 +2,7 @@ import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 import type { Plugin as V2Api } from "@opencode/plugin";
 
 import { formatNotice, formatWrittenFile } from "../format/on_write.js";
-import { isWriteTool } from "../pcp/tool_classify.js";
+import { isWriteTool, writtenPath } from "../pcp/tool_classify.js";
 import { resultText } from "../pcp/result_text.js";
 
 // B284: format the file an edit tool just wrote, so the pre-commit gate stops rediscovering
@@ -23,6 +23,7 @@ const v1Server: Plugin = async ({ directory }: PluginInput) => ({
         args: input.args,
         workspace: directory,
         isWriteTool,
+        writtenPath,
       }),
     );
     if (notice !== null) output.output = notice;
@@ -39,6 +40,7 @@ const v2Setup = async (ctx: V2Api.Context): Promise<void> => {
         args: event.input,
         workspace: ctx.location.directory,
         isWriteTool,
+        writtenPath,
       }),
     );
     if (notice !== null) event.result = { ...event.result, content: notice };

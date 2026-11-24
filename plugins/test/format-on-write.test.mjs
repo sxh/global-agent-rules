@@ -15,8 +15,8 @@ import {
   formatNotice,
   formatWrittenFile,
   resolvePrettier,
-  writtenPath,
 } from '../../format/on_write.ts';
+import { writtenPath } from '../../pcp/tool_classify.ts';
 
 // B284: an edit tool leaves a file that is not prettier-clean, and the cost is discovered
 // only at the gate. These tests pin the after-hook's decision: which calls it formats, which
@@ -78,7 +78,7 @@ const isWriteTool = (tool) => ['write', 'edit', 'patch'].includes(tool);
 function format(tool, args, ws, log) {
   if (log) process.env.FORMAT_ON_WRITE_LOG = log;
   try {
-    return formatWrittenFile({ tool, args, workspace: ws, isWriteTool });
+    return formatWrittenFile({ tool, args, workspace: ws, isWriteTool, writtenPath });
   } finally {
     delete process.env.FORMAT_ON_WRITE_LOG;
   }
