@@ -14,6 +14,7 @@ import {
   getPendingBacklog,
   getTask,
   pcpDir,
+  readEventLog,
   readProjectContext,
   readProjectMd,
   readStack,
@@ -22,6 +23,8 @@ import {
 } from "./state.js";
 import type { Stack, Task } from "./state.js";
 import { commitTrailerSource, parsePcpTaskRef } from "./commit_ref.js";
+import { closeRefusal } from "./deferral.js";
+import { changedPaths } from "./changed_paths.js";
 import { decideTaskDone } from "./pcp_done.js";
 import { decideAutoCreate } from "./task_flow.js";
 import { isBashTool, isWriteTool } from "./tool_classify.js";
@@ -113,15 +116,25 @@ function autoActivateQueuedTask(dir: string): void {
   console.log(`[PCP] auto-advanced to ${next.id}: ${next.title}`);
 }
 
-function autoDoneTask(dir: string, expectedId?: string): void {
+function autoDoneTask(dir: string, expectedId?: string): string | null {
   const stack = readStack(dir);
-  if (!stack.active_task_id) return;
+  if (!stack.active_task_id) return null;
   if (expectedId && expectedId !== stack.active_task_id) {
     console.log(`[PCP] commit references ${expectedId} but active task is ${stack.active_task_id}; leaving queue unchanged`);
-    return;
+    return null;
   }
 
   const doneId = stack.active_task_id;
+
+  // The same rule as pcp_done, because a task with an unrecorded deferral is not
+  // finished whichever path tries to finish it. The commit still lands; the task
+  // stays open and the tool result carries the reason.
+  const refusal = closeRefusal(readEventLog(dir), doneId, changedPaths(dir));
+  if (refusal !== null) {
+    console.log(refusal);
+    return refusal;
+  }
+
   appendEvent(dir, { e: "done", id: doneId, ts: Date.now() });
 
   const decision = decideTaskDone(stack);
@@ -143,6 +156,7 @@ function autoDoneTask(dir: string, expectedId?: string): void {
 
   writeStack(dir, stack);
   console.log(`[PCP] auto-done ${doneId} (git commit)`);
+  return null;
 }
 
 export interface ToolHookInput {
@@ -247,8 +261,10 @@ export function createPcpHooks(deps: HookDeps): PcpHooks {
           return null;
         }
 
-        autoDoneTask(dir, taskRef.id);
-        return null;
+        const refusal = autoDoneTask(dir, taskRef.id);
+        if (refusal === null) return null;
+        // Surface it in the commit's own result: the commit landed, the task did not.
+        return `${output}\n\n${refusal}`;
       } catch {
         return null;
       }

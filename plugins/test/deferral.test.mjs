@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  captureRefusal,
+  closeRefusal,
   itemsCreatedSince,
   taskStartedAt,
   touchedPathsNamed,
@@ -151,4 +153,45 @@ test('a deferral with a recorded reason is a decision, not a finding', () => {
   ];
 
   assert.deepEqual(unrecordedDeferrals(items, TOUCHED), []);
+});
+
+// One message per refusal, shared by pcp_capture, pcp_done and the commit-trailer
+// auto-close, so the rule is stated the same way whichever path asks.
+
+test('the capture refusal names the file and the only way past it', () => {
+  const message = captureRefusal('PaintSummary needs a note', 'see PaintSummary', TOUCHED);
+
+  assert.match(message ?? '', /pcp_capture refused/);
+  assert.match(message ?? '', /PaintSummary\.tsx/);
+  assert.match(message ?? '', /defer_reason/);
+  assert.match(message ?? '', /Nothing was recorded/);
+});
+
+test('the capture refusal is silent when the item names no changed file', () => {
+  assert.equal(captureRefusal('add a deploy workflow', undefined, TOUCHED), null);
+});
+
+test('the close refusal names every deferral and its file', () => {
+  const events = [
+    { e: 'created', id: 'T411', ts: 100 },
+    { e: 'backlog_add', id: 'B297', title: 'Project header toggle', detail: 'ProjectDetailComponents.tsx', ts: 200 },
+    { e: 'backlog_add', id: 'B301', title: 'PaintSummary heading', detail: 'PaintSummary', ts: 210 },
+  ];
+
+  const message = closeRefusal(events, 'T411', TOUCHED);
+
+  assert.match(message ?? '', /refuses to close this task/);
+  assert.match(message ?? '', /\[B297\]/);
+  assert.match(message ?? '', /\[B301\]/);
+  assert.match(message ?? '', /ProjectDetailComponents\.tsx/);
+  assert.match(message ?? '', /defer_reason/);
+});
+
+test('the close refusal is silent once every deferral carries a reason', () => {
+  const events = [
+    { e: 'created', id: 'T411', ts: 100 },
+    { e: 'backlog_add', id: 'B297', title: 'Project header toggle', detail: 'ProjectDetailComponents.tsx', reason: 'needs an id from the picker', ts: 200 },
+  ];
+
+  assert.equal(closeRefusal(events, 'T411', TOUCHED), null);
 });

@@ -147,3 +147,48 @@ export function unrecordedDeferrals(
   }
   return findings;
 }
+
+/**
+ * The message that refuses a capture, or null when the item may be recorded.
+ *
+ * Shared by `pcp_capture` so the wording lives with the judgement, and tested here
+ * rather than only observed in a tool result.
+ */
+export function captureRefusal(title: string, detail: string | undefined, touched: readonly string[]): string | null {
+  const named = touchedPathsNamed(`${title}\n${detail ?? ""}`, touched);
+  if (named.length === 0) return null;
+  return [
+    "✖ pcp_capture refused: this names a file the active task has already changed.",
+    ...named.map((file) => `    ${file}`),
+    "",
+    "A finding in code this task opened belongs to this task: fix it now, or pass",
+    "defer_reason naming what genuinely prevents it. Nothing was recorded.",
+    "Capturing it is not scheduling it — the code would stay as this task left it.",
+  ].join("\n");
+}
+
+/**
+ * The message that refuses to close [taskId], or null when it may close.
+ *
+ * The commit-trailer auto-close calls this too: a task recorded with an unrecorded
+ * deferral is not finished, whichever path tried to finish it.
+ */
+export function closeRefusal(
+  events: readonly PcpEvent[],
+  taskId: string,
+  touched: readonly string[],
+): string | null {
+  const deferred = unrecordedDeferrals(itemsCreatedSince(events, taskStartedAt(events, taskId)), touched);
+  if (deferred.length === 0) return null;
+  return [
+    "✖ PCP refuses to close this task: it recorded work on files it changed.",
+    ...deferred.flatMap((item) => [
+      `    [${item.id}] ${item.title}`,
+      ...item.paths.map((file) => `        ${file}`),
+    ]),
+    "",
+    "Finish it in this task. If it genuinely cannot be finished now, the item must",
+    "carry a recorded reason: dismiss this entry and capture it again with",
+    "defer_reason. Nothing was closed and no state was written.",
+  ].join("\n");
+}
