@@ -210,6 +210,21 @@ hardening and extra variants, never the only verification of a shipped path.
 - "originally / was going to … now / changed to / found something better" → confirm, then
   `pcp_pivot` with the reason.
 
+### A deferral needs a reason (enforced)
+
+`pcp_capture` and `pcp_done` refuse in one case: **the item names a file the active task has
+already changed.** A finding in code this task opened belongs to this task — the item would
+leave the code as the task left it while looking scheduled, and the next session pays a whole
+sprint cycle for a two-line change. Fix it now.
+
+The only escape is a recorded reason: pass `defer_reason` to `pcp_capture` saying what genuinely
+prevents the work now; a task whose deferrals all carry one closes normally. Both guards read
+the working tree (`git status`), so a repo the plugin cannot read refuses nothing.
+
+What counts as naming a file: a repo-relative path anywhere in the title or detail, or a file's
+name (its stem, at least six characters, and not a generic one like `index`/`types`/`state`).
+Writing the note vaguely to dodge the guard is the same failure with more steps.
+
 ## No active task, and after a pivot
 
 - No active task → guide the user to make a plan rather than inventing tasks.

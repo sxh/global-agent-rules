@@ -7,6 +7,7 @@
 // context `directory`, V2 the session record).
 
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { z } from "zod";
 
 // `zod` is the schema language on both sides: V1's tool() takes a zod raw shape, and V2
@@ -38,6 +39,7 @@ import { runReorder } from "./pcp_reorder.js";
 import { decideBacklogAction, resolvePlanEntries } from "./backlog_state.js";
 import { noActiveSprint, noActiveTask, noReadyTask } from "./guidance.js";
 import { decideTaskDone } from "./pcp_done.js";
+import { itemsCreatedSince, taskStartedAt, touchedPathsNamed, unrecordedDeferrals } from "./deferral.js";
 import {
   decideDemote,
   decidePivot,
@@ -71,6 +73,37 @@ function defineTool<A extends z.ZodRawShape>(def: {
   run: (args: z.infer<z.ZodObject<A>>, env: ToolEnv) => string | Promise<string>;
 }): PcpTool {
   return def as unknown as PcpTool;
+}
+
+/** The path on a `git status --porcelain` line, with a rename reduced to its target. */
+function porcelainPath(line: string): string | null {
+  if (line.length < 4) return null;
+  const target = line.slice(3);
+  const arrow = target.indexOf(" -> ");
+  const name = arrow === -1 ? target : target.slice(arrow + 4);
+  return name.replace(/^"|"$/g, "");
+}
+
+/**
+ * Files the working tree has changed, which is what the active task has opened.
+ *
+ * The PCP flow closes a task before committing it, so the staged and untracked work
+ * is the task's diff at the moment either guard asks. A repo this cannot read (no
+ * git, no directory) yields nothing: the guards never refuse on a guess.
+ */
+function changedPaths(dir: string): string[] {
+  try {
+    const output = execFileSync("git", ["-C", dir, "status", "--porcelain", "--untracked-files=all"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return output
+      .split("\n")
+      .map(porcelainPath)
+      .filter((name): name is string => name !== null && name.length > 0);
+  } catch {
+    return [];
+  }
 }
 
 export const PCP_TOOLS: PcpTool[] = [
@@ -375,6 +408,28 @@ export const PCP_TOOLS: PcpTool[] = [
       const doneId = stack.active_task_id;
       const tasks = replayEvents(dir);
       const doneTask = getTask(tasks, doneId);
+
+      // A task that recorded work on a file it changed has not finished: closing it
+      // would leave the code as it is and the queue looking like the work is planned.
+      const events = readEventLog(dir);
+      const deferred = unrecordedDeferrals(
+        itemsCreatedSince(events, taskStartedAt(events, doneId)),
+        changedPaths(dir),
+      );
+      if (deferred.length > 0) {
+        return [
+          "✖ pcp_done refused: this task recorded work on files it changed.",
+          ...deferred.flatMap((item) => [
+            `    [${item.id}] ${item.title}`,
+            ...item.paths.map((file) => `        ${file}`),
+          ]),
+          "",
+          "Finish it in this task. If it genuinely cannot be finished now, the item must",
+          "carry a recorded reason: dismiss this entry and capture it again with",
+          "defer_reason. Nothing was closed and no state was written.",
+        ].join("\n");
+      }
+
       appendEvent(dir, { e: "done", id: doneId, ts: Date.now() });
       appendWorklog(dir, `✅ [${doneId}] ${doneTask?.title ?? doneId}`);
 
@@ -589,18 +644,38 @@ export const PCP_TOOLS: PcpTool[] = [
     description:
       "Record a temporary idea or requirement to the backlog without executing it now. " +
       "Call immediately when the user says \"do X later\", \"also add X\", \"want to do X someday\", or \"note X\". " +
-      "Plan sprint work together at sprint end via the pcp-plan-sprint skill.",
+      "Plan sprint work together at sprint end via the pcp-plan-sprint skill. " +
+      "Refused when the item names a file the active task already changed, unless defer_reason explains why that work cannot be finished now.",
     args: {
       title: z.string().describe("Requirement or idea title"),
       detail: z.string().optional().describe("Optional: additional notes"),
+      defer_reason: z
+        .string()
+        .optional()
+        .describe(
+          "Only for work on a file the active task already changed: what genuinely prevents finishing it now. Recorded with the item.",
+        ),
     },
-    run({ title, detail }, env) {
+    run({ title, detail, defer_reason }, env) {
       const dir = env.dir;
       ensureDir(dir);
       const stack = readStack(dir);
+
+      const named = touchedPathsNamed(`${title}\n${detail ?? ""}`, changedPaths(dir));
+      if (named.length > 0 && (defer_reason ?? "").trim() === "") {
+        return [
+          "✖ pcp_capture refused: this names a file the active task has already changed.",
+          ...named.map((file) => `    ${file}`),
+          "",
+          "A finding in code this task opened belongs to this task: fix it now, or pass",
+          "defer_reason naming what genuinely prevents it. Nothing was recorded.",
+          "Capturing it is not scheduling it — the code would stay as this task left it.",
+        ].join("\n");
+      }
+
       const id = `B${String(stack.backlog_next_id).padStart(3, "0")}`;
 
-      appendEvent(dir, { e: "backlog_add", id, title, detail, ts: Date.now() });
+      appendEvent(dir, { e: "backlog_add", id, title, detail, reason: defer_reason, ts: Date.now() });
       stack.backlog_next_id++;
       writeStack(dir, stack);
 
