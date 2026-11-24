@@ -118,6 +118,32 @@ If a finding does not generalize to a principle that would prevent a different c
 - **Compression scan:** If 3+ incident entries from different sessions express the same principle, propose merging them into one and archiving the surplus.
 - **Recurrence check:** If an incident's failure class recurs despite being documented, the gap is enforcement, not documentation — emit a mechanism backlog item rather than another entry.
 
+### Step 5b: Promote the Mechanism, Not the Lesson
+
+A lesson's destination is not the same question as where the artefact belongs. When this
+session built a gate, hook, script, wrapper or template to solve a problem, a sentence in the
+project's `AGENTS.md` does not carry it — the next project rebuilds the same thing, and the
+improvement never leaves the checkout that paid for it.
+
+For **every mechanism the session added or changed**, answer one question and record the answer:
+
+- **Project-only** — it names this repository's packages, routes, modules or tracker. Say why,
+  and stop.
+- **Shared** — it is a pattern any project of this shape needs (a gate wrapper, an exclusive
+  lock, a staged-tree receipt, a coverage checker, a push tier). Then, in the same session:
+  1. Copy the artefact itself into `<config>/skills/<skill>/scripts/` or `templates/`, with a
+     one-line provenance header naming the source project and date.
+  2. Reference it from the skill's required-gates section **and** its template table — a
+     script sitting unreferenced in `templates/` is not a mechanism anyone will adopt.
+  3. Update the conformance checker (`check-gates.sh` or equivalent) in the same change, so a
+     project that adopts the new shape is not reported as having an absent gate.
+  4. Name the source project and what the shared version replaces in the summary.
+
+Promotion is recorded even when permission to edit `<config>` was not granted: the summary
+states the artefact, the skill section it belongs in, and the project it came from, so the next
+session can finish it. The failure this step exists to stop is a real, tested mechanism living
+only in the project that discovered the need.
+
 ### Step 6: Effectiveness Audit (closes the loop)
 
 Before presenting the summary, audit the previous retrospective's outputs. This is what makes the process a loop rather than a document generator:
@@ -161,6 +187,11 @@ Show the user a summary BEFORE confirming. The summary must include:
 1. [Lesson 1 and where it should go: global/local]
 2. ...
 
+### Global Promotion
+[Every mechanism this session added or changed: project-only (with the reason) or shared —
+the artefact promoted to `<config>/skills/…`, the skill section that now references it, and
+the source project]
+
 ### Backlog Items
 1. [Actionable task 1 — e.g., "Add NOT NULL constraint to products.url"]
 2. [Actionable task 2 — e.g., "Set up automated schema validation in precommit hook"]
@@ -191,7 +222,7 @@ If user confirms:
 - **Contract changes are rare** — touch the contract (`<config>/AGENTS.md`) only for findings that pass the admission test (applies every turn, cannot be enforced mechanically, non-obvious). The contract has a hard 200-line budget; anything that pushes it over must displace something else.
 - **Add, update, or remove** entries in local AGENTS.md (`./AGENTS.md`) if in a project with a local AGENTS.md.
 - **Update skill files** if the lesson reveals a gap in a skill (XP Craftsman, RPG Master, etc.). Propose the specific edits to the user.
-- **Mechanisms** — a recurring failure class becomes a backlog item for enforcement (hook, lint rule, CI gate, script), not a prose entry.
+- **Mechanisms** — a recurring failure class becomes a backlog item for enforcement (hook, lint rule, CI gate, script), not a prose entry. When the session already built the mechanism, promote the artefact per Step 5b (copy it into `<config>/skills/<skill>/scripts|templates/`, reference it from the skill, update the conformance checker) instead of capturing it as future work.
 - **Capture backlog items** — when the project exposes the `pcp_*` tools, call `pcp_capture` with a clear title and optional context; otherwise add each item to the tracker the project actually uses (issues, a TODO file) and name it in the summary. Open work must land somewhere the next session will look.
 - Show confirmation that all updates were made.
 
