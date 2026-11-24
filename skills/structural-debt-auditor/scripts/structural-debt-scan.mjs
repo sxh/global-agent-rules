@@ -774,6 +774,153 @@ function dropEnclosingBlocks(blocks) {
     });
 }
 
+// ── JSX subtrees and CSS rule bodies (B293) ──────────────────────────────────
+// The declaration scan groups named declarations and the pass above groups brace- and
+// arrow-delimited blocks. Neither sees a JSX subtree — markup is not a brace — or a CSS
+// rule body, so the same badge rendered in three components and the same declarations
+// written in three stylesheets read as clean. These extractors give both a comparable
+// shape: a JSX element by its tag, attribute names and descendant tags (two copies of one
+// fact differ in their values and their text, not their shape), and a CSS rule by its
+// declarations including values (a colour written twice is two sources for one truth).
+// They feed the same report-only candidate list as the structural pass.
+const MIN_JSX_ATTRIBUTES = 2;
+const MIN_JSX_DESCENDANTS = 2;
+const MIN_CSS_DECLARATIONS = 4;
+const JSX_TAG_NAME = /^[A-Za-z][\w.:-]*/;
+
+/** The elements found between [from] and [to], at this level only. */
+function collectJsxElements(src, from, to) {
+    const found = [];
+    for (let i = from; i < to; i += 1) {
+        if (src[i] !== '<') continue;
+        const element = readJsxElement(src, i);
+        if (element === null) continue;
+        found.push(element);
+        i = element.end - 1;
+    }
+    return found;
+}
+
+/** The element opening at [start], or null when that `<` does not open one. */
+function readJsxElement(src, start) {
+    if (src[start] !== '<') return null;
+    const tag = JSX_TAG_NAME.exec(src.slice(start + 1, start + 80))?.[0];
+    if (tag === undefined) return null;
+
+    let i = start + 1 + tag.length;
+    const attributes = [];
+    let depth = 0;
+    let quote = null;
+    for (; i < src.length; i += 1) {
+        const ch = src[i];
+        if (quote !== null) {
+            if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            quote = ch;
+            continue;
+        }
+        if (ch === '{') depth += 1;
+        else if (ch === '}') depth = Math.max(0, depth - 1);
+        else if (depth > 0) continue;
+        else if (ch === '/' && src[i + 1] === '>') return { tag, attributes, children: [], end: i + 2 };
+        else if (ch === '>') {
+            i += 1;
+            break;
+        } else if (/[A-Za-z_:]/.test(ch)) {
+            const name = /^[A-Za-z_:][\w:.-]*/.exec(src.slice(i, i + 80))?.[0] ?? ch;
+            attributes.push(name);
+            i += name.length - 1;
+        }
+    }
+
+    const children = [];
+    while (i < src.length) {
+        if (src.startsWith('</', i)) {
+            const closing = /^<\/[A-Za-z][\w.:-]*\s*>/.exec(src.slice(i, i + 80));
+            return { tag, attributes, children, end: i + (closing?.[0].length ?? 2) };
+        }
+        if (src[i] === '{') {
+            const end = matchBrace(src, i);
+            if (end === -1) {
+                i += 1;
+                continue;
+            }
+            // A render expression — a ternary, a map — holds children too.
+            children.push(...collectJsxElements(src, i + 1, end));
+            i = end + 1;
+            continue;
+        }
+        if (src[i] === '<') {
+            const child = readJsxElement(src, i);
+            if (child === null) {
+                i += 1;
+                continue;
+            }
+            children.push(child);
+            i = child.end;
+            continue;
+        }
+        i += 1;
+    }
+    return { tag, attributes, children, end: i };
+}
+
+/** Every JSX element in [src] with enough shape to be a missing primitive. */
+function extractJsxBlocks(src, file) {
+    const blocks = [];
+    for (let i = 0; i < src.length; i += 1) {
+        if (src[i] !== '<') continue;
+        const element = readJsxElement(src, i);
+        if (element === null) continue;
+        i = element.end - 1;
+
+        const attributes = [...new Set(element.attributes)].sort();
+        const descendants = [];
+        const walkChildren = (node) => {
+            for (const child of node.children) {
+                descendants.push(child.tag);
+                walkChildren(child);
+            }
+        };
+        walkChildren(element);
+        if (attributes.length < MIN_JSX_ATTRIBUTES) continue;
+        if (descendants.length < MIN_JSX_DESCENDANTS) continue;
+
+        blocks.push({
+            file,
+            sample: `<${element.tag}>`,
+            tokens: [element.tag, ...attributes, ...descendants],
+            kind: 'jsx-duplicate',
+        });
+    }
+    return blocks;
+}
+
+/** Every CSS rule in [src] whose body is big enough to be a shared rule. */
+function extractCssBlocks(src, file) {
+    const blocks = [];
+    const rule = /([^{}]+)\{([^{}]*)\}/g;
+    let match;
+    while ((match = rule.exec(stripComments(src))) !== null) {
+        const selector = match[1].trim().replace(/\s+/g, ' ');
+        if (selector === '' || selector.startsWith('@')) continue;
+        const declarations = match[2]
+            .split(';')
+            .map((declaration) => declaration.trim().replace(/\s+/g, ' '))
+            .filter((declaration) => declaration !== '');
+        if (declarations.length < MIN_CSS_DECLARATIONS) continue;
+        blocks.push({
+            file,
+            sample: selector.slice(0, 120),
+            tokens: [...declarations].sort(),
+            kind: 'css-duplicate',
+        });
+    }
+    return blocks;
+}
+
 function simpleHash(text) {
     let hash = 2166136261;
     for (let i = 0; i < text.length; i += 1) {
@@ -795,7 +942,8 @@ export function scanStructural(
         rootDir,
         (file) => {
             const ext = extOf(file);
-            if (!SRC_EXTS.has(ext)) return;
+            const isStylesheet = ext === '.css';
+            if (!SRC_EXTS.has(ext) && !isStylesheet) return;
             if (excludeTestFiles && TEST_MARKERS.some((marker) => file.includes(marker))) return;
             if (generatedOutputReason(file)) return;
             let src;
@@ -804,7 +952,12 @@ export function scanStructural(
             } catch {
                 return;
             }
+            if (isStylesheet) {
+                blocks.push(...extractCssBlocks(src, file));
+                return;
+            }
             blocks.push(...extractStructuralBlocks(src, file));
+            if (ext === '.tsx' || ext === '.jsx') blocks.push(...extractJsxBlocks(src, file));
         },
         ignore,
         skipped,
@@ -856,7 +1009,7 @@ export function scanStructural(
         }
         candidates.push({
             pattern_signature: patternSignature,
-            kind: 'structural-duplicate',
+            kind: group[0].kind ?? 'structural-duplicate',
             files,
             sample,
             reason: `structurally identical block (${group[0].tokens.length} tokens) in ${group.length} places — likely a missing shared helper`,

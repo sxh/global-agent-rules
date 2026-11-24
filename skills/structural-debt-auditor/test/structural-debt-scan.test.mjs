@@ -1297,3 +1297,138 @@ test('exits 2 on an unknown option instead of scanning anyway', () => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+// ── JSX subtrees and CSS rule bodies are comparables too (B293) ──────────────
+// The declaration scan compares top-level declarations and the structural scan compares
+// brace- and arrow-delimited blocks. Neither can see a JSX subtree (markup is not a brace)
+// or a CSS rule body, so a badge rendered three times and the same declarations written
+// twice read as clean. A JSX element is compared by tag, attribute names and descendant
+// tags — two copies of one fact differ in their values and their text, not their shape —
+// and a CSS rule by its declarations including values, because a colour written twice is
+// two sources for one truth.
+
+/** The owned-paint tick as one screen renders it. */
+const MEMBER_CARD = `<span className={styles.tick} title={OWNED_LABEL}>
+    {owned ? <Check size={12} aria-hidden="true" /> : <Cross size={12} aria-hidden="true" />}
+    <span className={styles.tickLabel}>{paintLabel}</span>
+</span>;
+`;
+
+/** The same tick one screen over: different classes and labels, same shape. */
+const MEMBER_HIERARCHY = `<span className={detail.tick} title={TICK_LABEL}>
+    {owned ? <Check size={12} aria-hidden="true" /> : <Cross size={12} aria-hidden="true" />}
+    <span className={detail.tickLabel}>{chosen}</span>
+</span>;
+`;
+
+/** A row that sits near the tick on screen but answers a different question. */
+const DIFFERENT_ROW = `<tr className={styles.row} data-depth={depth}>
+    <td>{name}</td>
+    <td colSpan={2}>{count}</td>
+</tr>;
+`;
+
+const CSS_RULE = `.secondaryButton {
+    background-color: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    padding: 8px 16px;
+    border-radius: 6px;
+}
+`;
+
+
+test('reports the same JSX block rendered in two components', () => {
+    const dir = makeFixture({
+        'src/MemberCard.tsx': MEMBER_CARD,
+        'src/MemberHierarchy.tsx': MEMBER_HIERARCHY,
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        const shared = result.structuralCandidates.filter((c) => c.kind === 'jsx-duplicate');
+        assert.equal(shared.length, 1, JSON.stringify(result.structuralCandidates));
+        assert.equal(shared[0].files.length, 2);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('reports the same CSS rule body declared in two stylesheets', () => {
+    const dir = makeFixture({
+        'src/a.module.css': CSS_RULE,
+        'src/b.module.css': CSS_RULE,
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        const shared = result.structuralCandidates.filter((c) => c.kind === 'css-duplicate');
+        assert.equal(shared.length, 1, JSON.stringify(result.structuralCandidates));
+        assert.equal(shared[0].files.length, 2);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('reports mark and stylesheet duplicates without touching the ratio', () => {
+    const dir = makeFixture({
+        'src/MemberCard.tsx': MEMBER_CARD,
+        'src/MemberHierarchy.tsx': MEMBER_HIERARCHY,
+        'src/a.module.css': CSS_RULE,
+        'src/b.module.css': CSS_RULE,
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.equal(result.ratio, 0, 'these findings are report-only, like the structural scan');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not report a row whose shape is genuinely different', () => {
+    const dir = makeFixture({
+        'src/MemberCard.tsx': MEMBER_CARD,
+        'src/Other.tsx': DIFFERENT_ROW,
+    });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.equal(
+            result.structuralCandidates.filter((c) => c.kind === 'jsx-duplicate').length,
+            0,
+            JSON.stringify(result.structuralCandidates)
+        );
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not report a bare wrapper, which is markup rather than a missing primitive', () => {
+    const wrapper = 'export const W = () => <span className={styles.label}>text</span>;\n';
+    const dir = makeFixture({ 'src/a.tsx': wrapper, 'src/b.tsx': wrapper });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.equal(result.structuralCandidates.filter((c) => c.kind === 'jsx-duplicate').length, 0);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not report rules that differ in a value, which is a divergence to decide on', () => {
+    const other = CSS_RULE.replace('var(--text-muted)', 'var(--danger)');
+    const dir = makeFixture({ 'src/a.module.css': CSS_RULE, 'src/b.module.css': other });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.equal(result.structuralCandidates.filter((c) => c.kind === 'css-duplicate').length, 0);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('does not report a short rule, which is a tweak rather than a shared rule', () => {
+    const short = '.row {\n    margin: 0;\n    padding: 0;\n}\n';
+    const dir = makeFixture({ 'src/a.module.css': short, 'src/b.module.css': short });
+    try {
+        const result = scanDuplication(dir, { includeStructural: true });
+        assert.equal(result.structuralCandidates.filter((c) => c.kind === 'css-duplicate').length, 0);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
