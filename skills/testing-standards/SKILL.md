@@ -73,6 +73,8 @@ A test that waits for an asynchronous outcome must synchronize on the outcome it
 
 Example: `scheduler4`'s `tests/process-teardown-test.sh` sampled a killed tree once after `sleep 0.3` and flaked in CI (`survived: 419`). Polling to a deadline is necessary but was not sufficient there: the tree read as alive because the check treated a *zombie* as alive (see the next section).
 
+- **Wait for the state your next step depends on, not a signal that merely precedes it.** A `waitFor` on a mock call resolves before the component's own `await` settles and re-renders, so the next interaction runs against a surface that is still mid-transition. paints-app, 2026-11-24: a project-card name-edit test awaited `onUpdate` being called and then reopened the editor, which flaked on the still-`Saving…` card twice in one session; it now waits for the edit control the next step asserts on.
+
 ### A Test Deadline Is a Machine Assumption, Not a Test Budget
 
 A per-test timeout is a guess about how fast the machine is, not a property of the test; inherited from the runner's default it silently encodes the laptop it was written on. A test that awaits nothing cannot hang, so a timeout on it always means the worker was starved — the defect is the budget, and the evidence is the failure's own reported duration.
