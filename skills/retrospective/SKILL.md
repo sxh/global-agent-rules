@@ -23,7 +23,7 @@ This skill runs in several projects on several machines, so nothing below hard-c
 - **`<config>`** — the shared agent configuration directory that contains this skill's `skills/` parent (wherever the agent loads globally-shared rules from on this machine). Every path written as `<config>/…` is relative to it.
 - **The incidents store** — `<config>/docs/incidents.md`. It is **shared by every project on this machine**, which drives one rule: an entry never carries a tracker id. Work ids are per-project by definition, so a qualified id is meaningless in another project's checkout; describe the outstanding work in the entry and let the tracker stay the tracker.
 - **PCP** — optional. When the project exposes the `pcp_*` tools, capture backlog items with `pcp_capture`; when it does not, record them in whatever tracker the project actually uses (issue list, TODO file) and say which in the summary. Do not invent a tracker that is not there.
-- **The config directory is often a git repository of its own** — when it is, commit and push the changes there; do not leave them uncommitted on the assumption they are outside version control.
+- **The config directory is often a git repository of its own** — when it is, commit and push the changes there as soon as they are green; do not leave them uncommitted on the assumption they are outside version control. The checkout is shared with every other session and command, so an unrelated `git add -A` can sweep uncommitted work into someone else's commit and a swept change is owned by nobody — on 2026-11-24 a completed fix sat uncommitted here and was carried into an unrelated commit, which was then reset away.
 
 ### Session Definition
 
