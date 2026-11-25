@@ -134,18 +134,65 @@ export function itemsCreatedSince(events: readonly PcpEvent[], since: number | n
     .map((event) => ({ id: event.id ?? "", title: event.title ?? "", detail: event.detail, reason: event.reason }));
 }
 
-/** The items that defer work on a file the task changed, with no reason recorded. */
+/** The items that defer work on a file the task changed, with no recorded reason. */
 export function unrecordedDeferrals(
   items: readonly DeferralItem[],
   touched: readonly string[],
 ): DeferralFinding[] {
   const findings: DeferralFinding[] = [];
   for (const item of items) {
-    if ((item.reason ?? "").trim() !== "") continue;
+    if (namesBlocker(item.reason ?? "")) continue;
     const paths = touchedPathsNamed(`${item.title}\n${item.detail ?? ""}`, touched);
     if (paths.length > 0) findings.push({ id: item.id, title: item.title, paths });
   }
   return findings;
+}
+
+/**
+ * What genuinely prevents the work now, as a vocabulary rather than prose.
+ *
+ * A reason is a decision a reader can act on only when it names a blocker; any
+ * non-empty text used to satisfy the guard, and "this would mix two repositories in
+ * one commit" scheduled a five-line fix instead of taking it (B308). The categories
+ * are the accepted forms: no access to the surface, not reproducible yet, a decision
+ * this task cannot make, or a dependency that must land first.
+ */
+export const DEFERRAL_CATEGORIES = [
+  "blocked-by",
+  "no-access",
+  "not-reproducible",
+  "needs-decision",
+  "depends-on",
+] as const;
+
+/** [reason] lowercased with runs of whitespace or underscores read as a hyphen. */
+function normalised(reason: string): string {
+  return reason.trim().toLowerCase().replace(/[\s_]+/g, "-");
+}
+
+/** True when [reason] begins with one of the accepted blocker categories. */
+export function namesBlocker(reason: string): boolean {
+  const text = normalised(reason);
+  return DEFERRAL_CATEGORIES.some((category) => text.startsWith(`${category}:`));
+}
+
+/**
+ * The message that refuses a capture whose `defer_reason` names no blocker, or null
+ * when the reason may be recorded (an absent reason is judged by `captureRefusal`).
+ */
+export function captureReasonRefusal(reason: string | undefined): string | null {
+  const given = (reason ?? "").trim();
+  if (given === "" || namesBlocker(given)) return null;
+  return [
+    "✖ pcp_capture refused: the defer_reason names no blocker.",
+    `    accepted: ${DEFERRAL_CATEGORIES.map((category) => `${category}:`).join(", ")}`,
+    "",
+    `    got: ${given}`,
+    "",
+    "Say what prevents the work now — no access to the surface, not reproducible yet,",
+    "a decision this task cannot make, a dependency that must land first. Why it would",
+    "be tidier to do later is not a blocker. Nothing was recorded.",
+  ].join("\n");
 }
 
 /**
@@ -188,7 +235,9 @@ export function closeRefusal(
     ]),
     "",
     "Finish it in this task. If it genuinely cannot be finished now, the item must",
-    "carry a recorded reason: dismiss this entry and capture it again with",
-    "defer_reason. Nothing was closed and no state was written.",
+    "carry a recorded reason: dismiss this entry and capture it again with a",
+    "defer_reason that names the blocker — one of",
+    `    ${DEFERRAL_CATEGORIES.map((category) => `${category}:`).join(", ")}`,
+    "Nothing was closed and no state was written.",
   ].join("\n");
 }

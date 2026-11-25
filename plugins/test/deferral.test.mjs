@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  captureReasonRefusal,
   captureRefusal,
   closeRefusal,
   itemsCreatedSince,
+  namesBlocker,
   taskStartedAt,
   touchedPathsNamed,
   unrecordedDeferrals,
@@ -148,11 +150,62 @@ test('a deferral with a recorded reason is a decision, not a finding', () => {
       id: 'B297',
       title: 'Project header toggle',
       detail: 'ProjectDetailComponents.tsx line 47',
-      reason: 'blocked on the picker gaining a stable id from its owner',
+      reason: 'depends-on: the picker gains a stable id from its owner',
     },
   ];
 
   assert.deepEqual(unrecordedDeferrals(items, TOUCHED), []);
+});
+
+// A reason is a decision only when it names what blocks the work. Any non-empty text used to
+// satisfy the check, so "this would mix two repositories in one commit" scheduled a five-line
+// fix instead of taking it (B308).
+
+test('a reason that only describes inconvenience is not a recorded decision', () => {
+  const items = [
+    {
+      id: 'B297',
+      title: 'Project header toggle',
+      detail: 'ProjectDetailComponents.tsx line 47',
+      reason: 'this would mix two repositories in one commit',
+    },
+  ];
+
+  assert.deepEqual(unrecordedDeferrals(items, TOUCHED), [
+    {
+      id: 'B297',
+      title: 'Project header toggle',
+      paths: ['packages/web/src/components/project/ProjectDetailComponents.tsx'],
+    },
+  ]);
+});
+
+test('every accepted blocker category is a recorded decision, whatever its case or spacing', () => {
+  for (const reason of [
+    'blocked-by: the entity schema lands first',
+    'no-access: the staging console is not reachable from here',
+    'not-reproducible: the failure needs a cold CI runner',
+    'needs-decision: whether palettes merge into projects',
+    'depends-on: the library migration',
+    'No Access: the staging console is not reachable',
+  ]) {
+    assert.equal(namesBlocker(reason), true, reason);
+  }
+});
+
+test('an unavailable blocker category is refused at capture, and says which ones count', () => {
+  const message = captureReasonRefusal('this would mix two repositories in one commit');
+
+  assert.match(message ?? '', /names no blocker/);
+  assert.match(message ?? '', /blocked-by/);
+  assert.match(message ?? '', /needs-decision/);
+  assert.match(message ?? '', /Nothing was recorded/);
+});
+
+test('a recorded capture reason is silent, and an absent one is not judged here', () => {
+  assert.equal(captureReasonRefusal('blocked-by: the entity schema lands first'), null);
+  assert.equal(captureReasonRefusal(undefined), null);
+  assert.equal(captureReasonRefusal('   '), null);
 });
 
 // One message per refusal, shared by pcp_capture, pcp_done and the commit-trailer
@@ -190,7 +243,7 @@ test('the close refusal names every deferral and its file', () => {
 test('the close refusal is silent once every deferral carries a reason', () => {
   const events = [
     { e: 'created', id: 'T411', ts: 100 },
-    { e: 'backlog_add', id: 'B297', title: 'Project header toggle', detail: 'ProjectDetailComponents.tsx', reason: 'needs an id from the picker', ts: 200 },
+    { e: 'backlog_add', id: 'B297', title: 'Project header toggle', detail: 'ProjectDetailComponents.tsx', reason: 'needs-decision: which surface owns the id', ts: 200 },
   ];
 
   assert.equal(closeRefusal(events, 'T411', TOUCHED), null);

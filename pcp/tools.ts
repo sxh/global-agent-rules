@@ -38,7 +38,7 @@ import { runReorder } from "./pcp_reorder.js";
 import { decideBacklogAction, resolvePlanEntries } from "./backlog_state.js";
 import { noActiveSprint, noActiveTask, noReadyTask } from "./guidance.js";
 import { decideTaskDone } from "./pcp_done.js";
-import { captureRefusal, closeRefusal } from "./deferral.js";
+import { captureReasonRefusal, captureRefusal, closeRefusal } from "./deferral.js";
 import { changedPaths } from "./changed_paths.js";
 import {
   decideDemote,
@@ -598,7 +598,9 @@ export const PCP_TOOLS: PcpTool[] = [
       "Record a temporary idea or requirement to the backlog without executing it now. " +
       "Call immediately when the user says \"do X later\", \"also add X\", \"want to do X someday\", or \"note X\". " +
       "Plan sprint work together at sprint end via the pcp-plan-sprint skill. " +
-      "Refused when the item names a file the active task already changed, unless defer_reason explains why that work cannot be finished now.",
+      "Refused when the item names a file the active task already changed, unless defer_reason names the blocker " +
+      "as one of blocked-by:, no-access:, not-reproducible:, needs-decision:, depends-on:. " +
+      "A defer_reason that names no blocker is refused too: why it would be tidier to do later is not a blocker.",
     args: {
       title: z.string().describe("Requirement or idea title"),
       detail: z.string().optional().describe("Optional: additional notes"),
@@ -606,13 +608,18 @@ export const PCP_TOOLS: PcpTool[] = [
         .string()
         .optional()
         .describe(
-          "Only for work on a file the active task already changed: what genuinely prevents finishing it now. Recorded with the item.",
+          "Only for work that genuinely cannot be finished now: what blocks it, beginning with one of " +
+            "blocked-by:, no-access:, not-reproducible:, needs-decision:, depends-on:. Recorded with the item.",
         ),
     },
     run({ title, detail, defer_reason }, env) {
       const dir = env.dir;
       ensureDir(dir);
       const stack = readStack(dir);
+
+      // A reason is a decision only when it names a blocker; inconvenience is not one (B308).
+      const reasonRefusal = captureReasonRefusal(defer_reason);
+      if (reasonRefusal !== null) return reasonRefusal;
 
       // A recorded reason makes the deferral a decision; without one, work on a file
       // this task changed is this task's to finish.

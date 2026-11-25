@@ -217,9 +217,13 @@ already changed.** A finding in code this task opened belongs to this task — t
 leave the code as the task left it while looking scheduled, and the next session pays a whole
 sprint cycle for a two-line change. Fix it now.
 
-The only escape is a recorded reason: pass `defer_reason` to `pcp_capture` saying what genuinely
-prevents the work now; a task whose deferrals all carry one closes normally. Both guards read
-the working tree (`git status`), so a repo the plugin cannot read refuses nothing.
+The only escape is a recorded reason, and it must name a blocker: pass `defer_reason` beginning
+with one of `blocked-by:`, `no-access:`, `not-reproducible:`, `needs-decision:`, `depends-on:`.
+Any other text is refused, because satisfying the guard with a sentence about tidiness is how a
+five-line fix was scheduled instead of taken ("this would mix two repositories in one commit",
+2026-11-24). A task whose deferrals all name a blocker closes normally; a reason recorded before
+this rule that names none counts as unrecorded. Both guards read the working tree (`git status`),
+so a repo the plugin cannot read refuses nothing.
 
 What counts as naming a file: a repo-relative path anywhere in the title or detail, or a file's
 name (its stem, at least six characters, and not a generic one like `index`/`types`/`state`).
