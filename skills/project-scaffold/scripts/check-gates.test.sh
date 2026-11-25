@@ -33,6 +33,18 @@ printf 'name: gate\non: [push]\njobs:\n  g:\n    steps:\n      - run: npm run li
 printf '#!/usr/bin/env bash\necho dev\n' > start.sh; chmod +x start.sh
 run "A conforming app" "$A" 0
 
+# --- N/O: the promoted suite runner carries the git-environment strip ---------
+# `git commit` exports GIT_DIR/GIT_INDEX_FILE, so a fixture that `git init`s a temp repo commits
+# to THIS one (2026-11-24). A project that adopted the suite-runner template must be recognised
+# for stripping them, and one that runs a runner without the strip is a gap — not N/A.
+N=/tmp/gc-n; rm -rf $N; cp -R "$A" "$N"; cd "$N"; mkdir -p scripts
+printf 'const GIT_ENV_KEYS = ["GIT_DIR", "GIT_INDEX_FILE"];\nexport const strip = (env) => env;\n' > scripts/run-suite.ts
+run "N runner strips the hook env" "$N" 0
+
+O=/tmp/gc-o; rm -rf $O; cp -R "$A" "$O"; cd "$O"; mkdir -p scripts
+printf 'export const main = () => 0;\n' > scripts/run-suite.ts
+run "O runner without the strip" "$O" 1
+
 # --- B: stubbed + commented --------------------------------------------------
 cd $A
 node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));p.scripts["type-check"]="echo NO_TYPE_CHECK";fs.writeFileSync("package.json",JSON.stringify(p,null,2))'

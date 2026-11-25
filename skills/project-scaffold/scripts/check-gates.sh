@@ -175,6 +175,13 @@ build_corpus() {
   : > "$SEEN"
   add_hook "$hook_file"
   add_hook "$push_file"
+  # The suite runner is part of the chain: a hook that calls `tsx scripts/run-suite.ts` gates
+  # through it, so its own text is the evidence for the gate it implements — the git-environment
+  # strip. Without this a project that puts the strip in the runner reads as not having it at all.
+  if [ -f scripts/run-suite.ts ]; then
+    printf '##SRC:file:scripts/run-suite.ts\n' >> "$CORPUS"
+    strip_comments scripts/run-suite.ts >> "$CORPUS"
+  fi
 }
 
 add_hook() {
@@ -234,6 +241,10 @@ applicable() {
   case "$1" in
     ffi-guard)
       [ -f gleam.toml ] || ls ./*.gleam src/*.gleam >/dev/null 2>&1 ;;
+    # The git-environment strip is a property of the suite runner: a project that never adopted
+    # the promoted runner has nothing to judge, so it is N/A rather than a gap.
+    git-env)
+      [ -f scripts/run-suite.ts ] ;;
     smoke)
       grep -qE '"(dev|start)"' package.json 2>/dev/null \
         || [ -f electron/main.js ] || [ -f tauri.conf.json ] \
@@ -371,6 +382,7 @@ check_gate format     'prettier|format:check|gleam format|dart format|--check-fo
 check_gate lint       'eslint|npm run lint|ktlint|clippy|npm run dep-check'            "linter"
 check_gate type-check 'type-check|typecheck|tsc|dart analyze|mypy'                     "type checker (never stubbed)"
 check_gate tests      'vitest|jest|npm test|npm run test|gleam test|mvn test|pytest'   "full test suite"
+check_gate git-env    'env -u GIT_DIR|gitFreeEnv|GIT_ENV_KEYS'                         "suites run without the hook's git environment"
 check_gate integration 'integration'                                                   "integration tests against real collaborators (datastore/IdP/HTTP)"
 check_gate coverage   'coverage|c8 |kover|jacoco|--check-coverage'                     "coverage at the configured threshold"
 check_gate build      'npm run build|gleam build|mvn |gradle|vite build|tsc --build'   "production build"

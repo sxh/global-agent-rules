@@ -24,7 +24,7 @@ template, CI workflow YAML, or config — not prose the agent has to remember.
 | `scripts/gate-lock.sh` | `scripts/gate-lock.sh` | One gate run at a time, with nested-run detection and dead-pid reclaim |
 | `scripts/gate-receipt.sh` | `scripts/gate-receipt.sh` | Content-addressed proof the commit tier judged this exact staged tree |
 | `scripts/prove-gate.sh` | `scripts/prove-gate.sh` | Prove a gate fails when the behaviour it guards is broken |
-| `scripts/run-suite.ts` | `scripts/run-suite.ts` | Run a suite so a failure leaves `.gate/<suite>-failures.json` behind |
+| `scripts/run-suite.ts` | `scripts/run-suite.ts` | Run a suite so a failure leaves `.gate/<suite>-failures.json` behind, and so it cannot inherit the hook's `GIT_DIR` (self-contained: run it with plain `node`) |
 | `scripts/check-changed-line-coverage.ts` | `scripts/check-changed-line-coverage.ts` | Fail a diff whose added or modified lines no test executes (TypeScript/istanbul layout) |
 
 The static-analysis row is stack-specific: name the tool that actually exists. For Dart/Flutter that is `flutter analyze`, not `tsc` — an ungated analyzer lets its findings accumulate and be dismissed as "pre-existing". Wire it into both the hook and CI, and assert parity (see the gate-parity test pattern).
@@ -52,7 +52,7 @@ invoke (a hook that only calls `./runTests.sh` is a gate; the gates live in that
 deep including package.json scripts). `DEBUG_CORPUS=1` dumps the resolved text when a result looks
 wrong.
 
-Regression suite: `bash scripts/check-gates.test.sh` (9 project shapes, asserting the exit codes).
+Regression suite: `bash scripts/check-gates.test.sh` (16 project shapes, asserting the exit codes).
 
 Applicability is inferred from the project's shape: `smoke` applies only where a dev server or
 desktop shell exists, `ffi-guard` only to Gleam projects, and a repository with no build manifest
@@ -71,6 +71,8 @@ Never add an exclusion on your own initiative — propose it and wait for approv
 skill's Quality-Gate Integrity axis reads the same file.
 
 **Scaffolding is not complete until `check-gates.sh` reports no STUB or ABSENT gate** (every other gate is ACTIVE, or its absence recorded in `.gates-exclusions`). Projects scaffolded from the commented-out template ship stubs that silently reintroduce the disabled-gate and mock-only-test classes; run the conformance check before the first commit and in CI, so a new project cannot start green with a gate switched off.
+
+**Suites run without the hook's git environment** — `git commit` and `git push` export `GIT_DIR` and `GIT_INDEX_FILE`, so a test fixture that `git init`s a temp repo commits to the real one; on 2026-11-24 that rewrote a shared config repo's `main` while every suite stayed green (paints-app `7a39fa588`, config repo `d020634`, both on the same day). `templates/pre-commit` and `templates/pre-push` define `GIT_ENV` for exactly this, `scripts/run-suite.ts` applies the strip itself, and `check-gates.sh` reports the `git-env` gate: ACTIVE when either shape is present, N/A when the project never adopted the promoted runner. Regression: `skills/project-scaffold/test/run-suite.test.mjs` exports `GIT_DIR` and asserts the child does not see it.
 
 Every gate in `templates/pre-commit` is commented out: uncommenting one is a decision, and an
 absent gate must be an explicit, user-approved exclusion. The review skill's Quality-Gate

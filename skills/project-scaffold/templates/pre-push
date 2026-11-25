@@ -15,6 +15,12 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
+# --- Suites run without the hook's own git environment ---
+# `git push` runs this hook with GIT_DIR and GIT_INDEX_FILE exported too, so a fixture that
+# `git init`s a temp repo would commit to THIS repository (2026-11-24). Prefix suite commands
+# with "${GIT_ENV[@]}", or call scripts/run-suite.ts, which strips them itself.
+GIT_ENV=(env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX -u GIT_COMMON_DIR)
+
 # One gate run at a time: the full suite competes with any commit tier already running, and
 # two runs on one machine have produced a false failure. See scripts/gate-lock.sh.
 # shellcheck source=scripts/gate-lock.sh
@@ -26,8 +32,8 @@ cd "$ROOT"
 
 # ...or the steps directly, when the project has no single full-gate script:
 # npm run lint && npm run type-check       # cheap and already covered by the commit tier
-# npm test --workspaces                    # every suite, coverage thresholds enforced by config
-# npm run test:integration                 # real collaborators (emulator or test stage)
+# "${GIT_ENV[@]}" npm test --workspaces     # every suite, coverage thresholds enforced by config
+# "${GIT_ENV[@]}" npm run test:integration  # real collaborators (emulator or test stage)
 # npm run test:e2e                         # the client seam, where one exists
 # npm run build                            # production build
 # ./scripts/smoke-test.sh                  # the built output starts and its entry point loads

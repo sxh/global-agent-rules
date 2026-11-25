@@ -1,14 +1,19 @@
 /**
  * Promoted from paints-app (2026-11-24). Generic for any vitest suite: the suite name is the
  * first argument, the command follows `--`.
+ *
+ * Self-contained on purpose. A project copies this ONE file, and `node` (>= 22, types stripped)
+ * runs it as-is: an extensionless TypeScript import such as `./git-path` cannot resolve under
+ * plain node, so the two helpers it needs are inlined here. paints-app keeps them in
+ * `scripts/git-path.ts` and shares them with its other gate scripts; the template trades that
+ * sharing for being a single drop-in file.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-
-import { repoRoot, resolveGit } from './git-path';
 
 /**
  * Run a vitest suite so that a failure leaves a machine-readable record behind.
@@ -54,14 +59,46 @@ export interface FailureArtefact {
     failures: SuiteFailure[];
 }
 
+/** The git executable resolved to an absolute path, so `PATH` cannot redirect the gate. */
+function resolveGit(): string {
+    for (const dir of ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin']) {
+        const candidate = path.join(dir, 'git');
+        if (existsSync(candidate)) return candidate;
+    }
+    throw new Error('git executable not found in the known locations');
+}
+
 /** Runs `git <args>`, so the root is resolved the one way the scripts resolve it. */
 function gitRunner(args: string[]): string {
     return execFileSync(resolveGit(), args, { encoding: 'utf8' });
 }
 
-/** The repository root the artefact directory lives under. */
+/** The repository root the artefact directory lives under; the caller's directory if git cannot say. */
 function repositoryRoot(): string {
-    return repoRoot(gitRunner);
+    try {
+        const top = gitRunner(['rev-parse', '--show-toplevel']).trim();
+        return top.length > 0 ? top : process.cwd();
+    } catch {
+        return process.cwd();
+    }
+}
+
+/**
+ * Git's own environment variables, which point at whichever repository invoked us.
+ *
+ * A commit's pre-commit hook inherits `GIT_DIR` and `GIT_INDEX_FILE`. A fixture that
+ * `git init`s a scratch repo inherits them too and acts on THIS repository instead: the
+ * suite passes while it stages into, or commits to, the tree it is supposed to be judging.
+ * The config repo's `main` was rewritten by a fixture's `git commit` exactly this way on
+ * 2026-11-24 (B305), so every suite runs without them.
+ */
+const GIT_ENV_KEYS = ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX', 'GIT_COMMON_DIR'];
+
+/** [env] without git's own variables, so a fixture can only reach its own scratch repo. */
+export function gitFreeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    const cleaned: NodeJS.ProcessEnv = { ...env };
+    for (const key of GIT_ENV_KEYS) delete cleaned[key];
+    return cleaned;
 }
 
 /** The raw reporter output and the artefact, both under the gitignored `.gate/`. */
@@ -140,7 +177,10 @@ export function main(
     rmSync(paths.report, { force: true });
 
     const [executable, ...args] = command as [string, ...string[]];
-    const result = spawnSync(executable, [...args, ...reporterArgs(paths.report)], { stdio: 'inherit' });
+    const result = spawnSync(executable, [...args, ...reporterArgs(paths.report)], {
+        stdio: 'inherit',
+        env: gitFreeEnv(process.env),
+    });
     const status = result.status ?? 1;
 
     // The reporter prints where it wrote; that path must still be readable, so the
