@@ -12,6 +12,25 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# --- The failure record (B310) ---
+# A failing run must be diagnosable from one artefact: its last line names every section that
+# failed, and the full transcript is kept in a file whose path it prints. One run ended with
+# 'contract check FAILED' while no captured section had reported a failure and nothing had been
+# written down, so a rare failure was unrecoverable. A passing run deletes the file, so a log
+# that exists always describes the last failure. CONTRACT_LOG overrides the path (the test
+# fixtures it, so it never touches this repository's .git).
+if [ -d "$ROOT/.git" ]; then
+  LOG="${CONTRACT_LOG:-$ROOT/.git/contract-check.log}"
+else
+  LOG="${CONTRACT_LOG:-${TMPDIR:-/tmp}/contract-check.log}"
+fi
+: > "$LOG"
+FAILED=()
+say() { printf '%s\n' "$*" | tee -a "$LOG"; }
+# A failing section's own output, tailed so the console stays readable, kept whole in the log.
+say_block() { printf '%s\n' "$1" | tail -n "${2:-20}" | tee -a "$LOG"; }
+fail_section() { FAILED+=("$1"); fail=1; }
+
 CONTRACT="${1:-AGENTS.md}"
 MAX_CONTENT_LINES=200
 # Coverage floor, hardcoded from the canonical measurement (97.33% at pinning time) with a
@@ -28,7 +47,9 @@ if [ -n "${SKILLS_DIR:-}${PLUGINS_DIR:-}${INCIDENTS_FILE:-}" ]; then
 fi
 
 if [ ! -f "$CONTRACT" ]; then
-  echo "FAIL: contract file not found: $CONTRACT"
+  say "FAIL: contract file not found: $CONTRACT"
+  say "full output: $LOG"
+  say "contract check FAILED — section(s): contract file"
   exit 1
 fi
 
@@ -36,20 +57,20 @@ fi
 total_lines=$(wc -l < "$CONTRACT" | tr -d ' ')
 content_lines=$(grep -cve '^[[:space:]]*$' "$CONTRACT" || true)
 chars=$(wc -c < "$CONTRACT" | tr -d ' ')
-echo "contract: $CONTRACT — $total_lines lines, $content_lines content lines (budget $MAX_CONTENT_LINES), $chars chars"
+say "contract: $CONTRACT — $total_lines lines, $content_lines content lines (budget $MAX_CONTENT_LINES), $chars chars"
 
 if [ "$content_lines" -gt "$MAX_CONTENT_LINES" ]; then
-  echo "FAIL: contract exceeds its $MAX_CONTENT_LINES-line budget."
-  echo "      Demote entries to skills/, docs/incidents.md or a mechanism before adding more."
-  fail=1
+  say "FAIL: contract exceeds its $MAX_CONTENT_LINES-line budget."
+  say "      Demote entries to skills/, docs/incidents.md or a mechanism before adding more."
+  fail_section "contract budget"
 fi
 
 # --- 2. Every skills/... or docs/... path the contract references must exist ---
 while read -r p; do
   [ -z "$p" ] && continue
   if [ ! -e "$ROOT/$p" ]; then
-    echo "FAIL: $CONTRACT references a path that does not exist: $p"
-    fail=1
+    say "FAIL: $CONTRACT references a path that does not exist: $p"
+    fail_section "contract paths"
   fi
 done < <(grep -o '\(skills\|docs\)/[A-Za-z0-9_.-]*\(/[A-Za-z0-9_.-]*\)*' "$CONTRACT" | sort -u)
 
@@ -57,8 +78,8 @@ done < <(grep -o '\(skills\|docs\)/[A-Za-z0-9_.-]*\(/[A-Za-z0-9_.-]*\)*' "$CONTR
 for f in "$ROOT"/skills/*/SKILL.md; do
   [ -e "$f" ] || continue
   rel="${f#"$ROOT"/}"
-  head -5 "$f" | grep -q '^name:' || { echo "FAIL: $rel is missing 'name:' frontmatter"; fail=1; }
-  head -5 "$f" | grep -q '^description:' || { echo "FAIL: $rel is missing 'description:' frontmatter"; fail=1; }
+  head -5 "$f" | grep -q '^name:' || { say "FAIL: $rel is missing 'name:' frontmatter"; fail_section "skill frontmatter"; }
+  head -5 "$f" | grep -q '^description:' || { say "FAIL: $rel is missing 'description:' frontmatter"; fail_section "skill frontmatter"; }
 done
 
 # --- 4. Incident entries that assert a rule must carry a status tag (zero-leak budget) ---
@@ -71,10 +92,10 @@ done
 INCIDENTS="${INCIDENTS_FILE:-$ROOT/docs/incidents.md}"
 if [ -f "$INCIDENTS" ]; then
   leaks="$(bash "$ROOT/scripts/incident-leaks.sh" "$INCIDENTS")"
-  echo "incidents: $leaks untagged rule-bearing entr(ies) — see the Effectiveness Audit step"
+  say "incidents: $leaks untagged rule-bearing entr(ies) — see the Effectiveness Audit step"
   if [ "${leaks:-0}" -gt 0 ]; then
-    echo "FAIL: $leaks untagged rule-bearing incident entr(ies); tag each [ENFORCED]/[KNOWLEDGE]/[EXPIRED]"
-    fail=1
+    say "FAIL: $leaks untagged rule-bearing incident entr(ies); tag each [ENFORCED]/[KNOWLEDGE]/[EXPIRED]"
+    fail_section "incident leaks"
   fi
 fi
 
@@ -86,11 +107,11 @@ fi
 # --- 6. Type-check the TypeScript plugins (`bun test` only transpiles them) ---
 if [ -f "$ROOT/plugins/tsconfig.json" ]; then
   if out="$(bash "$ROOT/scripts/type-check.sh" 2>&1)"; then
-    echo "types: plugins type-check passed"
+    say "types: plugins type-check passed"
   else
-    echo "FAIL: plugins type-check failed"
-    printf '%s\n' "$out" | tail -20
-    fail=1
+    say "FAIL: plugins type-check failed"
+    say_block "$out" 20
+    fail_section "plugins type-check"
   fi
 fi
 
@@ -110,19 +131,19 @@ if [ "$TEST_COUNT" -gt 0 ]; then
       | xargs -0 env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX -u GIT_COMMON_DIR \
           node --test --experimental-test-coverage 2>&1)"; then
     cov="$(printf '%s\n' "$out" | awk -F'|' '/all files/ {gsub(/ /, "", $2); print $2; exit}')"
-    echo "tests: $TEST_COUNT test file(s) passed (coverage ${cov:-n/a}% lines)"
+    say "tests: $TEST_COUNT test file(s) passed (coverage ${cov:-n/a}% lines)"
     # A missing or non-numeric coverage value counts as 0 and therefore fails the floor.
     if ! awk -v c="${cov:-0}" -v m="$COVERAGE_MIN" 'BEGIN { exit !(c + 0 >= m) }'; then
-      echo "FAIL: coverage ${cov:-n/a}% is below the pinned threshold ${COVERAGE_MIN}%"
-      fail=1
+      say "FAIL: coverage ${cov:-n/a}% is below the pinned threshold ${COVERAGE_MIN}%"
+      fail_section "coverage floor"
     fi
   else
-    echo "FAIL: first-party test suites failed"
-    printf '%s\n' "$out" | tail -30
-    fail=1
+    say "FAIL: first-party test suites failed"
+    say_block "$out" 30
+    fail_section "first-party tests"
   fi
 else
-  echo "tests: no test files found"
+  say "tests: no test files found"
 fi
 
 # --- 7b. Test files must not import a plugins/ module at runtime ---
@@ -134,9 +155,9 @@ fi
 bad_imports="$(grep -rlE "(from|import)[[:space:]]*\(?[[:space:]]*['\"][^'\"]*/plugins/[^'\"]*\.(ts|js)['\"]" \
   --include='*.test.mjs' "$SKILLS_DIR" "$PLUGINS_DIR" 2>/dev/null | grep '/test/' || true)"
 if [ -n "$bad_imports" ]; then
-  echo "FAIL: test file(s) import a plugins/ module; testable logic must live in pcp/ with 'import type' only:"
-  printf '%s\n' "$bad_imports" | sed 's/^/      /'
-  fail=1
+  say "FAIL: test file(s) import a plugins/ module; testable logic must live in pcp/ with 'import type' only:"
+  say_block "$(printf '%s\n' "$bad_imports" | sed 's/^/      /')" 40
+  fail_section "plugins import guard"
 fi
 
 # --- 7c. Bash regression suites (skills + this checker's own test) ---
@@ -154,16 +175,16 @@ if [ "${CONTRACT_SUITES:-0}" -eq 0 ]; then
       *) runner=(bash) ;;
     esac
     if ! command -v "${runner[0]}" >/dev/null 2>&1; then
-      echo "FAIL: no ${runner[0]} to run suite: ${t#"$ROOT"/}"
-      fail=1
+      say "FAIL: no ${runner[0]} to run suite: ${t#"$ROOT"/}"
+      fail_section "bash suite: ${t#"$ROOT"/}"
       continue
     fi
     if out="$(CONTRACT_SUITES=1 "${runner[@]}" "$t" 2>&1)"; then
-      echo "bash-suite: ${t#"$ROOT"/} passed"
+      say "bash-suite: ${t#"$ROOT"/} passed"
     else
-      echo "FAIL: bash suite failed: ${t#"$ROOT"/}"
-      printf '%s\n' "$out" | tail -20
-      fail=1
+      say "FAIL: bash suite failed: ${t#"$ROOT"/}"
+      say_block "$out" 20
+      fail_section "bash suite: ${t#"$ROOT"/}"
     fi
   done
 fi
@@ -190,8 +211,8 @@ while IFS= read -r pfile; do
     case "$name" in
       default|*Plugin) ;;
       *)
-        echo "FAIL: ${pfile#"$ROOT"/} exports '$name' — a top-level plugins/ module may export only default/*Plugin"
-        fail=1
+        say "FAIL: ${pfile#"$ROOT"/} exports '$name' — a top-level plugins/ module may export only default/*Plugin"
+        fail_section "plugins exports"
         ;;
     esac
   done <<< "$names"
@@ -209,21 +230,26 @@ if [ "$metal_test" -eq 0 ]; then
   smoke_test="${SMOKE_TEST:-$ROOT/scripts/smoke-plugin-load.test.sh}"
   if [ -f "$smoke_test" ]; then
     if out="$(bash "$smoke_test" 2>&1)"; then
-      echo "smoke: plugin load check passed (loadable accepted, broken rejected)"
+      say "smoke: plugin load check passed (loadable accepted, broken rejected)"
     else
-      echo "FAIL: plugin load smoke check failed"
-      printf '%s\n' "$out" | tail -20
-      fail=1
+      say "FAIL: plugin load smoke check failed"
+      say_block "$out" 20
+      fail_section "plugin load smoke"
     fi
   else
-    echo "FAIL: smoke check script is missing: $smoke_test"
-    fail=1
+    say "FAIL: smoke check script is missing: $smoke_test"
+    fail_section "plugin load smoke"
   fi
 fi
 
 if [ "$fail" -ne 0 ]; then
-  echo "contract check FAILED"
+  # Deduplicated, in the order they were first reported: a section is named once, however
+  # many findings it holds.
+  names="$(printf '%s\n' "${FAILED[@]}" | awk '!seen[$0]++' | paste -sd ',' - | sed 's/,/, /g')"
+  say "full output: $LOG"
+  say "contract check FAILED — section(s): $names"
   exit 1
 fi
 
-echo "contract check passed"
+say "contract check passed"
+rm -f "$LOG"

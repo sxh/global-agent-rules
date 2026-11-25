@@ -202,3 +202,50 @@ else
   ( cd "$other_repo" && bash "$ROOT/scripts/check-contract.sh" 2>&1 | grep -E '^FAIL' | head -3 )
   exit 1
 fi
+
+# --- A failing run names the failing section and keeps its output (B310) ---
+# One run ended with 'contract check FAILED' while no captured section had reported a
+# failure, and its output was never written to a file, so the cause was unrecoverable.
+log="$(mktemp)"
+rm -f "$log"
+trap 'rm -f "$fixture" "$smoke_stub" "$log"; rm -rf "$skills" "$skills_ok" "$plug_bad" "$plug_ok" "$leak_dir" "$other_repo"' EXIT
+
+fail_out="$(COVERAGE_MIN=100.01 CONTRACT_LOG="$log" bash scripts/check-contract.sh AGENTS.md 2>&1)"
+fail_rc=$?
+if [ "$fail_rc" -eq 0 ]; then
+  echo "FAIL: a coverage floor failure must fail the gate"
+  exit 1
+fi
+last_line="$(printf '%s\n' "$fail_out" | tail -1)"
+case "$last_line" in
+  *coverage*) ;;
+  *)
+    echo "FAIL: the last line must name the failing section, got: $last_line"
+    exit 1
+    ;;
+esac
+if [ ! -s "$log" ]; then
+  echo "FAIL: a failing run must keep its full output in CONTRACT_LOG"
+  exit 1
+fi
+if ! grep -q 'contract check FAILED' "$log"; then
+  echo "FAIL: the kept output must contain the verdict"
+  exit 1
+fi
+if ! printf '%s\n' "$fail_out" | grep -qF "$log"; then
+  echo "FAIL: a failing run must print the path of the output it kept"
+  exit 1
+fi
+echo "PASS: a failing run names the section on its last line and keeps the output at the printed path"
+
+if CONTRACT_LOG="$log" bash scripts/check-contract.sh AGENTS.md >/dev/null 2>&1; then
+  if [ -e "$log" ]; then
+    echo "FAIL: a passing run must leave no output artefact behind"
+    exit 1
+  fi
+  echo "PASS: a passing run leaves no output artefact behind"
+else
+  echo "FAIL: the live gate must pass for the artefact assertion to mean anything"
+  CONTRACT_LOG="$log" bash scripts/check-contract.sh AGENTS.md 2>&1 | tail -20
+  exit 1
+fi
