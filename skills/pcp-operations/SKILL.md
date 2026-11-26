@@ -117,6 +117,11 @@ If a project provides a commit helper that closes the task itself (for example
 `scripts/commit.sh`), use it instead of `pcp_done` — or make it accept a task that `pcp_done` has
 already closed; do not run one and then expect the other to close the same task.
 
+That helper closes the **active task**, so it is not a general-purpose commit: a docs, config or
+state commit that does not deliver the task will close it anyway and advance the queue. Use plain
+`git commit -F <file>` for those, with no `PCP-Task` trailer (2026-11-26: an ADR commit closed a
+publish task that had not published, and the recovery was to start a fresh task for the remainder).
+
 The fallback path writes `.opencode/pcp/` state *after* `git commit` returns, so a `git status`
 run in the same command can still show a clean tree even though the task was auto-closed. Re-check
 `git status` (and `pcp_status`) a moment later before concluding that no state change occurred.

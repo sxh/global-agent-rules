@@ -15,6 +15,7 @@ template, CI workflow YAML, or config — not prose the agent has to remember.
 
 | Template | Copy to | Purpose |
 |---|---|---|
+| `sxh-quality-checks` (published) | `npm i -D sxh-quality-checks` + `gate.config.json` | The shared gate engine as a dependency: tier commands, affected-suite selection, lock, receipt and the hermetic fake kit — prefer this over a second copy of the templates below once a second app needs the same gate |
 | `templates/pre-commit` | `hooks/pre-commit`, then into `.git/hooks/` | The commit tier: format, lint, type-check, affected suites, changed-line coverage, generated-artefact freshness, FFI guard, plus stale-build cleanup on rename/delete |
 | `templates/pre-push` | `hooks/pre-push`, then into `.git/hooks/` | The push tier: full suites at the coverage threshold, integration, e2e, build + smoke |
 | `templates/commit-task.sh` | `scripts/commit-task.sh` | Stage → preflight → affected suites → changed-line coverage → receipt → commit, in that order |
