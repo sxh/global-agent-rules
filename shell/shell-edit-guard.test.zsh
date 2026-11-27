@@ -3,7 +3,10 @@
 #
 # Each case runs in a fresh zsh with the guard sourced, against a scratch file,
 # so the assertions are about what the guard does, not about this shell's state.
+# The runner disables its own debug trap: the case strings below quote redirect
+# syntax, which the trap would otherwise judge as if it were a command.
 set -u
+unfunction TRAPDEBUG 2>/dev/null || true
 
 GUARD="${0:A:h}/shell-edit-guard.zsh"
 failures=0
@@ -20,10 +23,19 @@ check() {
 
 scratch="$(mktemp)"
 print "before" >"$scratch"
-trap 'rm -f "$scratch"' EXIT
+repo="$(mktemp -d)"
+trap 'rm -f "$scratch"; rm -rf "$repo"' EXIT
 
 run() {
     zsh -c "source '$GUARD'; $1" >/dev/null 2>&1
+    print $?
+}
+
+# The tracked-path rule resolves the target against the shell's working
+# directory, so a case that needs a repository runs *in* it rather than
+# `cd`-ing inside the guarded line (a compound line's trap sees the old cwd).
+run_in() {
+    ( cd "$1" && zsh -c "source '$GUARD'; $2" ) >/dev/null 2>&1
     print $?
 }
 
@@ -52,6 +64,44 @@ check "the file is unchanged after python -c" "before" "$(command cat "$scratch"
 check "node from stdin is refused" 1 "$(run "printf 'console.log(1)\\n' | node -")"
 
 check "node -e that only reads still works" 0 "$(run "node -e 'console.log(1)'")"
+
+check "node -e writing to stdout still works" 0 "$(run "node -e 'process.stdout.write(String(1))'")"
+
+# A shell redirect is performed by the shell, not by a command function, so the
+# guard inspects the debug command line of a non-interactive shell (the shell a
+# tool runs). A heredoc feeding a file is the 2026-11-26 shape.
+check "a heredoc into a file is refused" 1 \
+    "$(run "cat > '$scratch' <<'EOF'
+after
+EOF")"
+check "the file is unchanged after the heredoc" "before" "$(command cat "$scratch")"
+check "a heredoc with the redirect last is refused" 1 \
+    "$(run "cat <<'EOF' > '$scratch'
+after
+EOF")"
+check "the file is unchanged after the reversed heredoc" "before" "$(command cat "$scratch")"
+
+# A plain redirect is a write too, but only into a tracked path: an untracked
+# diagnostic file is not a project edit, and a false refusal there would stop
+# ordinary debugging.
+git -C "$repo" init -q
+git -C "$repo" config user.email "test@example.com"
+git -C "$repo" config user.name "Test"
+print "before" >"$repo/tracked.txt"
+git -C "$repo" add tracked.txt
+git -C "$repo" commit -q -m init
+
+check "a redirect into a tracked file is refused" 1 \
+    "$(run_in "$repo" "print after > tracked.txt")"
+check "the tracked file is unchanged" "before" "$(command cat "$repo/tracked.txt")"
+check "a redirect into an untracked file is allowed" 0 \
+    "$(run_in "$repo" "print after > untracked.txt")"
+check "a redirect into /dev/null still works" 0 "$(run "print after > /dev/null")"
+print "before" >"$repo/tracked.txt"
+check "tee writing a tracked file is refused" 1 \
+    "$(run_in "$repo" "print after | tee tracked.txt")"
+check "the tracked file is unchanged after tee" "before" "$(command cat "$repo/tracked.txt")"
+check "tee to /dev/null still works" 0 "$(run "print after | tee /dev/null")"
 
 check "ALLOW_SHELL_EDITS overrides" 0 \
     "$(run "ALLOW_SHELL_EDITS=1 sed -i '' 's/before/after/' '$scratch'")"

@@ -6,14 +6,22 @@
 # tool produced a byte, so the refusal has to sit at the point of use.
 #
 # Refused: `sed -i`, `perl -i` (including the combined `-pi`/`-ni` forms), a
-# script read from stdin (`python -`, `node -`), and an inline script that carries
-# a filesystem write (`node -e`, `node --eval`, `bun -e`, `python3 -c`, `-p`).
-# Read-only use of each tool is untouched.
+# script read from stdin (`python -`, `node -`), an inline script that carries a
+# filesystem write (`node -e`, `node --eval`, `bun -e`, `python3 -c`, `-p`), a
+# shell heredoc feeding a file redirect, a shell redirect into a tracked path,
+# and `tee` writing a real file. Read-only use of each tool is untouched.
+#
+# A redirect is opened by the shell before a command function runs, so it cannot
+# be refused by wrapping a command: the refusal lives in the DEBUG trap of a
+# non-interactive shell, which is the shell a tool runs. Interactive shells keep
+# the command wrappers but not the trap (a refusal there would kill a terminal).
 #
 # What this does not catch: an inline script that writes through an API the
-# pattern list below does not name (a computed property, a fresh import name), or
-# a shell redirection inside the script text. The guard is a stop sign at the
-# point of use, not a sandbox; review is still what notices the rest.
+# pattern list below does not name (a computed property, a fresh import name), a
+# redirect spelled inside quotes, a compound line that `cd`s before redirecting
+# (the hook sees the old working directory), or a heredoc whose redirect follows
+# the body. The guard is a stop sign at the point of use, not a sandbox; review
+# is still what notices the rest.
 #
 # Deliberate exception, for a genuine bulk operation:
 #   ALLOW_SHELL_EDITS=1 sed -i 's/a/b/' file
@@ -81,7 +89,12 @@ _refuses_script_edit() {
         esac
         text="$text$arg "
     done
-    if (( inline )) && [[ "$text" =~ $_script_write_pattern ]]; then
+    # Writing to stdout or stderr is display, not an edit: `process.stdout.write`
+    # is how a Node one-liner prints, and refusing it was the false positive
+    # that made a timestamp probe look like a violation (2026-11-26).
+    local scanned="${text//process.stdout.write/}"
+    scanned="${scanned//process.stderr.write/}"
+    if (( inline )) && [[ "$scanned" =~ $_script_write_pattern ]]; then
         return 0
     fi
     return 1
@@ -101,3 +114,75 @@ python() { _script_edit_guard python "$@"; }
 python3() { _script_edit_guard python3 "$@"; }
 node() { _script_edit_guard node "$@"; }
 bun() { _script_edit_guard bun "$@"; }
+
+# The file a shell redirection in [line] writes, when there is one. Descriptor
+# copies (`2>&1`) and process substitutions (`>(cmd)`) are not files, and a
+# diagnostic to `/dev/*` is not an edit.
+_redirect_target() {
+    local line="$1"
+    if [[ "$line" =~ '(>>?)[|]?[[:space:]]*([^&|;<>[:space:]]+)' ]]; then
+        local target="${match[2]}"
+        case "$target" in
+            /dev/*) return 1 ;;
+        esac
+        print -r -- "$target"
+        return 0
+    fi
+    return 1
+}
+
+# A redirect and a heredoc on one command line is the 2026-11-26 shape: the body
+# fed to a command whose output truncates a file. The heredoc is judged on the
+# command line alone, so a body that merely contains `>` (a commit message, a
+# code sample) is not mistaken for one.
+_guard_refuses_shell_edit() {
+    local line="${1%%$'\n'*}"
+    local target
+
+    # The inner shell runs this guard itself; judging the quoted text here would
+    # refuse the very command that starts it.
+    if [[ "$line" =~ '^([^[:space:]]*/)?(zsh|bash|sh)[[:space:]]+-c' ]]; then
+        return 1
+    fi
+
+    target="$(_redirect_target "$line")" || return 1
+    if [[ "$line" == *"<<"* ]]; then
+        print -u2 "refused: heredoc feeding a file redirect. Use the edit/write tool; ALLOW_SHELL_EDITS=1 to override."
+        return 0
+    fi
+    if command git ls-files --error-unmatch -- "$target" >/dev/null 2>&1; then
+        print -u2 "refused: shell redirect into tracked file '$target'. Use the edit tool; ALLOW_SHELL_EDITS=1 to override."
+        return 0
+    fi
+    return 1
+}
+
+tee() {
+    if [[ -z "${ALLOW_SHELL_EDITS:-}" ]]; then
+        local arg
+        for arg in "$@"; do
+            case "$arg" in
+                -* | - | /dev/*) ;;
+                *)
+                    print -u2 "refused: tee writing '$arg'. Use the edit/write tool; ALLOW_SHELL_EDITS=1 to override."
+                    return 1
+                    ;;
+            esac
+        done
+    fi
+    command tee "$@"
+}
+
+# A redirect is performed by the shell, so the refusal has to sit in the debug
+# hook of the non-interactive shell a tool runs: returning non-zero stops that
+# shell before the command (and its redirect) executes. Interactive shells keep
+# the command wrappers but not this trap — a refusal there would kill a terminal.
+if [[ ! -o interactive ]]; then
+    TRAPDEBUG() {
+        [[ -n "${ALLOW_SHELL_EDITS:-}" ]] && return 0
+        if _guard_refuses_shell_edit "${ZSH_DEBUG_CMD:-}"; then
+            return 1
+        fi
+        return 0
+    }
+fi
